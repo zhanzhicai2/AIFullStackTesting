@@ -1,98 +1,67 @@
-[中文文档](https://github.com/wuranxu/pity/blob/main/README.md)
+[中文文档](README.md)
 
-![png](https://img.shields.io/badge/Python-3.5+-green)
-![png](https://img.shields.io/badge/React-17+-blue)
+![png](https://img.shields.io/badge/Python-3.10+-green)
+![png](https://img.shields.io/badge/React-18+-blue)
 ![png](https://img.shields.io/badge/FastApi-green)
-![png](https://img.shields.io/badge/contributors-3-green)
-
 
 ## 🎉 Getting Started
 
-1. clone code
+1. Clone the repo
 
 ```bash
-$ git clone https://github.com/wuranxu/pity
-$ cd pity
+git clone https://github.com/zhanzhicai2/AIFullStackTesting.git
+cd AIFullStackTesting/backend
 ```
 
-2. install dependencies
+2. Install dependencies
 
 ```bash
-# 可换豆瓣源或者清华源安装依赖
-$ pip install -r requirements.txt
+pip install -r requirements.txt
+# Can use Tsinghua / Douban mirror for faster install
 ```
 
-3. install and start redis
+3. Install and start Redis
 
-4. install and start mysql
+4. Install and start MySQL
 
-5. edit config.py
+5. Edit `conf/dev.env`
 
-  edit connection info about redis and mysql
+Edit the MySQL and Redis connection info. Redis is optional but disabling it will cause scheduled tasks to repeat (distributed lock implemented via Redis).
 
-6. start server
+6. Start the server
 
 ```bash
-$ python pity.py
+python main.py
 ```
 
-7. registry
+7. Register a user
 
-  Open your browser, enter url: `http://localhost:7777`, then you will see the page.
+Open `http://localhost:7777` in your browser.
 
-  First people will be `ADMIN`
+The first registered user becomes `superAdmin` automatically.
 
-![](https://static.pity.fun/picture/2022-1-2/1641092636428-image.png)
+## 🌙 Features
 
-  Sign in and enjoy `pity`！
+- [x] Auth with GitHub OAuth
+- [x] Project management with role-based access
+- [x] Async FastAPI backend
+- [x] Five-case constructors (HTTP / SQL / Redis / Python / nested)
+- [x] Parameter extraction (JSONPath / Regex / KV / Status Code)
+- [x] Global variables and case data dependencies
+- [x] Online HTTP request debugging (Postman-like)
+- [x] Online SQL client (multi-database)
+- [x] Online Redis client
+- [x] Test plan / collection
+- [x] Test report HTML templates
+- [x] Scheduled test execution (APScheduler + Redis lock)
+- [x] Case recording (mitmproxy) and HAR import
+- [x] Email / DingTalk notification
 
-## 🖕 Overview 
+## 🙋 Coming soon
 
-[Documents 🍚](http://pity.readthedocs.org/)
-
-[Demo 🍍](https://pity.fun/)
-
-### 😢 About pity 
-
-pity is an auto test tool based on `Python`+`FastApi`+`React` for api test. It's not an absolute production right now.
-
-### ❤️ Heart 
-
-I hope pity can help someone still uses robotframework or writes script for apitest.pity can help you a lot.
-
-### 😊 Features
-
-+ [x] 🔥 absolute auth rule, support login with github
-
-- [x] 🀄 absolute project management
-
-* [x] 🚴 fast with FastApi
-
-- [x] 📝 many options for data dependencies, you can make and use data so easy
-- [x] 🎨 online http request like postman
-- [x] 🍷 global variable for you
-- [x] 🐍 redis online
-- [x] 🐎 test plan
-- [x] 🙈 online database manager
-- [x] 📰 beautiful email notification
-- [x] 😹 cronjob for case
-- [x] 🐧 beautiful test report
-
-## 🙋 Coming soon 
-
-- [ ] 🐘 Micro Services
-- [ ] 🐄 DataFactory for developing data
-- [ ] 🐸 support har/jmx to pity case
-- [ ] 👍 CI/CD，like pipeline, provide openapi
-- [ ] 🌼 notification
-- [ ] 🌛 support dubbo/grpc
-- [ ] 🐛 yapi
-- [ ] 🌽 and so on
-
-  You can open issues to communicate with me, if you like the project, give a star will make me happy.
-
-## 🎨 Wechat communicate group
-
-  you can ask anything in my wechat group.
-
-![](https://static.pity.fun/picture/2022-1-2/1641097484952-ddff5bf23bdccaaf23fa227aa2e9957.jpg)
+- [ ] DataFactory for test data generation
+- [ ] HAR / JMX import
+- [ ] CI/CD pipeline (in-app)
+- [ ] Notification: DingTalk / WeCom
+- [ ] Dubbo / gRPC support
+- [ ] YApi integration
