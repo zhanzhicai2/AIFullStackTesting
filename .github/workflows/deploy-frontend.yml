@@ -1,39 +1,45 @@
-name: Deploy PityWeb
+name: Deploy Frontend (PityWeb)
 
 on:
   push:
     branches:
-      - master # 只在master上push触发部署
-    paths-ignore: # 下列文件的变更不触发部署，可以自行添加
-      - README.md
-      - LICENSE
+      - main
+    paths:
+      - 'frontend/**'
+      - '.github/workflows/deploy-frontend.yml'
+  workflow_dispatch:
 
 jobs:
-  build:
+  deploy:
+    name: deploy frontend
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
-        uses: actions/checkout@master
+        uses: actions/checkout@v4
 
-      - name: use Node.js 16
-        uses: actions/setup-node@v1
+      - name: Setup Node.js 20 LTS
+        uses: actions/setup-node@v4
         with:
-          node-version: 16
+          node-version: 20
+
       - name: npm install and build
+        working-directory: frontend
         run: |
           npm install -f
           npm run build
         env:
           CI: true
-      - name: copy file via ssh password
+
+      - name: Copy dist via SSH password
         uses: appleboy/scp-action@master
         with:
           host: ${{ secrets.HOST }}
           username: ${{ secrets.USERNAME }}
           password: ${{ secrets.PASSWORD }}
-          source: "dist/"
+          source: "frontend/dist/"
           target: "/home/tester/pityWeb/"
-      - name: restart
+
+      - name: Restart via PM2
         uses: appleboy/ssh-action@master
         with:
           host: ${{ secrets.HOST }}
@@ -41,8 +47,5 @@ jobs:
           password: ${{ secrets.PASSWORD }}
           script: |
             cd /home/tester/pityWeb
-            pm2 delete web
+            pm2 delete web || true
             pm2 start web.sh
-
-
-
