@@ -126,16 +126,16 @@ npx tsc --noEmit                               # 仅类型检查
 
 **约束**(写在 hook prompt 里):
 - 排除 `.claude/memory/`、`.claude/settings.local.json`、`.claude/agents/local/` 等个人/本地状态 — 这些不该入库
-- 精确 add 改动文件,不跑 `git add .`
+- **逐个** add 文件路径(`git add <path>`),**禁止** `git add .` / `git add -A` / `git add *`
 - **push 时机** — 晚 **20:30–21:30**(9 点 ±30 分钟)之间自动 `git push`;**其他时间不 push**,你自己手动 `git push`
 - commit message 走 Conventional Commits(`type(scope): subject`)
 
 **调整方式**:
 - 想关掉自动 commit:把 `.claude/settings.json` 里的 `hooks.Stop` 数组清空(留个空 `[]` 或直接删字段)
-- 想加更严的过滤(比如只允许 commit `backend/` 和 `frontend/`):改 prompt 的第 3 步
+- 想加更严的过滤(比如只允许 commit `backend/` 和 `frontend/`):改 prompt 的第 3 步排除规则
 - 想换成 commit 前弹确认:把 prompt 里的"`git commit`"改成"展示 diff 和拟用 message,等用户确认后再 commit"
-- 想改自动 push 的时间窗口(比如改成 22:00–23:00):改 prompt 第 5 步里的 `20:30–21:30` 字符串
-- 想彻底禁用自动 push(永远手动):把 prompt 第 5 步改成"`git push` 永远不跑,只在结尾告诉用户'push 由你手动执行'"
+- 想改自动 push 的时间窗口(比如改成 22:00–23:00):改 prompt 第 9 步里的 `20:30–21:30` 字符串
+- 想彻底禁用自动 push(永远手动):把 prompt 第 9 步改成"`git push` 永远不跑,只在结尾告诉用户'push 由你手动执行'"
 
 **为什么 20:30–21:30 是 push 窗口**:
 - 20:30 是给还在用 Claude Code 干活的人留的缓冲 — 即使你踩着 9 点才收工,只要在 9:30 之前关掉会话,改动会跟着 commit 一起推上去
