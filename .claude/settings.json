@@ -1,0 +1,10 @@
+{
+  "hooks": {
+    "Stop": [
+      {
+        "type": "prompt",
+        "prompt": "每轮对话结束前,先在项目根目录执行 `git status --short`。\n- 如果输出为空(无未提交改动),直接回复 `__DONE__`,不 commit。\n- 如果只有 `.claude/memory/`、`.claude/settings.local.json`、`.claude/agents/local/` 下的改动(个人/本地状态,不该入库),直接回复 `__DONE__`,不 commit。\n- 其他情况:\n  1. 跑 `git diff` 和 `git diff --cached` 看具体改动。\n  2. 基于改动生成 conventional commit message(格式:`type(scope): subject`,type 取 `feat`/`fix`/`chore`/`refactor`/`docs`/`test`/`build`/`ci`/`perf`/`style` 之一,scope 是受影响模块如 `backend`/`frontend`/`claude`/`spec`/`ci`)。\n  3. **精确** add 改动文件,**不要** `git add .`。\n  4. `git commit -m \"<message>\"`。\n  5. **绝对不要** `git push`(push 由用户手动执行,避免误推)。\n  6. commit 完成后回复 `__DONE__`。"
+      }
+    ]
+  }
+}

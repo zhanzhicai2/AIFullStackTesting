@@ -117,3 +117,22 @@ npx tsc --noEmit                               # 仅类型检查
 | `deploy-frontend.yml` | `frontend/**` 变更 | 在 CI 里 `npm run build` → SCP `dist/` → `pm2 restart` |
 
 都需要 GitHub Secrets:`HOST`、`USERNAME`、`PASSWORD`。两个都支持手动 `workflow_dispatch`。
+
+## 工具配置
+
+### Claude Code 自动 commit hook
+
+项目级 `.claude/settings.json` 注册了一个 `Stop` hook:**每轮 Claude Code 对话结束(Stop 事件触发)时,会向 Claude 注入一段 prompt,让它先 `git status` 检查改动,有未提交改动就生成 conventional commit message 并 `git commit`,完成后才能真正退出**。
+
+**约束**(写在 hook prompt 里):
+- 排除 `.claude/memory/`、`.claude/settings.local.json`、`.claude/agents/local/` 等个人/本地状态 — 这些不该入库
+- 精确 add 改动文件,不跑 `git add .`
+- **不 push** — push 永远由你手动 `git push`
+- commit message 走 Conventional Commits(`type(scope): subject`)
+
+**调整方式**:
+- 想关掉自动 commit:把 `.claude/settings.json` 里的 `hooks.Stop` 数组清空(留个空 `[]` 或直接删字段)
+- 想加更严的过滤(比如只允许 commit `backend/` 和 `frontend/`):改 prompt 的第 3 步
+- 想换成 commit 前弹确认:把 prompt 里的"`git commit`"改成"展示 diff 和拟用 message,等用户确认后再 commit"
+
+**为什么 push 留给手动**:防止 AI 误推触发 CI 跑挂、误推到错误的分支、或把没 review 的代码公开。**只要看到 Claude 提示 push,先自己 `git log -1` 看一眼再确认**。
