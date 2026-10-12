@@ -47,7 +47,7 @@ python --version   # 应输出 Python 3.10.x
 
 如果你的 root 密码**不是** `12345678`,先编辑 `backend/conf/dev.env` 把 `MYSQL_PWD` 改成你的密码。
 
-建库(项目不会自动建库,首次必须手动):
+建库(项目不会自动建库,首次必须手动)，本次提前下载mysql和创建了pity，提前启动:
 
 ```bash
 mysql -uroot -p12345678 -e \
@@ -69,7 +69,7 @@ lsof -iTCP:3306 -sTCP:LISTEN    # 应看到 mysqld 在监听
 
 ---
 
-## 4. Redis 配置
+## 4. Redis 配置，提前启动
 
 **默认配置**(`conf/dev.env` 里 `REDIS_PASSWORD` 留空):
 
