@@ -71,3 +71,8 @@ htmlcov/
 build/
 dist/
 *.egg-info/
+
+# ---------- Claude Code personal (never commit) ----------
+.claude/settings.local.json
+.claude/memory/
+.claude/agents/local/

@@ -117,6 +117,14 @@ Request → CORS Middleware → Error Middleware → Router → DAO (connect装�
 | 401 | 未登录（AuthException） |
 | 403 | 无权限（PermissionException） |
 
+> 成功码沿用 `0`（中文 API 常见约定，如 Java R / 阿里部分开放平台），不是 HTTP 200 的镜像。码表是业务码表，不是 HTTP 风格 —— `101` / `110` 是平台自定义编号，仅 `401` / `403` 数值上与 HTTP 重合。如果有人提议把成功码改成 `200` 来"对齐 HTTP"，请拒绝：
+>
+> - 前端 service / dva model 全量依赖 `code === 0` 判定，改动面大、易漏；
+> - HTTP 状态码固定 200，body 再来 `code: 200` 反而要区分是哪一层；
+> - 其他码未与 HTTP 对齐，"半对齐"反而引入新混乱。
+>
+> 任何新增业务码遵循同一张表（递增、与现有 0 / 101 / 110 同区段），不要混入 200/300/500 这类 HTTP 段。
+
 ## 日志
 
 使用 Loguru，通过 `logger.bind(name=Config.PITY_INFO)` / `Config.PITY_ERROR` 分流：
