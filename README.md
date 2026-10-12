@@ -48,7 +48,16 @@ python main.py
 
 ```bash
 cd frontend
-npm install
+# 1) 如果没装 Node 20,设镜像后装
+NVM_NODEJS_ORG_MIRROR=https://npmmirror.com/mirrors/node nvm install 20
+nvm use    # 自动切到 .nvmrc 锁的版本
+
+# 2) 清理旧产物(首次或之前失败时)
+rm -rf node_modules package-lock.json
+
+# 3) 装包(monorepo 子目录跑 npm install 会卡在 husky install,见 §7.6)
+npm install --ignore-scripts
+
 npm run start:dev
 # → 浏览器打开 http://localhost:8000
 ```

@@ -6,7 +6,11 @@
         "hooks": [
           {
             "type": "prompt",
-            "prompt": "每轮对话结束前,按下列步骤执行:\n\n1. 跑 `git status --porcelain` 看工作区状态。\n2. 如果输出为空(无未提交改动),直接回复 `__DONE__`,不 commit、不 push。\n3. 提取输出里的所有改动文件路径,排除以下路径(个人/本地状态,不该入库):\n   - `.claude/memory/` 下的所有文件\n   - `.claude/settings.local.json`\n   - `.claude/agents/local/` 下的所有文件\n4. 排除后如果路径列表为空,直接回复 `__DONE__`,不 commit。\n5. 跑 `git diff -- <文件列表>` 看每个文件的实际改动内容。\n6. 基于改动内容生成 conventional commit message(格式:`type(scope): subject`,type 取 `feat`/`fix`/`chore`/`refactor`/`docs`/`test`/`build`/`ci`/`perf`/`style` 之一,scope 是受影响模块如 `backend`/`frontend`/`claude`/`spec`/`ci`)。\n7. **逐个** 执行 `git add <具体文件路径>`(例如 `git add backend/foo.py CLAUDE.md`),**不要** `git add .`、**不要** `git add -A`、**不要** 通配符 `git add *`。\n8. 跑 `git commit -m \"<message>\"`。\n9. **push 时机判断** — 跑 `date \"+%H:%M\"` 取当前本地时间:\n   - 如果时间在 **20:30–21:30**(晚 9 点 ±30 分钟)之间:跑 `git push`(有未 push 的 commit 就推,没有就 no-op 提示 Everything up-to-date,正常)。\n   - 其他时间:**不要** `git push`,结尾告诉用户'push 由你手动执行'。\n10. 全部完成后回复 `__DONE__`。"
+            "prompt": "每轮对话结束前,按下列步骤执行:\n\n1. 跑 `git status --porcelain` 看工作区状态。\n2. 如果输出为空(无未提交改动),直接回复 `__DONE__`,不 commit、不 push。\n3. 提取输出里的所有改动文件路径,排除以下路径(个人/本地状态,不该入库):\n   - `.claude/memory/` 下的所有文件\n   - `.claude/settings.local.json`\n   - `.claude/agents/local/` 下的所有文件\n4. 排除后如果路径列表为空,直接回复 `__DONE__`,不 commit。\n5. 跑 `git diff -- <文件列表>` 看每个文件的实际改动内容。\n6. 基于改动内容生成 conventional commit message(格式:`type(scope): subject`,type 取 `feat`/`fix`/`chore`/`refactor`/`docs`/`test`/`build`/`ci`/`perf`/`style` 之一,scope 是受影响模块如 `backend`/`frontend`/`claude`/`spec`/`ci`)。\n7. **展示给用户**(**不执行任何 git 写命令**):改动文件清单、step 6 生成的 commit message 草稿、当前时间所属 push 窗口(基于 step 8 预判)。**不要** 执行 `git add` / `git commit` / `git push`。等用户在**下一轮对话**明确回复 "commit" / "改 message" / "撤回" 后,助手在正常工作循环里逐个执行 `git add <具体文件路径>`(禁用 `git add .` / `-A` / `*`)→ `git commit -m "<message>"` → 按窗口决定 push 或告诉用户手动 push。
+8. **push 窗口预判** — 跑 `date "+%H:%M"` 取当前本地时间,仅用于步骤 7 给出提示,**本身不执行 `git push`**:
+   - 时间在 **20:30–21:30**:窗口内
+   - 其他时间:窗口外
+9. 全部完成后回复 `__DONE__`。"
           }
         ]
       }
