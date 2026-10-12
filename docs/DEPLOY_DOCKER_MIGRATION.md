@@ -365,3 +365,205 @@ REMOTE
 4. **GitHub Actions 迁移**:方案 A(保留老 yml,内部调 `deploy.sh`)还是方案 B(完全重写成一个 yml)?
 5. **旧 yml 处置**:保留作 manual trigger,还是直接删?
 6. **MySQL 数据**:`/data/mysql` 第一次 up 是空的,需要你手动灌初始数据或先 scp 老 dump 过来吗?
+
+---
+
+## 10. 决策记录(2026-10-13)
+
+**已选定方案 A:华为云 SWR + GitHub Actions**(原"## 5 风险与备选"中的方案 A)。
+
+### 10.1 路线差异(与本文档原阶段 2 / 阶段 3 的区别)
+
+| 阶段 | 原方案 | 调整后 |
+|---|---|---|
+| 阶段 1:docker 资产 | 不变 | 不变 |
+| **阶段 2:构建产物** | 本地 `deploy.sh` scp tgz | **CI 构建 → push 到 SWR**(由 GitHub Actions 完成) |
+| **阶段 3:服务器部署** | 主机 `docker compose up --build` | 主机 `docker compose pull && up -d`(从 SWR 拉) |
+| **触发方式** | push 触发,Actions 内部 scp 上传 | push 触发,Actions 内部 `docker push` 到 SWR + `ssh` 远端 `pull && up` |
+| **方案 C(scp tgz)** | 已降级为 fallback(临时调试用) | 不在主流程里 |
+
+### 10.2 镜像拆分(3 个独立镜像)
+
+| 镜像 | Dockerfile 来源 | SWR 命名(示例)|
+|---|---|---|
+| `pity-backend` | `backend/ops/dockerfile`(改 `-w 2`)| `swr.<region>.myhuaweicloud.com/<org>/pity-backend:<sha>` |
+| `pity-frontend` | 新增 `frontend/Dockerfile`(`nginx:alpine + COPY dist/`,多阶段更佳)| `swr.<region>.myhuaweicloud.com/<org>/pity-frontend:<sha>` |
+| `pity-nginx` | 新增 `nginx/Dockerfile + nginx.conf`(反代 `/api/`) | `swr.<region>.myhuaweicloud.com/<org>/pity-nginx:<sha>` |
+
+> 选 3 个独立镜像而不是 1 个合并大镜像,改动频率不均(前端 CSS 改动不应触发后端 mirror 重 build)。
+
+### 10.3 GitHub Secrets(从 3 个扩到 5 个)
+
+| Secret | 旧 | 新增 |
+|---|---|---|
+| `HOST` | ✅ | — |
+| `USERNAME` | ✅ | — |
+| `PASSWORD`(或 `SSH_KEY`) | ✅ | — |
+| `SWR_USER` | — | ✅ SWR 临时登录凭证用户名(默认是 organization 路径,如 `cn-north-4@<org>`)|
+| `SWR_PASS` | — | ✅ SWR 临时登录凭证密码(12 小时过期,每次 Action 任务运行时新生成一个)|
+
+### 10.4 GitHub Actions 草稿
+
+`deploy-backend.yml`(改写为 SWR push):
+
+```yaml
+name: Build & Push pity-backend (SWR)
+
+on:
+  push:
+    branches: [main]
+    paths: ['backend/**']
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Login to SWR
+        uses: docker/login-action@v3
+        with:
+          registry: ${{ vars.SWR_REGISTRY }}      # 仓库变量,例如 swr.cn-north-4.myhuaweicloud.com
+          username: ${{ secrets.SWR_USER }}
+          password: ${{ secrets.SWR_PASS }}
+
+      - name: Build & push
+        uses: docker/build-push-action@v5
+        with:
+          context: ./backend
+          file: ./backend/ops/dockerfile
+          push: true
+          tags: |
+            ${{ vars.SWR_REGISTRY }}/${{ vars.SWR_ORG }}/pity-backend:${{ github.sha }}
+            ${{ vars.SWR_REGISTRY }}/${{ vars.SWR_ORG }}/pity-backend:latest
+
+      - name: Trigger remote pull & up
+        uses: appleboy/ssh-action@master
+        with:
+          host: ${{ secrets.HOST }}
+          username: ${{ secrets.USERNAME }}
+          password: ${{ secrets.PASSWORD }}
+          script: |
+            cd /home/tester/pity-deploy
+            docker login -u "$SWR_USER" -p "$SWR_PASS" $SWR_REGISTRY
+            docker compose -f docker-compose.deploy.yaml --env-file .env pull backend
+            docker compose -f docker-compose.deploy.yaml --env-file .env up -d backend
+          envs: SWR_REGISTRY,SWR_USER,SWR_PASS
+```
+
+`deploy-frontend.yml`(改写为 SWR push,先 build 后端 npm dist 再打前端镜像):
+
+```yaml
+name: Build & Push pity-frontend (SWR)
+
+on:
+  push:
+    branches: [main]
+    paths: ['frontend/**']
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: { node-version: 20 }
+
+      - name: Build frontend dist
+        working-directory: frontend
+        run: |
+          npm ci || npm install
+          npm run build
+
+      - name: Login to SWR
+        uses: docker/login-action@v3
+        with:
+          registry: ${{ vars.SWR_REGISTRY }}
+          username: ${{ secrets.SWR_USER }}
+          password: ${{ secrets.SWR_PASS }}
+
+      - name: Build & push pity-frontend image
+        uses: docker/build-push-action@v5
+        with:
+          context: ./frontend
+          push: true
+          tags: |
+            ${{ vars.SWR_REGISTRY }}/${{ vars.SWR_ORG }}/pity-frontend:${{ github.sha }}
+            ${{ vars.SWR_REGISTRY }}/${{ vars.SWR_ORG }}/pity-frontend:latest
+
+      - name: Trigger remote pull & up
+        uses: appleboy/ssh-action@master
+        with:
+          host: ${{ secrets.HOST }}
+          username: ${{ secrets.USERNAME }}
+          password: ${{ secrets.PASSWORD }}
+          script: |
+            cd /home/tester/pity-deploy
+            docker login -u "$SWR_USER" -p "$SWR_PASS" $SWR_REGISTRY
+            docker compose -f docker-compose.deploy.yaml --env-file .env pull frontend nginx
+            docker compose -f docker-compose.deploy.yaml --env-file .env up -d frontend nginx
+```
+
+> 用 GitHub **Vars**(仓库变量)而不是 Secrets 放 `SWR_REGISTRY` 和 `SWR_ORG`,因为这些不是机密。SWR_USER / SWR_PASS 才进 Secrets。
+
+### 10.5 `docker-compose.deploy.yaml` 调整为 pull-based
+
+把 `build:` 改成 `image:`,从 SWR 拉预构建镜像:
+
+```yaml
+services:
+  backend:
+    image: ${SWR_REGISTRY}/${SWR_ORG}/pity-backend:${TAG:-latest}
+    restart: unless-stopped
+    env_file: pro.env.ops
+    networks: [appnet]
+    deploy:
+      resources:
+        limits: { memory: 600M }
+
+  frontend:
+    image: ${SWR_REGISTRY}/${SWR_ORG}/pity-frontend:${TAG:-latest}
+    restart: unless-stopped
+    networks: [appnet]
+    deploy:
+      resources:
+        limits: { memory: 30M }
+
+  nginx:
+    image: ${SWR_REGISTRY}/${SWR_ORG}/pity-nginx:${TAG:-latest}
+    restart: unless-stopped
+    ports: ["80:80"]
+    depends_on: [backend, frontend]
+    networks: [appnet]
+    deploy:
+      resources:
+        limits: { memory: 30M }
+
+  mysql:    # 仍用 docker hub 公开镜像
+    image: mysql:8.0
+    # ...
+  redis:
+    image: redis:7-alpine
+    # ...
+```
+
+> 主机上 `/home/tester/pity-deploy/.env` 应包含:
+> ```
+> SWR_REGISTRY=swr.cn-north-4.myhuaweicloud.com
+> SWR_ORG=<你的组织名>
+> TAG=latest    # 或 specific sha
+> MYSQL_ROOT_PASSWORD=...
+> REDIS_PASSWORD=...
+> ```
+
+### 10.6 待用户补充(还没定)
+
+- [ ] **Flexus region**(决定 `SWR_REGISTRY` 前缀;常见 `cn-north-4` / `cn-east-3` / `cn-south-1`)
+- [ ] **SWR 组织名**(`${{ vars.SWR_ORG }}`)
+- [ ] **服务器上是否已 `docker login swr...`**(首次需要,我可以在 deploy 时一并做;或先在主机手动 docker login 一次)
+- [ ] **3 个镜像 vs 1 个大镜像**(如前面讨论,推荐 3 个,前者任务确认)
+- [ ] **旧 workflow yml 是否删除**(目前现状:deploy-backend.yml / deploy-frontend.yml 已经被改写为 SWR 版;老的 SCP + gunicorn + PM2 任务不再触发的处理)
+- [ ] **SWR 临时凭证生成策略**:用 `obs ObsClient` 在 GitHub Actions 里现生成,还是手动提前生成 12 小时过期的密码贴到 Secrets?后者过期需手动续。
+
