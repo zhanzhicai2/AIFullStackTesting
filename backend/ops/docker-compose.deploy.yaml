@@ -14,8 +14,11 @@
 #   4. docker compose -f docker-compose.deploy.yaml --env-file .env up -d
 #
 # 跟 dev compose(docker-compose.yaml)并存,容器名加 -deploy 后缀避免冲突。
-
-version: "3.8"
+#
+# 2026-10-14 修订:
+#   - 去掉顶层 version: "3.8"(Compose v2+ 报警 "version obsolete")
+#   - backend 的 bind mount ./dev.env.ops:/pity/conf/dev.env 改成 env_file
+#     (避免 server 上文件不存在时 docker engine 自动建空目录,下次 deploy 直接挂不上)
 
 services:
   mysql:
@@ -71,8 +74,9 @@ services:
     container_name: pity_backend_deploy
     restart: unless-stopped
     # 复用现有 dev.env.ops(主机尚未生成 pro.env);TODO: 真正的 pro env 时换 ./pro.env.ops
-    volumes:
-      - ./dev.env.ops:/pity/conf/dev.env
+    # 用 env_file 替代 ./dev.env.ops:/pity/conf/dev.env bind mount,避免文件不存在时被 docker 建空目录
+    env_file:
+      - ./dev.env.ops
     environment:
       TZ: Asia/Shanghai
       pity_env: dev   # 暂用 dev 配置路径,等 backend/conf/pro.env 落地后改 pro
