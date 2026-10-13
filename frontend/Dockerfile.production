@@ -9,8 +9,9 @@ WORKDIR /build
 
 # 先只拷 package*.json,装依赖;这样依赖没变时这一层可以缓存
 COPY package.json package-lock.json ./
-# 用国内 npm 镜像,2M 带宽下拉得动
+# 用国内 npm 镜像,2M 带宽下拉得动;--legacy-peer-deps 解决 UmiJS + Ant Design v5 在 npm 7+ 下的 peer dep 冲突
 RUN npm ci --no-audit --prefer-offline \
+        --legacy-peer-deps \
         --registry=https://registry.npmmirror.com
 
 # 再拷源码并构建产物
