@@ -1,0 +1,24 @@
+# 新增于 2026-10-14 — 配合 frontend/Dockerfile.production 使用
+# 跟 Dockerfile.production 在同一目录(build context = frontend/)
+
+# 构建期不需要
+node_modules
+dist
+.umi
+tests
+mock
+coverage
+.eslintcache
+
+# 元信息
+.git
+.gitignore
+README.md
+.dockerignore
+Dockerfile*
+*.md
+
+# 编辑器/系统
+.DS_Store
+.idea
+.vscode

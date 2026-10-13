@@ -1,0 +1,26 @@
+# 新增于 2026-10-14
+# 多阶段:node:20-alpine 跑 max build 出 dist,然后 nginx:alpine serve dist
+# 原 frontend/Dockerfile (node:18 + npm start) 是 dev 用,保留不动
+# 见 docs/DEPLOY_DOCKER_MIGRATION.md §4.1
+
+# -------- Stage 1: build --------
+FROM node:20-alpine AS builder
+WORKDIR /build
+
+# 先只拷 package*.json,装依赖;这样依赖没变时这一层可以缓存
+COPY package.json package-lock.json ./
+# 用国内 npm 镜像,2M 带宽下拉得动
+RUN npm ci --no-audit --prefer-offline \
+        --registry=https://registry.npmmirror.com
+
+# 再拷源码并构建产物
+COPY . .
+RUN npm run build
+
+# -------- Stage 2: serve --------
+# 只拷 dist/ 这一份,镜像体积小、无 Node 运行时
+FROM nginx:1.27-alpine
+COPY --from=builder /build/dist/ /usr/share/nginx/html/
+
+EXPOSE 80
+CMD ["nginx", "-g", "daemon off;"]

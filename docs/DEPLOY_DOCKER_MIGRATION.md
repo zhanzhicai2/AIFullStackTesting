@@ -404,15 +404,17 @@ REMOTE
 
 ## 9. 待用户拍板的项
 
-1. **是否走 Docker Compose 单机方案**(本文件默认方案)
-2. **HTTPS**:阶段 2 先不挂证书,后续再上,同意?
-3. **数据库密码处理**:`.env` 文件不入库,本地另外存一份,同意?(如果不放心 demo 期间直接硬编码也行)
-4. **GitHub Actions 迁移**:方案 A(保留老 yml,内部调 `deploy.sh`)还是方案 B(完全重写成一个 yml)?
-5. **旧 yml 处置**:保留作 manual trigger,还是直接删?
-6. **MySQL 数据**:`/home/tester/pity-data/mysql` 第一次 up 是空的,需要你手动灌初始数据或先 scp 老 dump 过来吗?
-7. **单盘布局路径**:确认使用 `/home/tester/pity-data/{mysql,redis,logs}` 的 Docker **bind mount**(推荐,直接 `du -sh` 看容量),还是改用 named volumes `pity-mysql`/`pity-redis`(Docker 自动管理位置,看似整洁但首台机器 reboot 后只能 `docker volume inspect` 才能看到路径)?
-8. **日志回收**:gunicorn access/error + nginx access + MySQL slow log 用 `logrotate` 走 `copytruncate`(不停服)— 还是接受 `docker logs` 轮转丢失中间几行?推荐前者。
-9. **系统盘快照**:华为云控制台里给这台 Flexus 挂"云备份",快照策略定在每天凌晨 02:00 OK?(单盘最便宜的兜底)
+| # | 项 | 状态 | 备注 |
+|---|---|---|---|
+| 1 | Docker Compose 单机方案 | ✅ 已选 B | 前后端都做镜像 + nginx 反代,见 §11 |
+| 2 | HTTPS | ❓ 暂不挂 | demo 阶段不上,后续 Caddy 一行加 |
+| 3 | 数据库密码处理 | ❓ `.env` 优先 | `.env` 不入库,本地可临时硬编码 |
+| 4 | GitHub Actions 迁移 | ⏸ **延后** | 见 §11.4,先把手动 4 步跑顺再接 actions |
+| 5 | 旧 yml 处置 | ❓ 暂保留 | 作为"老部署方式归档"留底,不动 |
+| 6 | MySQL 初始数据 | ❓ 首次空 | `docker compose up` 后空库,需手工灌或 scp 老 dump |
+| 7 | 单盘布局路径 | ✅ bind mount | `/home/tester/pity-data/...` 已在 §2.6 + §11.3 落实 |
+| 8 | 日志回收 logrotate | ❓ 推荐 copytruncate | gunicorn/nginx/MySQL slow log 走 logrotate `copytruncate` |
+| 9 | 系统盘云备份 | ❓ 推荐凌晨 02:00 | Flexus 控制台定时快照兜底 |
 
 ---
 
@@ -611,7 +613,72 @@ services:
 - [ ] **Flexus region**(决定 `SWR_REGISTRY` 前缀;常见 `cn-north-4` / `cn-east-3` / `cn-south-1`)
 - [ ] **SWR 组织名**(`${{ vars.SWR_ORG }}`)
 - [ ] **服务器上是否已 `docker login swr...`**(首次需要,我可以在 deploy 时一并做;或先在主机手动 docker login 一次)
-- [ ] **3 个镜像 vs 1 个大镜像**(如前面讨论,推荐 3 个,前者任务确认)
-- [ ] **旧 workflow yml 是否删除**(目前现状:deploy-backend.yml / deploy-frontend.yml 已经被改写为 SWR 版;老的 SCP + gunicorn + PM2 任务不再触发的处理)
-- [ ] **SWR 临时凭证生成策略**:用 `obs ObsClient` 在 GitHub Actions 里现生成,还是手动提前生成 12 小时过期的密码贴到 Secrets?后者过期需手动续。
+- [x] **3 个镜像 vs 1 个大镜像** → **3 个已选定**(§11.3 落实),理由见 §10.2
+- [x] **旧 workflow yml 是否删除** → **本次不动**,归档留底;以后 actions 上线时另开新 yml(见 §11.4)
+- [ ] **SWR 临时凭证生成策略**:用 `obs ObsClient` 在 GitHub Actions 里现生成,还是手动提前生成 12 小时过期的密码贴到 Secrets?后者过期需手动续 → **本次走手动方案**(12h 凭证 export 到环境变量);actions 阶段再讨论
+
+---
+
+## 11. 决策记录 2026-10-14(选 B:前后端都做镜像 + nginx 反代;先手动 4 步,Actions 延后)
+
+**用户决定(2026-10-14 AskUserQuestion):** 选 **B. 前后端都做镜像 + nginx 反代**。
+**理由:** 原 Pity "前端 dist 塞 backend/statics" 在 monorepo + docker 化里已经不合理;前端拆独立镜像、nginx 反代统一入口,改动隔离干净,HTTPS 一行加。
+
+### 11.1 本次新增文件清单
+
+| 文件 | 用途 |
+|---|---|
+| `nginx/Dockerfile` | 反代镜像(`nginx:1.27-alpine`,COPY `nginx.conf`) |
+| `nginx/nginx.conf` | `/api/*` → `backend:7777`,其余 → `frontend:80` |
+| `frontend/Dockerfile.production` | 多阶段:`node:20-alpine` 跑 `max build` → `nginx:1.27-alpine` serve `dist/` |
+| `frontend/.dockerignore` | 排除 `node_modules` / `dist` / `.umi` / `tests` / `mock` / `.git` 等 |
+| `backend/ops/docker-compose.deploy.yaml` | 5 服务 pull-based compose,镜像从 SWR 拉,数据卷按 §2.6 单盘约定 |
+| `scripts/build-images.sh` | Step 1:本地构建 3 个自建镜像 |
+| `scripts/push-to-swr.sh` | Step 2:3 镜像 `tag + docker login + push` 到 SWR |
+
+> 现有 `frontend/Dockerfile`(`node:18 + npm start`,dev 用)**保留不动**;新加 `Dockerfile.production` 对应 prod。
+> 现有 `backend/ops/docker-compose.yaml`(dev,3 服务 + 老 `pity_net`)也保留不动;dev 与 deploy 并存可用。
+
+### 11.2 手动 4 步流程(取代 GitHub Actions 自动路径)
+
+| 步骤 | 操作 | 工具 |
+|---|---|---|
+| Step 1 | 本地构建 3 个自建镜像 | `./scripts/build-images.sh <tag>`(默认 tag = dev) |
+| Step 2 | 推到华为云 SWR | `./scripts/push-to-swr.sh <tag>`,环境变量提供 `SWR_REGISTRY` / `SWR_ORG` / `SWR_USER` / `SWR_PASS`(12h 凭证) |
+| Step 3 | 服务器 pull + up | scp 上 `docker-compose.deploy.yaml` + `.env`;服务器:`docker compose pull && docker compose up -d` |
+| Step 4 | GitHub Actions 自动 push/deploy | ⏸ **延后**,见 §11.4 |
+
+> `mysql:8.0` / `redis:7-alpine` 是 docker.io 公开镜像,**不需要本地 build 也不需要手动 push**,server 上 `docker compose pull` 时自动从 docker.io 拉(国内可能需换镜像源,见 §5 已列风险)。
+
+### 11.3 关键设计决定
+
+| 项 | 决定 | 备注 |
+|---|---|---|
+| 镜像数 | 3(`pity-backend` / `pity-frontend` / `pity-nginx`) | 沿用 §10.2,改动隔离 |
+| 数据卷布局 | bind mount 到 `/home/tester/pity-data/...` | 沿用 §2.6 单盘 40G 约定 |
+| backend 环境文件 | 复用 `dev.env.ops`(host bind mount),设 `pity_env=dev` | 等 `backend/conf/pro.env` 真正落地后再切 pro;`MYSQL_HOST=mysql` / `REDIS_HOST=redis` 在 compose 中显式覆盖 |
+| MySQL 凭证 | `.env` 提供 `MYSQL_ROOT_PASSWORD`,compose 用 `${MYSQL_ROOT_PASSWORD}` 同步到容器内 `MYSQL_PWD` | `${VAR:?required}` 强制要求,缺变量直接报错 |
+| 容器名后缀 | `_deploy`(`pity_mysql_deploy` 等) | 跟 dev compose 的同名容器(`pity_mysql`)区分,两套可并存 |
+| 前端 npm 镜像 | `--registry=https://registry.npmmirror.com` | 2M 带宽下拉得动 |
+| redis 启动参数 | `--appendonly yes --appendfsync everysec --save "" --auto-aof-rewrite-min-size 64mb --auto-aof-rewrite-percentage 100` | §2.6 单盘容量约定派生,AOF 限大小 |
+| mysql 启动参数 | `--expire_logs_days=3 --max_binlog_size=104857600 --innodb_file_per_table=1` | 同上,binlog 限大小 |
+| 网络 | 单 bridge `appnet` | 5 容器全在同一网络,通过服务名互访 |
+| 资源限制(每容器 `deploy.resources.limits.memory`) | backend 600M / mysql 700M / redis 80M / frontend 30M / nginx 30M | 合计 ~1.44G,2G 主机余量 ~500M 给 OS + buffer |
+
+### 11.4 归档:§10.4 GitHub Actions 草稿(本次未启用)
+
+保留 §10.4 的 Actions yml 草稿作为历史参考,**不实际启用**:
+- 理由:用户体感"乱",先把手动 4 步跑顺再讨论自动化
+- 启用 Actions 时建议**另起文件**(如 `.github/workflows/deploy-docker.yml`)而不是覆盖 §10.4 那份草稿,以便后续对比演进
+- 当前 `.github/workflows/deploy-{backend,frontend}.yml` 文件**未改动**,继续以原 SCP + gunicorn + PM2 触发(但当前 deploy 已切到 docker,老 workflow 实际是 no-op)
+
+### 11.5 §10.6 部分回答对账
+
+按本次 commit 落地的口径,§10.6 中:
+
+- ✅ **3 个镜像 vs 1 个** — 3 个,见 §11.3
+- ✅ **旧 workflow yml** — 保留不动,见 §11.4
+- ✅ **SWR 凭证策略** — 本次走手动 12h 凭证(`SWR_USER` / `SWR_PASS` export 到环境变量,actions 阶段再切换 ObsClient 自动生成)
+- ❓ **Flexus region / SWR org** — 待用户填 `SWR_REGISTRY` / `SWR_ORG` 后才能跑 Step 2 / Step 3
+- ❓ **服务器首次 docker login** — 待确认服务器上是否已 `docker login swr...`,首次需手动 login 一次
 

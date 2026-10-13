@@ -1,0 +1,122 @@
+# 新增于 2026-10-14
+# 5 服务生产 compose。pull-based,镜像从华为云 SWR 拉,数据卷走系统盘
+# 见 docs/DEPLOY_DOCKER_MIGRATION.md §3 / §4.1 / §10
+#
+# 部署假设(用户已确认):
+#   - 单台 Flexus ahf.large.1.40g.2m,2 核 2G 内存,40G 系统盘(无独立数据盘)
+#   - MySQL/Redis 数据落 /home/tester/pity-data/{mysql,redis,logs},也在系统盘(§2.6 单盘约定)
+#   - 上游 SWR 镜像前缀由 .env 提供(SWR_REGISTRY / SWR_ORG / TAG)
+#
+# 用法(在 /home/tester/pity-deploy 目录下):
+#   1. 编辑 .env(SWR_REGISTRY / SWR_ORG / TAG / MYSQL_ROOT_PASSWORD / REDIS_PASSWORD)
+#   2. docker login $SWR_REGISTRY
+#   3. docker compose -f docker-compose.deploy.yaml --env-file .env pull
+#   4. docker compose -f docker-compose.deploy.yaml --env-file .env up -d
+#
+# 跟 dev compose(docker-compose.yaml)并存,容器名加 -deploy 后缀避免冲突。
+
+version: "3.8"
+
+services:
+  mysql:
+    image: mysql:8.0
+    container_name: pity_mysql_deploy
+    restart: unless-stopped
+    environment:
+      MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD:?required, 在 .env 设置}
+      MYSQL_DATABASE: pity
+    command:
+      - --expire_logs_days=3
+      - --max_binlog_size=104857600
+      - --innodb_file_per_table=1
+    volumes:
+      - /home/tester/pity-data/mysql:/var/lib/mysql
+      - /home/tester/pity-data/logs/mysql:/var/log/mysql
+    networks:
+      - appnet
+    deploy:
+      resources:
+        limits:
+          memory: 700M
+
+  redis:
+    image: redis:7-alpine
+    container_name: pity_redis_deploy
+    restart: unless-stopped
+    command:
+      - redis-server
+      - --requirepass
+      - ${REDIS_PASSWORD:?required, 在 .env 设置}
+      - --appendonly
+      - "yes"
+      - --appendfsync
+      - everysec
+      - --save
+      - ""
+      - --auto-aof-rewrite-min-size
+      - 64mb
+      - --auto-aof-rewrite-percentage
+      - "100"
+    volumes:
+      - /home/tester/pity-data/redis:/data
+    networks:
+      - appnet
+    deploy:
+      resources:
+        limits:
+          memory: 80M
+
+  backend:
+    image: ${SWR_REGISTRY}/${SWR_ORG}/pity-backend:${TAG:-latest}
+    container_name: pity_backend_deploy
+    restart: unless-stopped
+    # 复用现有 dev.env.ops(主机尚未生成 pro.env);TODO: 真正的 pro env 时换 ./pro.env.ops
+    volumes:
+      - ./dev.env.ops:/pity/conf/dev.env
+    environment:
+      TZ: Asia/Shanghai
+      pity_env: dev   # 暂用 dev 配置路径,等 backend/conf/pro.env 落地后改 pro
+      MYSQL_HOST: mysql         # 覆盖 dev.env.ops 里的 MYSQL_HOST="pity"
+      REDIS_HOST: redis         # 同上
+      MYSQL_PWD: ${MYSQL_ROOT_PASSWORD}        # 对齐容器内 MYSQL user 密码
+      REDIS_PASSWORD: ${REDIS_PASSWORD}
+    depends_on:
+      - mysql
+      - redis
+    networks:
+      - appnet
+    deploy:
+      resources:
+        limits:
+          memory: 600M
+
+  frontend:
+    image: ${SWR_REGISTRY}/${SWR_ORG}/pity-frontend:${TAG:-latest}
+    container_name: pity_frontend_deploy
+    restart: unless-stopped
+    networks:
+      - appnet
+    deploy:
+      resources:
+        limits:
+          memory: 30M
+
+  nginx:
+    image: ${SWR_REGISTRY}/${SWR_ORG}/pity-nginx:${TAG:-latest}
+    container_name: pity_nginx_deploy
+    restart: unless-stopped
+    ports:
+      - "80:80"
+    depends_on:
+      - backend
+      - frontend
+    networks:
+      - appnet
+    deploy:
+      resources:
+        limits:
+          memory: 30M
+
+networks:
+  appnet:
+    driver: bridge
