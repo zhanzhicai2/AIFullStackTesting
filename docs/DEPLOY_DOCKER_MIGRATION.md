@@ -636,7 +636,7 @@ services:
 | `scripts/build-images.sh` | Step 1:本地构建 3 个自建镜像 |
 | `scripts/push-to-swr.sh` | Step 2:3 镜像 `tag + docker login + push` 到 SWR |
 
-> 现有 `frontend/Dockerfile`(`node:18 + npm start`,dev 用)**保留不动**;新加 `Dockerfile.production` 对应 prod。
+> 现有 `frontend/Dockerfile`(dev 用)2026-10-14 升级到 `node:20-alpine` + `npm ci`(去 cnpm 老黄历),与本地 Node 20.20.2 对齐;生产部署走 `Dockerfile.production`,跟这份分开。
 > 现有 `backend/ops/docker-compose.yaml`(dev,3 服务 + 老 `pity_net`)也保留不动;dev 与 deploy 并存可用。
 
 ### 11.2 手动 4 步流程(取代 GitHub Actions 自动路径)
