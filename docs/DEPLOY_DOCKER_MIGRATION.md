@@ -1,81 +1,76 @@
-# 前端 + 后端 Docker 化部署迁移计划
+# Pity 单机 Docker 部署方案(2026-10-14 实施记录)
 
-> 目标:把 `.github/workflows/` 里 SCP + gunicorn + PM2 的"老办法"换成**单机 Docker Compose 部署**,让前端(nginx 静态)与后端(FastAPI/Pity)共享一套编排,在 1 台 2 核 2G 华为云 Flexus 上跑通个人 demo。
+> 文档定位:把今天所有决策、文件改动、踩坑、最终可运行步骤全部归一化,供后续维护和 onboarding 用。
+> 旧版本(2026-10-13 那份)被覆盖;以前的 git 历史保留,需要时 `git log --follow docs/DEPLOY_DOCKER_MIGRATION.md` 看演进。
 >
-> 状态:**诊断已出,待用户拍板**。本文档只描述现状 / 目标 / 路线,不动现有 workflow。
+> 目标机:**华为云 Flexus `ahf.large.1.40g.2m`**,2 核 2G 内存 / **仅 40G 系统盘,无独立数据盘** / 2M 带宽
+> 部署栈:docker compose v2 + 5 服务 + SWR 拉自建镜像 + docker.io 拉 mysql/redis 公开镜像
 
 ---
 
-## 1. 部署目标(用户原话)
+## 0. TL;DR
 
-- 单台华为云 Flexus `ahf.large.1.40g.2m`,2 核 2G 内存 / **仅 40G 系统盘,无独立数据盘** / 2M 带宽
-- 个人 demo,不要求 7×24 / 不要求 HA
-- 前端 + 后端**全部走 Docker**,跟开发环境隔离,跟 demo 部署流程统一
-- 系统盘是**唯一**磁盘 → MySQL 数据、Redis 持久化、应用日志、Docker 镜像层全部挤在这里,容量预算见 §2.6
-
----
-
-## 2. 现状盘点
-
-### 2.1 现有部署链路(`.github/workflows/`)
-
-| workflow | 触发 | 动作 |
+| 决策点 | 选择 | 原因 |
 |---|---|---|
-| `deploy-backend.yml` | push 到 main 且 `backend/**` 变更 | SCP `backend/` 到 `/home/tester/pity/` → 主机 `pip3 install -r requirements.txt --user` → `pkill gunicorn` |
-| `deploy-frontend.yml` | push 到 main 且 `frontend/**` 变更 | CI 跑 `npm run build` → SCP `frontend/dist/` 到 `/home/tester/pityWeb/` → `pm2 delete web \|\| true && pm2 start web.sh` |
+| 前后端镜像 | **都做镜像 + nginx 反代** | 老 Pity "前端 dist 塞 backend/statics" 在 docker 化里不适应,前后端解耦才合理 |
+| 镜像数 | 3 自建 + 2 公开 | 后端 / 前端 / nginx 各自独立 rebuild,缓存命中好 |
+| 数据盘 | **无,所有数据落系统盘 40G** | 服务器只有系统盘 |
+| Docker Compose 单机方案 | 走 | demo 不上 k8s |
+| 镜像推送工具 | **skopeo**(非 docker push) | SWR + docker CLI 的 manifest 协议 bug(详见 §7.1) |
+| 后端 Python 基础镜像 | python:3.10-slim | 与本地 conda 3.10.18 对齐(原 3.9 可能掩盖 PEP 604 语法错误) |
+| 前端 Node 基础镜像(dev + 部署) | node:20-alpine | 与本地 v20.20.2 对齐(原 18.18.2 EOL) |
+| GitHub Actions 自动化 | **延后** | 优先保证手动流程跑通 |
 
-需要的 GitHub Secrets:`HOST`、`USERNAME`、`PASSWORD`(都用密码登录,SSH Key 方式更安全但当前不是)。
-
-### 2.2 现有 Docker 资产
-
-- `backend/ops/dockerfile` — 多阶段 `python:3.10-slim + builder`(2026-10-14 由 3.9 升至 3.10,与本地 `pity-backend` conda env 对齐),镜像内部用 `supervisord` 起 `gunicorn main:pity -b 0.0.0.0:7777 -w 8`。
-- `backend/ops/docker-compose.yaml` — dev 用三件套(`mysql:8.0` / `redis` / `pity` 后端),**没有前端容器**。
-- `backend/ops/supervisor.conf` — 容器内的 supervisord 配置文件,启动 1 个 gunicorn 进程(8 worker)。
-- `backend/ops/dev.env.ops` — 当前 dev 用的环境文件(被 mount 进容器当 `/pity/conf/dev.env`)。
-
-### 2.3 现有前端 docker 资产
-
-**没有**。前端的部署链路完全在主机(`/home/tester/pityWeb/`),靠 PM2 起 `web.sh`,没有 Dockerfile,也没有 nginx。
-
-### 2.4 现有的"反模式"或不一致
-
-| 项 | 不一致点 |
-|---|---|
-| `deploy-backend.yml` 主机路径 | 假设主机已经"裸机 Python + gunicorn + supervisord",如果未来切到容器,这条链路完全用不上 |
-| `docker-compose.yaml` 只跑 backend | dev 是开发用,但生产部署 plan 没覆盖前端 → 一台机器要两套并存 |
-| gunicorn `-w 8` | 8 worker 在 2G 内存下风险:每个 worker 内存常驻 80–150MB,叠起来轻松 OOM |
-| MySQL 密码明文 `Pitytester666666` 写在 yml | 推到 git 即泄,即使 demo 也建议用 `.env` 或 Vault |
-| 端口分散 | 前端走 PM2(端口待确认 `web.sh`)+ 后端 7777 + MySQL 3306 + Redis 6379,没有统一入口,不发证书 |
-| 没有 nginx 反代 | 前端静态产物的访问、后端 `/api` 路由、CORS 配置都得在 nginx 层处理,目前散在前后端 |
-| `frontend/deploy.sh` 把 dist 复制到 `backend/statics/` | 老 Pity 的"前后端同进程"思路,Docker 化以后不必再这么干 — 前端走独立 nginx 容器 |
-
-### 2.5 资源现实
-
-| 资源 | 评估 |
-|---|---|
-| 2 核 CPU | 单容器进程够用,但 8 worker gunicorn 在请求突发时容易双核跑满 |
-| 2G 内存 | MySQL 8.0 idle ~500-700MB、Redis ~50MB、backend gunicorn `-w 2` ~250MB、nginx ~20MB,合计 ~1GB,可挤但要小心 |
-| 系统盘 40G(**唯一磁盘**) | 镜像、容器运行时、MySQL 数据、Redis 持久化、应用日志**全**在此盘。MySQL/Redis 路径从原 `/data/...` 改到 `/home/tester/pity-data/...`(也在系统盘);**必须**做容量预算 + 日志/binglog/AOF 回收 + 监控,详见 §2.6 |
-| 2M 带宽 | `docker pull` 速度慢,镜像尽量本地 build 或提前拉取;scp 上传中小 frontend dist(<5M) 没压力 |
+最终 image tag:**SWR 上** `pity-backend:v0.2` / `pity-frontend:v0.2` / `pity-nginx:v0.3`(nginx 比后两者多迭代一次,因为 fix 了一个 nginx 转发规则 bug,详见 §5.4)
 
 ---
 
-### 2.6 单盘 40G 容量预算(必读,基于"只有系统盘"前提)
+## 1. 资源现实
 
-40G 系统盘的可用空间,按以下口径切;**留 8–10G buffer** 给 OS + apt 缓存 + Docker 引擎自身增长,**不要让数据落满到 90% 以上**,否则 apt/docker/journald 都开始报错。
+### 1.1 硬件
+
+- 2 核 CPU
+- 2G 内存
+- **40G 系统盘(无独立数据盘)**
+- 2M 带宽
+
+### 1.2 操作系统 & 镜像来源
+
+- **server OS**:Ubuntu 22.04 (Huawei Cloud Flexus)
+- **Docker Engine**:Docker 29.1.3(Ubuntu backport 装的是 `docker.io`,没带 compose plugin,见 §7.2)
+- **Docker Compose**:v2.x(需手动装)
+- **本机 OS**:macOS(MacBook Pro,Intel x86_64)
+- **本机 Docker**:Docker Desktop,内置 docker compose v2
+
+### 1.3 内存分配(每容器 `deploy.resources.limits.memory`)
+
+| 服务 | 限额 |
+|---|---|
+| backend (gunicorn 2 workers + uvicorn) | 600M |
+| mysql 8.0 | 700M |
+| redis 7-alpine | 80M |
+| frontend (nginx:alpine serves dist/) | 30M |
+| nginx (反代) | 30M |
+| **合计** | **~1.44G / 2G** → OS + buffer 留 ~560M |
+
+---
+
+## 2. 单盘 40G 容量预算
+
+40G 系统盘的可用空间按下面口径切;**留 8–10G buffer** 给 OS + apt 缓存 + Docker 引擎自身增长,**不要让数据落满到 90% 以上**,否则 apt/docker/journald 都开始报错。
 
 | 类别 | 路径 | 预算上限 | 回收策略 |
 |---|---|---|---|
-| 镜像层(含 builder cache) | `/var/lib/docker` + `/tmp`(builder) | ~6G | `docker builder prune -af --filter "until=72h"` 每周 cron;`docker system prune` 手敲 |
+| 镜像层(含 builder cache) | `/var/lib/docker` + `/tmp`(builder) | ~6G | `docker builder prune -af --filter "until=72h"` 每周 cron |
 | MySQL 数据 | `/home/tester/pity-data/mysql` | ~8G | `expire_logs_days=3`、`innodb_file_per_table`、`max_binlog_size=100M` |
 | Redis 数据 | `/home/tester/pity-data/redis` | ~500M | AOF only、`appendfsync everysec`、`auto-aof-rewrite-min-size 64mb` |
 | 应用日志(gunicorn + nginx) | `/home/tester/pity-data/logs/{pity,nginx}` | ~2G | logrotate 按天切,保留 14 天,`copytruncate` 不停服 |
-| MySQL binlog + slow log | `/home/tester/pity-data/logs/mysql` | ~1G | `expire_logs_days=3`,slow log 用 logrotate |
+| MySQL binlog + slow log | `/home/tester/pity-data/logs/mysql` | ~1G | `expire_logs_days=3` |
 | 部署包 + 临时上传 | `/home/tester/pity-deploy` | ~2G | `rm /tmp/pity-deploy.tgz` 后留 release 目录 |
 | 系统自身 | `/`、`/var/log/journal`、`/var/cache/apt` | ~10G | journald `SystemMaxUse=200M`、apt `clean` 周期 |
-| **Buffer(headroom)** | — | **~10G** | 任何单类别超过预算要先报警 |
+| **Buffer (headroom)** | — | **~10G** | 任何单类别超过预算先报警 |
 
-**磁盘占用监控(必装):** systemd timer 或 cron 跑:
+**磁盘监控(必装):** systemd timer 或 cron 跑:
 
 ```bash
 USAGE=$(df -P / | awk 'NR==2 {print $5}' | tr -d '%')
@@ -85,600 +80,516 @@ USAGE=$(df -P / | awk 'NR==2 {print $5}' | tr -d '%')
 
 `logger` 走 journald,`SystemMaxUse=200M` 兜底不让日志也吃满。
 
-**Docker 引擎建议:** Docker data-root 默认就在 `/var/lib/docker`(系统盘),不动;如果以后真撑不住再考虑 `/home/tester/docker` 软链接(这次不做)。
+---
+
+## 3. 架构
+
+```
+外部用户 (浏览器)
+   │ :80
+   ▼
+┌─────────────────────┐
+│  nginx (容器)       │
+│  - /api/*, /auth/* │
+│    /testcase/* 等   │
+│    11 前缀 → backend│
+│  - 其他 → frontend  │
+└──┬──────────┬──────┘
+   │          │
+┌──▼──────┐ ┌─▼─────────────┐
+│ backend │ │ frontend      │
+│  gunicorn│ │  nginx:alpine │
+│  -w 2   │ │  serves dist/ │
+└──┬──────┘ └───────────────┘
+   │
+┌──▼────┐ ┌─▼────┐
+│ MySQL │ │Redis │
+└───────┘ └──────┘
+```
+
+所有数据卷 bind mount 到 `/home/tester/pity-data/*`(全部系统盘,无独立数据盘)。
+
+### 3.1 服务清单
+
+| 服务 | 镜像来源 | 镜像名 / tag | 端口(对外) | 内存上限 | 数据卷 / env |
+|---|---|---|---|---|---|
+| nginx | 自建(SWR) | `pity-nginx:v0.3` | **80** | 30M | 无 |
+| frontend | 自建(SWR) | `pity-frontend:v0.2` | 仅内网 | 30M | 无 |
+| backend | 自建(SWR) | `pity-backend:v0.2` | 仅内网 | 600M | env_file: `./dev.env.ops` |
+| mysql | docker.io 公开 | `mysql:8.0` | 仅内网 | 700M | bind mount 到 `/home/tester/pity-data/mysql` |
+| redis | docker.io 公开 | `redis:7-alpine` | 仅内网 | 80M | bind mount 到 `/home/tester/pity-data/redis` |
+
+**端口只对外暴露 80**。其余服务都在 `appnet` bridge 网络内,通过服务名互访。
 
 ---
 
-## 3. 目标架构
+## 4. 文件清单 / 仓库布局
 
 ```
-                        ┌──────────────────────┐
-                        │   外部用户访问        │
-                        │ (浏览器/HTTP/HTTPS)  │
-                        └──────────┬───────────┘
-                                   │ :80
-                          ┌────────▼────────┐
-                          │  nginx (容器)   │
-                          │  - /api/* → backend:7777
-                          │  - 其他 → frontend:80
-                          └────┬─────────┬──┘
-                               │         │
-                  /api/*       │         │  /
-                               │         │
-                  ┌────────────▼─┐    ┌──▼────────────┐
-                  │  backend     │    │  frontend     │
-                  │  (pity 容器) │    │  (nginx 静态   │
-                  │  gunicorn -w2│    │   容器,纯 dist)│
-                  └─┬──────────┬─┘    └───────────────┘
-                    │          │
-                    │          │
-              ┌─────▼──┐   ┌───▼────┐
-              │ MySQL 8│   │ Redis  │
-              └────────┘   └────────┘
-              ↓ bind mount 到系统盘
-        /home/tester/pity-data/mysql
-        /home/tester/pity-data/redis
-        /home/tester/pity-data/logs/{pity,nginx,mysql}
+AIFullStackTesting/
+├── backend/
+│   ├── ops/
+│   │   ├── dockerfile                  # python:3.10-slim + builder(2026-10-14 升级)
+│   │   ├── docker-compose.yaml         # dev 3 服务 compose(legacy,留着)
+│   │   ├── docker-compose.deploy.yaml  # ★ 5 服务生产 compose(2026-10-14 新增 + 修订)
+│   │   ├── dev.env.ops                 # dev env,被 deploy compose 作 env_file 引入
+│   │   └── supervisor.conf             # [program: pity] (gunicorn)
+│   └── ... # 同原 Pity
+├── frontend/
+│   ├── Dockerfile                      # dev 用(node:20-alpine + npm ci)
+│   ├── Dockerfile.production           # ★ 多阶段:node:20-alpine build → nginx:alpine serve dist/
+│   ├── .dockerignore                   # ★ 配套 .dockerignore
+│   └── ... # 同原 Pity
+├── nginx/
+│   ├── Dockerfile                      # ★ nginx:alpine + COPY nginx.conf
+│   └── nginx.conf                      # ★ 11 前缀正则(详见 §5.4)
+├── scripts/
+│   ├── build-images.sh                 # ★ Step 1:本地 build 3 镜像
+│   └── push-to-swr.sh                  # ★ Step 2:skopeo 推 SWR(不用 docker push)
+├── docs/
+│   └── DEPLOY_DOCKER_MIGRATION.md      # 本文档(2026-10-14 覆盖旧版)
+└── ...
 ```
 
-### 3.1 服务清单(单机 Docker Compose)
-
-| 服务 | 镜像 | 端口(对外) | 内存预估 | 数据卷 |
-|---|---|---|---|---|
-| `nginx` | 自建(`nginx:1.27-alpine` + 自定义 `nginx.conf`) | 80 (→ host 80) | ~20MB | 只读挂 `dist/` 也可省 |
-| `frontend` | 自建(`nginx:alpine` + COPY dist/) | 仅内网 | ~20MB | 无 |
-| `backend` (`pity`) | 自建(`backend/ops/dockerfile` 改 `-w 2`) | 仅内网 | ~250MB | `/home/tester/pity-data/logs/pity` |
-| `mysql` | `mysql:8.0` | 仅内网 | ~500-700MB | `/home/tester/pity-data/mysql` |
-| `redis` | `redis:7-alpine` | 仅内网 | ~50MB | `/home/tester/pity-data/redis` |
-
-**端口只对外暴露 80(或 443)**。MySQL / Redis / backend / frontend 全部走 docker network 内网通信。
-
-### 3.2 资源限制(防止 OOM)
-
-每条 service 加 `deploy.resources.limits`:
-
-```yaml
-deploy:
-  resources:
-    limits:
-      memory: 600M    # backend
-    reservations:
-      memory: 200M
-```
-
-具体每个服务的限额在下节给出。
+★ 标注是今天(2026-10-14)新增 / 重写的文件。
 
 ---
 
-## 4. 实施路线(分三阶段)
+## 5. 关键改动记录(2026-10-14)
 
-### 阶段 1:新增 Docker 部署资产(不动现有 dev 链路)
+### 5.1 backend dockerfile 升 3.9 → 3.10
 
-放在新文件,跟 `backend/ops/` 已有的 dev compose 区分:
+老 dockerfile 用 `python:3.9-slim` + builder 阶段,有 wait-for-it.sh 下载 + apt install wget。**两个问题**:
 
-```
-backend/ops/
-├── dockerfile                    # 已有,需要把 -w 8 改成 -w 2
-├── docker-compose.yaml           # 已有,dev 用,不动
-├── docker-compose.deploy.yaml    # 新增,单机生产 / demo 用
-├── supervisor.conf               # 已有,跟随 dockerfile 调整
-├── dev.env.ops                   # 已有,给容器用
-└── pro.env.ops                   # 新增(从 backend/conf/pro.env 复制一份,容器挂载用)
+1. **基础镜像版本与本地 `pity-backend` conda (3.10.18) 不一致** —— 如果本地用 PEP 604(`int | None`)或 PEP 634(`match/case`)语法,docker 容器里 3.9 解释器会 `SyntaxError`,本地 debug 看不出来
+2. **`wait-for-it.sh` 全仓 grep 后确认没有任何 .sh / .py / 配置引用它**,supervisor.conf 只启 gunicorn,是上游 Pity 历史残留
 
-frontend/
-├── Dockerfile                    # 新增(nginx:alpine + COPY dist)
-├── .dockerignore                 # 新增(排除 node_modules / dist)
-└── deploy.sh                     # 已有,旧版"塞到 backend/statics"模式,Docker 化后不再需要
+修法:
 
-nginx/
-├── Dockerfile                    # 新增(nginx:1.27-alpine + COPY nginx.conf)
-└── nginx.conf                    # 新增(/api/* 反代 + 默认静态)
+- 两 stage 基础镜像 `python:3.9-slim` → `python:3.10-slim`
+- 顺手修 lint:`FROM python:3.10-slim as builder` → `FROM python:3.10-slim AS builder`
+- 删除 `apt install -y wget` + `wget https://github.com/vishnubob/wait-for-it/...`
+- 删除 final stage 的 `COPY --from=builder /pity/wait-for-it.sh` + `RUN ... && chmod +x /pity/ops/wait-for-it.sh`
 
-deploy.sh                         # 仓库根,新增(本地构建 + scp 推送 + 远端 up)
-```
+净效果:build 加速 ~30 秒(少 wget 一行),镜像层不再带死文件,跳过 GnuTLS 失败点。
 
-#### 1.1 调整 `backend/ops/dockerfile`(降 worker)
+### 5.2 frontend dev Dockerfile 升 Node 18.18.2 → 20-alpine + 去 cnpm 老黄历
 
-把 supervisor.conf 里的 `-w 8` 改成 `-w 2`,再观察一段时间再调。
+老 Dockerfile:`node:18.18.2` + `npm install -g cnpm` + `cnpm install`。Node 18 已 EOL(2025-04),cnpm 是 npm 时代的过渡工具,2018 后已经被 registry flag + npm ci 取代。
 
-#### 1.2 新增 `frontend/Dockerfile`
+新 Dockerfile:
+
+- `node:18.18.2` → `node:20-alpine`
+- 删除 `npm install -g cnpm`
+- `cnpm install` → `npm ci --no-audit --prefer-offline --registry=https://registry.npmmirror.com`
+- 加 COPY 分层:先 `package.json` + `package-lock.json` 装依赖,再 `COPY . .`,改源码不重装依赖
+- 国内 npm 镜像(`registry.npmmirror.com`),2M 带宽下拉得动
+
+### 5.3 frontend 生产 Dockerfile(`Dockerfile.production`)
+
+**多阶段**:
 
 ```dockerfile
+# Stage 1: build
+FROM node:20-alpine AS builder
+WORKDIR /build
+COPY package.json package-lock.json ./
+RUN npm ci --no-audit --prefer-offline \
+        --legacy-peer-deps \
+        --registry=https://registry.npmmirror.com
+COPY . .
+RUN npm run build
+
+# Stage 2: serve(只拷 dist/)
 FROM nginx:1.27-alpine
-COPY dist/ /usr/share/nginx/html/
+COPY --from=builder /build/dist/ /usr/share/nginx/html/
 EXPOSE 80
+CMD ["nginx", "-g", "daemon off;"]
 ```
 
-加 `.dockerignore` 排除 `node_modules` 和 `dist`。
+要点:
 
-#### 1.3 新增 `nginx/nginx.conf`
+- **`--legacy-peer-deps`**:UmiJS v4 + Ant Design v5 之间的 peer dep 冲突(`@ant-design/charts@1.4.3` 要 antd@^4,实际装的是 antd@5),npm 7+ 严格模式会 ERESOLVE,这个 flag 切回 npm 6 宽松解析(详见 §7.6)
+- **多阶段**:final stage 只剩 nginx + dist/,镜像体积 ~25MB 压缩(不是 ~200MB,后者说明多阶段没生效)
+
+配套 `.dockerignore` 排除 `node_modules`、`dist`、`.umi`、`tests`、`mock`、`.git` 等。
+
+### 5.4 nginx 反代:11 前缀正则
+
+**老版本**(2026-10-14 之前写的):
 
 ```nginx
-server {
-    listen 80;
-    server_name _;
-
-    # 后端反代
-    location /api/ {
-        proxy_pass http://backend:7777/;
-        proxy_set_header Host $host;
-        proxy_set_header X-Real-IP $remote_addr;
-        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
-        proxy_set_header X-Forwarded-Proto $scheme;
-        proxy_read_timeout 60s;
-    }
-
-    # 前端静态
-    location / {
-        proxy_pass http://frontend:80;
-    }
+location /api/ {
+    proxy_pass http://backend:7777/;  # 末尾有 / = strip prefix
 }
 ```
 
-> 严格起见,前端也可以直出:`root /usr/share/nginx/html`,这里用反代是为了后续加 HTTPS / 静态资源缓存策略更顺手。
+**两个问题**:
 
-#### 1.4 新增 `backend/ops/docker-compose.deploy.yaml`
+1. 只接 `/api/` 前缀,但前端代码(看 `frontend/CLAUDE.md` 和 `frontend/config/proxy.ts`)实际调 `/auth/`、`/testcase/` 等 11 个前缀 → 落到 `location /` → 转给前端 nginx → 404
+2. `proxy_pass http://backend:7777/` 带末尾 `/` = **strip prefix**(`/api/foo` → backend `/foo`),但后端 FastAPI router 是 `APIRouter(prefix="/auth")` + `@router.post("/register")`,strip 后 `/register` 不命中 `/auth/register` → 也是 404
 
-```yaml
-version: "3.8"
-services:
-  mysql:
-    image: mysql:8.0
-    restart: unless-stopped
-    environment:
-      MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD}
-      MYSQL_DATABASE: pity
-    command:
-      - --expire_logs_days=3
-      - --max_binlog_size=104857600
-      - --innodb_file_per_table=1
-    volumes:
-      - /home/tester/pity-data/mysql:/var/lib/mysql
-      - /home/tester/pity-data/logs/mysql:/var/log/mysql
-    networks: [appnet]
-    deploy:
-      resources:
-        limits: { memory: 700M }
+**新版本**:
 
-  redis:
-    image: redis:7-alpine
-    restart: unless-stopped
-    command: >
-      redis-server
-      --requirepass ${REDIS_PASSWORD}
-      --appendonly yes
-      --appendfsync everysec
-      --save ""
-      --auto-aof-rewrite-min-size 64mb
-      --auto-aof-rewrite-percentage 100
-    volumes:
-      - /home/tester/pity-data/redis:/data
-    networks: [appnet]
-    deploy:
-      resources:
-        limits: { memory: 80M }
+```nginx
+location ~ ^/(api|auth|testcase|config|project|operation|workspace|oss|notification|online|request)/ {
+    proxy_pass http://backend:7777;          # 无末尾 / = 保留 URI
+    proxy_set_header Host $host;
+    proxy_set_header X-Real-IP $remote_addr;
+    proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+    proxy_set_header X-Forwarded-Proto $scheme;
+    proxy_read_timeout 60s;
+    proxy_send_timeout 60s;
+}
 
-  backend:
-    build:
-      context: ../
-      dockerfile: ops/dockerfile
-    restart: unless-stopped
-    env_file: pro.env.ops
-    depends_on: [mysql, redis]
-    networks: [appnet]
-    deploy:
-      resources:
-        limits: { memory: 600M }
-
-  frontend:
-    build: ../frontend
-    restart: unless-stopped
-    networks: [appnet]
-    deploy:
-      resources:
-        limits: { memory: 30M }
-
-  nginx:
-    build: ../nginx
-    restart: unless-stopped
-    ports:
-      - "80:80"
-    depends_on: [backend, frontend]
-    networks: [appnet]
-    deploy:
-      resources:
-        limits: { memory: 30M }
-
-networks:
-  appnet:
-    driver: bridge
+location / {
+    proxy_pass http://frontend:80;
+    # (header 同上)
+}
 ```
 
-`.env`(或实际注入方式)放 `MYSQL_ROOT_PASSWORD` / `REDIS_PASSWORD`,**不再明文写在 yml 里**。
+要点:
 
-### 阶段 2:写 `deploy.sh`(本地推送)
+- 用正则 location 一次匹配 11 个 dev proxy 前缀
+- `proxy_pass` **不带末尾 `/`** = 完整 URI 转发,FastAPI router prefix 才能命中
 
-仓库根新增 `deploy.sh`(可执行):
+11 个前缀来自 `frontend/config/proxy.ts` 里 dev proxy 的声明。
+
+### 5.5 docker-compose.deploy.yaml 修订
+
+#### 5.5.1 顶层 `version: "3.8"` → 删
+
+Compose v2+ 已经忽略 `version` 字段,留着会报警 `the attribute version is obsolete, it will be ignored`。**删**。
+
+#### 5.5.2 backend bind mount → `env_file`
+
+老:
+
+```yaml
+volumes:
+  - ./dev.env.ops:/pity/conf/dev.env
+```
+
+**问题**:server 端 `./dev.env.ops` 文件不存在时,docker engine **会自动建空目录**当作 bind source,后续 mount 时 `MS_REC` 当目录挂载到文件 `/pity/conf/dev.env` 失败(详见 §7.4)。
+
+修法,用 `env_file:`:
+
+```yaml
+env_file:
+  - ./dev.env.ops
+
+environment:
+  TZ: Asia/Shanghai
+  pity_env: dev   # 暂用 dev 配置路径,等 backend/conf/pro.env 落地后改 pro
+  MYSQL_HOST: mysql         # 覆盖 dev.env.ops 里的 MYSQL_HOST="pity"
+  REDIS_HOST: redis
+  MYSQL_PWD: ${MYSQL_ROOT_PASSWORD}
+  REDIS_PASSWORD: ${REDIS_PASSWORD}
+```
+
+`env_file:` 让 docker compose 把文件内容读出来作为 ENV vars 注入容器,pydantic Settings 直接消费,**不涉及 bind mount**,也就不会触发空目录坑。
+
+#### 5.5.3 nginx image tag 硬编码 v0.3
+
+nginx:v0.3 是持久化 forward fix 的版本,server 上镜像 tag 钉死 v0.3,其他服务(v0.2)不变。Compose 里 nginx 那行:
+
+```yaml
+nginx:
+  image: ${SWR_REGISTRY}/${SWR_ORG}/pity-nginx:v0.3    # 硬编码,不跟 TAG 变量
+  ...
+```
+
+其他 backend/frontend 用 `${TAG:-v0.2}`(默认),不传 TAG 也不会去找 `:latest`(避免又踩 §7.1 类似的 not-found 错误)。
+
+### 5.6 push-to-swr.sh:docker push → skopeo
+
+**问题**:docker CLI 推 SWR 时反复报 `error from registry: Invalid image, fail to parse 'manifest.json'`。所有 layer 都成功传输(`Layer already exists`),只有最后写 manifest 时挂。**不是 image 坏**,是 docker CLI 的 manifest v2.2 跟 SWR 解析器协议层有兼容性 bug。换 tag 重推、删除 SWR 仓库重推都无用(详见 §7.1)。
+
+**修法**:用 skopeo 替代,直发 OCI distribution-spec HTTP。验证 `pity-backend:v0.2` 一次成功。
+
+新 `scripts/push-to-swr.sh` 改动:
+
+- 用 `mktemp + trap` 装 `docker save` 的 tar 文件
+- `docker save` 出来 → `skopeo copy docker-archive:<tar> docker://<dest>`,不走 `docker-daemon:`(Mac 上找不到 `/var/run/docker.sock`)
+- 自动创建 `~/.config/containers/policy.json`(Mac 上 brew 装的 skopeo 缺它就拒启动)
+- 检测 `skopeo` 命令是否存在,缺则报错退出
+
+---
+
+## 6. 部署 4 步(手动流程,Actions 延后)
+
+### Step 1 — 本地构建 3 镜像
 
 ```bash
-#!/usr/bin/env bash
-set -euo pipefail
-HOST="$1"   # ssh 目标,如 test@1.2.3.4
-REMOTE_DIR="/home/tester/pity-deploy"
-
-# 1. 本地 build(任何改了前端/后端代码的提交)
-( cd frontend && npm ci && npm run build )
-
-# 2. 打包要 scp 的内容(排除大文件/不必要)
-tar czf /tmp/pity-deploy.tgz \
-  --exclude=node_modules \
-  --exclude=.git \
-  --exclude=__pycache__ \
-  --exclude=logs \
-  backend frontend nginx deploy.sh docker-compose.deploy.yaml pro.env.ops
-
-# 3. 推送到服务器
-ssh "$HOST" "mkdir -p $REMOTE_DIR"
-scp /tmp/pity-deploy.tgz "$HOST:$REMOTE_DIR/"
-
-# 4. 远端:解压 + up
-ssh "$HOST" <<'REMOTE'
-  cd /home/tester/pity-deploy
-  tar xzf pity-deploy.tgz
-  cd backend/ops
-  docker compose -f docker-compose.deploy.yaml --env-file .env up -d --build
-REMOTE
+cd /Users/zhanzhicai/Desktop/py/AIFullStackTesting
+./scripts/build-images.sh           # 默认 tag = dev
+./scripts/build-images.sh v0.2      # 或者指定 tag
 ```
 
-### 阶段 3:GitHub Actions(可选)
+期望输出:
 
-两个方案二选一,**看用户偏好**:
+```
+pity-backend   v0.2   540MB       # Python 3.10 + venv deps
+pity-frontend  v0.2   ~25MB       # ← 多阶段成功标志(>200MB 说明没生效)
+pity-nginx     v0.2   ~25MB
+```
 
-- **方案 A**:保留现有两个 yml,在 workflow 里调 `deploy.sh`(把 secrets 转给脚本)。最小改动。
-- **方案 B**:重写为 `deploy.yml`,在 CI 里只 build image,推到服务器(用 `appleboy/scp-action` 上传 tarball),再 ssh 上去 `docker compose up`。结构清晰,跟 dockerfile 一致。
+### Step 2 — 推 SWR(skopeo)
 
-> 暂时推荐方案 A,改动最小,可以逐步切到方案 B。
+需要从华为云 SWR 控制台 → 我的凭证 → 临时登录指令 → 生成,有效期 12h:
+
+```bash
+export SWR_REGISTRY='swr.cn-south-1.myhuaweicloud.com'   # cn-south-1 是这台 Flexus 的 region
+export SWR_ORG='pity'
+export SWR_USER='cn-south-1@HST3WO1ORTGZ66FN9G1K'        # 默认格式 cn-<region>@<org>
+export SWR_PASS='<临时凭证密码,12h 过期>'                  # 单次生成
+
+cd /Users/zhanzhicai/Desktop/py/AIFullStackTesting
+./scripts/push-to-swr.sh v0.2
+```
+
+skopeo 的输出是 `Copying blob ... Copying config ... Writing manifest`,**出现 `FATA` 就是失败**;成功时 SWR 控制台 → 我的镜像 → 应有 3 个仓库各带 `:v0.2` tag。
+
+### Step 3 — 服务器 pull + up
+
+#### A. Pre-flight(ssh 进 server 后)
+
+```bash
+ssh root@124.71.69.165
+docker --version                     # ≥ 20.10
+docker compose version               # ≥ v2(华为云 Ubuntu backport 没带,见 §7.2 修法)
+df -h /                              # Available ≥ 25G
+```
+
+#### B. 装 docker compose v2(华为云 backport 缺这个)
+
+```bash
+# 方案 A:apt(优先)
+apt install -y docker-compose-plugin
+docker compose version
+
+# 方案 B:GitHub release 二进制直接装
+curl -fsSL "https://mirror.ghproxy.com/https://github.com/docker/compose/releases/latest/download/docker-compose-linux-x86_64" \
+  -o /usr/local/bin/docker-compose
+chmod +x /usr/local/bin/docker-compose
+docker compose version               # 期望 ≥ v2.20
+```
+
+#### C. 部署目录
+
+```bash
+mkdir -p /home/tester/pity-deploy
+mkdir -p /home/tester/pity-data/{mysql,redis,logs/{pity,nginx,mysql}}
+```
+
+#### D. 配置文件(Mac 上 scp 上 server)
+
+```bash
+# Mac 上
+scp /Users/zhanzhicai/Desktop/py/AIFullStackTesting/backend/ops/docker-compose.deploy.yaml \
+    root@124.71.69.165:/home/tester/pity-deploy/
+scp /Users/zhanzhicai/Desktop/py/AIFullStackTesting/backend/ops/dev.env.ops \
+    root@124.71.69.165:/home/tester/pity-deploy/
+
+cat > /tmp/pity-deploy-env <<'EOF'
+MYSQL_ROOT_PASSWORD=DemoMysql-2026!
+REDIS_PASSWORD=DemoRedis-2026!
+SWR_REGISTRY=swr.cn-south-1.myhuaweicloud.com
+SWR_ORG=pity
+TAG=v0.2
+EOF
+scp /tmp/pity-deploy-env root@124.71.69.165:/home/tester/pity-deploy/.env
+```
+
+#### E. SWR login + pull + up(server ssh)
+
+```bash
+ssh root@124.71.69.165
+cd /home/tester/pity-deploy
+
+docker login -u "$SWR_USER" -p "$SWR_PASS" "$SWR_REGISTRY"
+
+# pull(底层会拉 mysql:8.0 + redis:7-alpine from docker.io,以及 3 个自建 from SWR)
+docker compose -f docker-compose.deploy.yaml --env-file .env pull
+
+# up -d:5 容器都起
+docker compose -f docker-compose.deploy.yaml --env-file .env up -d
+```
+
+#### F. 验证
+
+```bash
+docker compose -f docker-compose.deploy.yaml ps
+# 期望 5 服务全 Up:
+#   pity_mysql_deploy / pity_redis_deploy / pity_backend_deploy / 
+#   pity_frontend_deploy / pity_nginx_deploy
+
+curl -s -o /dev/null -w "backend_direct: %{http_code}\n" http://localhost:7777/
+curl -s -o /dev/null -w "nginx→api:      %{http_code}\n" http://localhost/api/auth/register
+curl -s -o /dev/null -w "frontend:      %{http_code}\n" http://localhost/
+
+df -h /
+docker stats --no-stream
+```
+
+#### G. Mac 浏览器开
+
+如果服务器**公网 IP 的 80 端口允许入站**(Flexus 控制台安全组规则):
+
+```bash
+open http://124.71.69.165/
+```
+
+应该看到 Pity 登录页。
+
+### Step 4 — GitHub Actions 自动 push/deploy
+
+⏸ **延后**。等手动流程跑稳、确认 demo 真的"work",再讨论自动化。届时从新写一个 `.github/workflows/deploy-docker.yml`,保留 §10.4 的草稿作参考。
 
 ---
 
-## 5. 风险与备选
+## 7. 失败教训(踩过的坑,几乎全是要躲着的)
 
-| 风险 | 影响 | 应对 |
-|---|---|---|
-| 2G 内存紧张 | 4 容器同时跑可能 OOM | 加 `deploy.resources.limits.memory`;预留 200-400MB 给 OS / buffer |
-| MySQL 8 默认有 `caching_sha2_password` 鉴权 | 后端 pymysql / sqlalchemy 需兼容(已 OK) | 启动后建库,不要用 root 业务连接 |
-| 镜像 build 慢 | 2M 带宽拉 `python:3.10-slim` 镜像 60-100MB 首次拉取 ~5-10 分钟 | 国内服务器换 `registry.cn-hangzhou.aliyuncs.com/library/python:3.10-slim` 或 `swr.cn-north-4.myhuaweicloud.com` |
-| 没有 HTTPS | 个人 demo 浏览器会拦 mixed content | 阶段 2 先 HTTP,以后挂 CDN / Let's Encrypt |
-| gunicorn 单 worker 处理静态慢 | 后端 `/` 返回 simple html | 不影响 demo 演示 |
-| `deploy.sh` 的密码明文 | `USERNAME` `PASSWORD` 直接写在 Actions secrets 里可以,但脚本里 `ssh` 也用密码 | 改成 SSH Key 部署更安全(个人 demo 可缓) |
-| MySQL 数据迁移 | 第一次 up 时数据库是空的 | 启动后跑 `alembic upgrade head` 或用 `Base.metadata.create_all`(main.py 已自动建表) |
-| docker-compose 旧版 / v2 兼容性 | 华为云默认 docker 大概率是 19+ | 用 `version: "3.8"` + `docker compose`(v2 CLI) |
-| `deploy-backend.yml` / `deploy-frontend.yml` 与新部署共存 | 老链路可能跟新链路争同一个 `:7777` | 老 yml 不要重复触发;可以先手动 disable 老 workflow |
+### 7.1 SWR + docker CLI manifest 解析 bug ⭐
 
-### 备选部署方案(供选择)
+**现象**:`docker push` 反复 `error from registry: Invalid image, fail to parse 'manifest.json'`,所有 layer 都传完(`Layer already exists`)。
 
-| 方案 | 优点 | 缺点 | 适合 |
-|---|---|---|---|
-| **A: 腾讯云/华为云镜像仓库(SWR/CCR)** | 镜像版本化、CI 推 / 服务器 pull,跟 GitHub Actions 协作好 | 多一个镜像仓库配置;2M 带宽 push 也慢 | 团队协作 |
-| **B: 阿里云 ACR 个人版** | 中国访问快 | 个人版有额度上限 | 国内 demo |
-| **C: 本地 build + scp tgz** | 不需要镜像仓库、流程简单 | image 不能跨机复用;每次 build 浪费 | **个人单台 demo(推荐)** |
-| **D: 服务器上跑 CI runner(自建 GitHub Actions Runner)** | push 即触发,不需要 secrets 暴露 | runner 自身要维护;2G 内存紧张 | 长期项目 |
+**根因**:docker CLI 推 manifest v2.2 跟 SWR 解析器协议层有 bug。同一份 image,本地 docker save/inspect 都正常,只有最后 PUT manifest.json 那一步 SWR 解不出来。
+
+**无效尝试**:换 tag (`dev` → `v0.1`)、SWR 控制台删整个仓库重推。
+
+**最终修法**:**换 skopeo**,直发 OCI distribution-spec HTTP。验证 `pity-backend:v0.2` 一次成功。
+
+**适用范围**:华为云 SWR、阿里云 ACR、腾讯云 TCR 都有类似问题。**docker CLI 推国产 registry 普遍不可靠**,推之前先 `skopeo copy` 试试。
+
+### 7.2 docker compose plugin 缺失(server)
+
+**现象**:`docker compose version` 报 `unknown command: docker compose`。
+
+**根因**:华为云 Ubuntu 22.04 `docker.io` 包(版本 `29.1.3-0ubuntu3~22.04.2`)不带 compose plugin。Docker 官方仓库才会打包 `docker-compose-plugin`。
+
+**修法**:见 §6 步骤 B,要么 `apt install docker-compose-plugin`,要么下 GitHub 二进制。
+
+### 7.3 DaoCloud mirror 拉 buildkit 失败(被绕开)
+
+**现象**:`docker buildx` 报 `dial tcp: lookup docker.m.daocloud.io: no such host`。
+
+**根因**:`docker buildx` 用的 `docker-container` driver 要先拉 `moby/buildkit:buildx-stable-1`,DaoCloud mirror 在我们网络下 DNS 不通。
+
+**影响范围**:**零**。这台 Mac 是 **Intel(x86_64)**,`docker build` 默认就是 `linux/amd64`,不需要 cross-build,`buildx` 完全用不到。如果以后切到 M 系列 Mac,得换 mirror(`daemon.json` 里 `registry-mirrors: ["https://hub-mirror.c.163.com"]`),或者用 buildx。
+
+### 7.4 server 上 dev.env.ops 缺失 → bind mount 失败
+
+**现象**:`docker compose up -d backend` 报 `mount src=.../dev.env.ops, dst=/pity/conf/dev.env, ... not a directory: Are you trying to mount a directory onto a file`。
+
+**根因**:bind mount 的 host 路径 `./dev.env.ops` 不存在,docker engine **自动建空目录**(`drwxr-xr-x` 4096 字节)当作 bind source,后续 mount 时用 `MS_REC`(mount subtree recursively,目录专用)挂到文件位置失败。
+
+**修法**:compose 里用 `env_file: ./dev.env.ops` 替代 bind mount。env_file 把文件内容当 ENV 变量注入容器,pydantic Settings 直接消费,**不涉及 bind mount**。
+
+### 7.5 nginx 单一 /api/ 前缀不匹配前端
+
+**现象**:前端点 Register 报 `Request failed with status code 404`,response body 是 nginx 默认 404 HTML(`<title>404 Not Found</title>`)。
+
+**根因**:
+- `frontend/config/proxy.ts` 配了 11 个前缀的代理(`/api/`, `/auth/`, `/testcase/`, `/config/`, `/project/`, `/operation/`, `/workspace/`, `/oss/`, `/notification/`, `/online/`, `/request/`),但 nginx 只接 `/api/`
+- 其余 10 个落到 `location /` → 转给 frontend nginx → frontend 没这静态资源 → 404
+
+**修法**:nginx.conf 改成正则一次覆盖 11 个前缀,`proxy_pass http://backend:7777;`(无末尾 /,保留 URI)。
+
+### 7.6 Dockerfile.production ERESOLVE(peer dep 冲突)
+
+**现象**:`npm ci` exit 1,日志里 `npm error code ERESOLVE`、`@ant-design/charts@1.4.3` 要 `antd@^4.6.3`,实际装 `antd@5.29.3`。
+
+**根因**:UmiJS v4 + Ant Design v5 之间 peer dep 不兼容。`@ant-design/charts` v1.x 是给 antd 4.x 设计的,**根本不支持 antd 5**。npm 7+ 严格 peer dep 检查 fail。
+
+**修法**:加 `--legacy-peer-deps`(切回 npm 6 宽松解析)。这只 install 时通过,运行时 charts 渲染用 antd 5 实际 API,有可能有问题。如果运行时炸,就得换 `@ant-design/charts` 到 v2.x。
+
+### 7.7 GnuTLS `non-properly terminated`(死代码间接引发)
+
+**现象**:`wget https://github.com/vishnubob/wait-for-it/...` 报 `GnuTLS: The TLS connection was non-properly terminated`。
+
+**根因**:wait-for-it.sh 是 2015 年的等"MySQL TCP listen 之前不起 gunicorn"的脚本,**全仓 grep 后确认无人引用**,supervisor.conf 只起 gunicorn。这段 wget 跟证书不兼容是次要问题,**根本不需要修**.
+
+**修法**:删死代码(`apt install -y wget` + `wget ... wait-for-it` + final stage 的 COPY + chmod)。真正的"等 MySQL 就绪"由 docker compose `depends_on.condition: service_healthy` + 服务 healthcheck 处理(见 §9 后续)。
 
 ---
 
-## 6. 验收清单
+## 8. 验证清单(部署完成后必过)
 
-部署完以后,以下必须可验证:
-
-- [ ] 主机 `:80` 能打开 web 前端
-- [ ] 主机 `:80/api/...` 接口能返回 `{"code": 0, ...}` 风格的数据(任选一个接口)
-- [ ] MySQL 数据落盘到 `/home/tester/pity-data/mysql`,服务器重启后数据仍在
+- [ ] 主机 `:80` 能打开 web 前端(Pity 登录页)
+- [ ] 主机 `:80/api/auth/register` 返回 200 / 422(到达后端,不是 404)
+- [ ] 前端走完整注册流程,后端入库成功
+- [ ] MySQL 数据落盘到 `/home/tester/pity-data/mysql`,`docker compose restart mysql` 后数据仍在
 - [ ] Redis 数据落盘到 `/home/tester/pity-data/redis`
-- [ ] **`/` (根分区) 使用率 < 80%**,且 `du -sh /home/tester/pity-data/*` 各子目录未超过 §2.6 预算
+- [ ] **`/`(根分区)使用率 < 80%**,且 `du -sh /home/tester/pity-data/*` 各子目录未超过 §2 预算
 - [ ] docker system 干净:`docker image ls` 中无用 `<none>` 镜像已 `docker image prune` 清理
-- [ ] `docker stats` 各容器内存均不超过 limits
-- [ ] 重启某容器(down && up)后,5 个服务自动回到 healthy
-- [ ] (可选)GitHub push backend/** 自动触发部署
+- [ ] `docker stats` 各容器内存均不超过 limits(backend 600M / mysql 700M / redis 80M / frontend+nginx 各 30M)
+- [ ] 重启某容器(`docker compose restart <service>`)后,5 个服务自动回到 healthy
+- [ ] `df -h /` 在重启后仍 < 80%
 
 ---
 
-## 7. 回滚方案
+## 9. 已知未做(TODO 列表)
 
-- 老 yml 文件**保留不动**(不删 `.github/workflows/deploy-{backend,frontend}.yml`)
-- 主机上 `/home/tester/pity/` 老目录不动,docker 部署在同一机器的另一目录(`/home/tester/pity-deploy` 或类似)
-- 如果新部署出问题,回退只改 nginx 端口或停止新部署即可
-- 真正回滚:把 docker compose down,再手动 `pm2 start` 老 web.sh(或者 `pkill gunicorn && nohup gunicorn ... &`)
+### 文档同步
+
+- [ ] `docs/DEPLOY_RUNBOOK.md` 还是用 `/data/mysql` / `/data/redis` 旧假设,需要按本文 §2 单盘 + §7.4 env_file 同步
+- [ ] `docs/DB_MIGRATION_DEV_PRO_SPLIT.md` 用了 `/data/pity.db` 旧假设,需要同步
+
+### 持久化收尾
+
+- [ ] `push-to-swr.sh` 已支持 skopeo;`scripts/deploy.sh`(Mac 一键:本地 build + skopeo push + ssh pull & up)还没写,下次补
+- [ ] server 上的 `docker-compose.deploy.yaml` 本地同步(nginx 钉 v0.3 + 其他 `${TAG:-v0.2}` 默认)
+- [ ] nginx:v0.4 时(下次有 fix),server 上 nginx image tag 也要同步升
+
+### 运维
+
+- [ ] 系统盘使用率监控 cron / systemd timer(§2 给了脚本)
+- [ ] logrotate 落地(目前 docker 自己轮转,中间会丢几行;推荐 `copytruncate`)
+- [ ] 华为云 Flexus 控制台 → 云备份 → 凌晨 02:00 全量快照
+- [ ] SWR 临时凭证自动续期(目前 12h 手贴)
+
+### 后端
+
+- [ ] `backend/conf/pro.env` 生成(目前 deploy 用 `pity_env=dev` + dev.env.ops,真正 pro env 时切)
+- [ ] `depends_on.condition: service_healthy` + mysql/redis 健康检查(替代当年 wait-for-it.sh 的用途,见 §7.7)
+
+### 安全
+
+- [ ] HTTPS(Caddy 一键反向代理 + Let's Encrypt)
+- [ ] MYSQL/REDIS 密码轮换(目前 demo 密码是 `DemoMysql-2026!`)
+
+### GitHub Actions
+
+- [ ] 自动 build + push SWR(原 §10.4 草稿保留,可参考)
+- [ ] 自动部署到 server(`appleboy/ssh-action` + `docker compose pull && up`)
 
 ---
 
-## 8. 后续可选优化
+## 10. Commit 索引(2026-10-14 当日改动)
 
-- [ ] 切 HTTPS(Caddy 自动证书最省事)
-- [ ] 加 `healthcheck` 到 docker-compose 让 `docker compose ps` 真实反映状态
-- [ ] `frontend/Dockerfile` 改成多阶段 build:`node:20` build dist → `nginx:alpine` 部署,镜像更小
-- [ ] ~~数据盘 LVM / 快照备份~~ → **改**:基于单盘的系统盘 in-place 备份(`mysqldump` + `redis-cli BGSAVE` → `/home/tester/pity-data/backup/`),周期同步到对象存储(华为云 OBS / 阿里云 OSS / 腾讯云 COS);Flexus 单盘快照由控制台负责
-- [ ] 老 workflow yml 删除
-- [ ] 把 `frontend/deploy.sh`(老版"塞到 backend/statics")删掉
-
----
-
-## 9. 待用户拍板的项
-
-| # | 项 | 状态 | 备注 |
-|---|---|---|---|
-| 1 | Docker Compose 单机方案 | ✅ 已选 B | 前后端都做镜像 + nginx 反代,见 §11 |
-| 2 | HTTPS | ❓ 暂不挂 | demo 阶段不上,后续 Caddy 一行加 |
-| 3 | 数据库密码处理 | ❓ `.env` 优先 | `.env` 不入库,本地可临时硬编码 |
-| 4 | GitHub Actions 迁移 | ⏸ **延后** | 见 §11.4,先把手动 4 步跑顺再接 actions |
-| 5 | 旧 yml 处置 | ❓ 暂保留 | 作为"老部署方式归档"留底,不动 |
-| 6 | MySQL 初始数据 | ❓ 首次空 | `docker compose up` 后空库,需手工灌或 scp 老 dump |
-| 7 | 单盘布局路径 | ✅ bind mount | `/home/tester/pity-data/...` 已在 §2.6 + §11.3 落实 |
-| 8 | 日志回收 logrotate | ❓ 推荐 copytruncate | gunicorn/nginx/MySQL slow log 走 logrotate `copytruncate` |
-| 9 | 系统盘云备份 | ❓ 推荐凌晨 02:00 | Flexus 控制台定时快照兜底 |
-
----
-
-## 10. 决策记录(2026-10-13)
-
-**已选定方案 A:华为云 SWR + GitHub Actions**(原"## 5 风险与备选"中的方案 A)。
-
-### 10.1 路线差异(与本文档原阶段 2 / 阶段 3 的区别)
-
-| 阶段 | 原方案 | 调整后 |
-|---|---|---|
-| 阶段 1:docker 资产 | 不变 | 不变 |
-| **阶段 2:构建产物** | 本地 `deploy.sh` scp tgz | **CI 构建 → push 到 SWR**(由 GitHub Actions 完成) |
-| **阶段 3:服务器部署** | 主机 `docker compose up --build` | 主机 `docker compose pull && up -d`(从 SWR 拉) |
-| **触发方式** | push 触发,Actions 内部 scp 上传 | push 触发,Actions 内部 `docker push` 到 SWR + `ssh` 远端 `pull && up` |
-| **方案 C(scp tgz)** | 已降级为 fallback(临时调试用) | 不在主流程里 |
-
-### 10.2 镜像拆分(3 个独立镜像)
-
-| 镜像 | Dockerfile 来源 | SWR 命名(示例)|
-|---|---|---|
-| `pity-backend` | `backend/ops/dockerfile`(改 `-w 2`)| `swr.<region>.myhuaweicloud.com/<org>/pity-backend:<sha>` |
-| `pity-frontend` | 新增 `frontend/Dockerfile`(`nginx:alpine + COPY dist/`,多阶段更佳)| `swr.<region>.myhuaweicloud.com/<org>/pity-frontend:<sha>` |
-| `pity-nginx` | 新增 `nginx/Dockerfile + nginx.conf`(反代 `/api/`) | `swr.<region>.myhuaweicloud.com/<org>/pity-nginx:<sha>` |
-
-> 选 3 个独立镜像而不是 1 个合并大镜像,改动频率不均(前端 CSS 改动不应触发后端 mirror 重 build)。
-
-### 10.3 GitHub Secrets(从 3 个扩到 5 个)
-
-| Secret | 旧 | 新增 |
-|---|---|---|
-| `HOST` | ✅ | — |
-| `USERNAME` | ✅ | — |
-| `PASSWORD`(或 `SSH_KEY`) | ✅ | — |
-| `SWR_USER` | — | ✅ SWR 临时登录凭证用户名(默认是 organization 路径,如 `cn-north-4@<org>`)|
-| `SWR_PASS` | — | ✅ SWR 临时登录凭证密码(12 小时过期,每次 Action 任务运行时新生成一个)|
-
-### 10.4 GitHub Actions 草稿
-
-`deploy-backend.yml`(改写为 SWR push):
-
-```yaml
-name: Build & Push pity-backend (SWR)
-
-on:
-  push:
-    branches: [main]
-    paths: ['backend/**']
-  workflow_dispatch:
-
-jobs:
-  build:
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-
-      - name: Login to SWR
-        uses: docker/login-action@v3
-        with:
-          registry: ${{ vars.SWR_REGISTRY }}      # 仓库变量,例如 swr.cn-north-4.myhuaweicloud.com
-          username: ${{ secrets.SWR_USER }}
-          password: ${{ secrets.SWR_PASS }}
-
-      - name: Build & push
-        uses: docker/build-push-action@v5
-        with:
-          context: ./backend
-          file: ./backend/ops/dockerfile
-          push: true
-          tags: |
-            ${{ vars.SWR_REGISTRY }}/${{ vars.SWR_ORG }}/pity-backend:${{ github.sha }}
-            ${{ vars.SWR_REGISTRY }}/${{ vars.SWR_ORG }}/pity-backend:latest
-
-      - name: Trigger remote pull & up
-        uses: appleboy/ssh-action@master
-        with:
-          host: ${{ secrets.HOST }}
-          username: ${{ secrets.USERNAME }}
-          password: ${{ secrets.PASSWORD }}
-          script: |
-            cd /home/tester/pity-deploy
-            docker login -u "$SWR_USER" -p "$SWR_PASS" $SWR_REGISTRY
-            docker compose -f docker-compose.deploy.yaml --env-file .env pull backend
-            docker compose -f docker-compose.deploy.yaml --env-file .env up -d backend
-          envs: SWR_REGISTRY,SWR_USER,SWR_PASS
+```bash
+git log --oneline -10 main
+# 倒序(今天的 commit,晚上一并 git push):
+#   d28d4c7 fix(deploy): 持久化 nginx 11-prefix 转发规则 + 修 dev.env.ops 脆弱的 bind mount
+#   c881b07 fix(scripts): push-to-swr.sh 改走 skopeo,绕开 docker push 的 SWR manifest bug
+#   56950e3 chore(backend): 切换 pip 镜像源至华为云(SWR 加速)        ← 用户中间插的 commit
+#   c47bed7 fix(frontend): Dockerfile.production 加 --legacy-peer-deps
+#   b708acb chore(backend): 去掉 wait-for-it.sh 死代码 + 修 lint as → AS
+#   297e3d2 chore(frontend): dev Dockerfile 升 Node 20 + 去 cnpm 老黄历 + 改用 npm ci
+#   981d741 fix(backend): 对齐后端 dockerfile 基础镜像到 python:3.10-slim(本地 conda 同版本)
+#   0e433b2 feat(deploy): 新增 docker 部署资产(nginx 反代 + 多阶段前端镜像 + 5 服务 compose)
+#   71647f5 docs(deploy): 改单盘 40G 假设,补 §2.6 容量预算与 MySQL/Redis 限大小参数
 ```
 
-`deploy-frontend.yml`(改写为 SWR push,先 build 后端 npm dist 再打前端镜像):
-
-```yaml
-name: Build & Push pity-frontend (SWR)
-
-on:
-  push:
-    branches: [main]
-    paths: ['frontend/**']
-  workflow_dispatch:
-
-jobs:
-  build:
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
-        with: { node-version: 20 }
-
-      - name: Build frontend dist
-        working-directory: frontend
-        run: |
-          npm ci || npm install
-          npm run build
-
-      - name: Login to SWR
-        uses: docker/login-action@v3
-        with:
-          registry: ${{ vars.SWR_REGISTRY }}
-          username: ${{ secrets.SWR_USER }}
-          password: ${{ secrets.SWR_PASS }}
-
-      - name: Build & push pity-frontend image
-        uses: docker/build-push-action@v5
-        with:
-          context: ./frontend
-          push: true
-          tags: |
-            ${{ vars.SWR_REGISTRY }}/${{ vars.SWR_ORG }}/pity-frontend:${{ github.sha }}
-            ${{ vars.SWR_REGISTRY }}/${{ vars.SWR_ORG }}/pity-frontend:latest
-
-      - name: Trigger remote pull & up
-        uses: appleboy/ssh-action@master
-        with:
-          host: ${{ secrets.HOST }}
-          username: ${{ secrets.USERNAME }}
-          password: ${{ secrets.PASSWORD }}
-          script: |
-            cd /home/tester/pity-deploy
-            docker login -u "$SWR_USER" -p "$SWR_PASS" $SWR_REGISTRY
-            docker compose -f docker-compose.deploy.yaml --env-file .env pull frontend nginx
-            docker compose -f docker-compose.deploy.yaml --env-file .env up -d frontend nginx
-```
-
-> 用 GitHub **Vars**(仓库变量)而不是 Secrets 放 `SWR_REGISTRY` 和 `SWR_ORG`,因为这些不是机密。SWR_USER / SWR_PASS 才进 Secrets。
-
-### 10.5 `docker-compose.deploy.yaml` 调整为 pull-based
-
-把 `build:` 改成 `image:`,从 SWR 拉预构建镜像:
-
-```yaml
-services:
-  backend:
-    image: ${SWR_REGISTRY}/${SWR_ORG}/pity-backend:${TAG:-latest}
-    restart: unless-stopped
-    env_file: pro.env.ops
-    networks: [appnet]
-    deploy:
-      resources:
-        limits: { memory: 600M }
-
-  frontend:
-    image: ${SWR_REGISTRY}/${SWR_ORG}/pity-frontend:${TAG:-latest}
-    restart: unless-stopped
-    networks: [appnet]
-    deploy:
-      resources:
-        limits: { memory: 30M }
-
-  nginx:
-    image: ${SWR_REGISTRY}/${SWR_ORG}/pity-nginx:${TAG:-latest}
-    restart: unless-stopped
-    ports: ["80:80"]
-    depends_on: [backend, frontend]
-    networks: [appnet]
-    deploy:
-      resources:
-        limits: { memory: 30M }
-
-  mysql:    # 仍用 docker hub 公开镜像;volumes / command 与 §1.4 一致(/home/tester/pity-data/mysql 等)
-    image: mysql:8.0
-    # ...
-  redis:    # volumes / command 与 §1.4 一致(/home/tester/pity-data/redis;AOF 限大小参数同 §1.4)
-    image: redis:7-alpine
-    # ...
-```
-
-> 主机上 `/home/tester/pity-deploy/.env` 应包含:
-> ```
-> SWR_REGISTRY=swr.cn-north-4.myhuaweicloud.com
-> SWR_ORG=<你的组织名>
-> TAG=latest    # 或 specific sha
-> MYSQL_ROOT_PASSWORD=...
-> REDIS_PASSWORD=...
-> ```
-
-### 10.6 待用户补充(还没定)
-
-- [ ] **Flexus region**(决定 `SWR_REGISTRY` 前缀;常见 `cn-north-4` / `cn-east-3` / `cn-south-1`)
-- [ ] **SWR 组织名**(`${{ vars.SWR_ORG }}`)
-- [ ] **服务器上是否已 `docker login swr...`**(首次需要,我可以在 deploy 时一并做;或先在主机手动 docker login 一次)
-- [x] **3 个镜像 vs 1 个大镜像** → **3 个已选定**(§11.3 落实),理由见 §10.2
-- [x] **旧 workflow yml 是否删除** → **本次不动**,归档留底;以后 actions 上线时另开新 yml(见 §11.4)
-- [ ] **SWR 临时凭证生成策略**:用 `obs ObsClient` 在 GitHub Actions 里现生成,还是手动提前生成 12 小时过期的密码贴到 Secrets?后者过期需手动续 → **本次走手动方案**(12h 凭证 export 到环境变量);actions 阶段再讨论
+老文档被此 commit 覆盖;旧 git 历史里 `docs/DEPLOY_DOCKER_MIGRATION.md` 还有 2026-10-13 那份,要回看跑 `git log --follow docs/DEPLOY_DOCKER_MIGRATION.md`。
 
 ---
 
-## 11. 决策记录 2026-10-14(选 B:前后端都做镜像 + nginx 反代;先手动 4 步,Actions 延后)
+## 11. 给接手人的话
 
-**用户决定(2026-10-14 AskUserQuestion):** 选 **B. 前后端都做镜像 + nginx 反代**。
-**理由:** 原 Pity "前端 dist 塞 backend/statics" 在 monorepo + docker 化里已经不合理;前端拆独立镜像、nginx 反代统一入口,改动隔离干净,HTTPS 一行加。
-
-### 11.1 本次新增文件清单
-
-| 文件 | 用途 |
-|---|---|
-| `nginx/Dockerfile` | 反代镜像(`nginx:1.27-alpine`,COPY `nginx.conf`) |
-| `nginx/nginx.conf` | `/api/*` → `backend:7777`,其余 → `frontend:80` |
-| `frontend/Dockerfile.production` | 多阶段:`node:20-alpine` 跑 `max build` → `nginx:1.27-alpine` serve `dist/` |
-| `frontend/.dockerignore` | 排除 `node_modules` / `dist` / `.umi` / `tests` / `mock` / `.git` 等 |
-| `backend/ops/docker-compose.deploy.yaml` | 5 服务 pull-based compose,镜像从 SWR 拉,数据卷按 §2.6 单盘约定 |
-| `scripts/build-images.sh` | Step 1:本地构建 3 个自建镜像 |
-| `scripts/push-to-swr.sh` | Step 2:3 镜像 `tag + docker login + push` 到 SWR |
-
-> 现有 `frontend/Dockerfile`(dev 用)2026-10-14 升级到 `node:20-alpine` + `npm ci`(去 cnpm 老黄历),与本地 Node 20.20.2 对齐;生产部署走 `Dockerfile.production`,跟这份分开。
-> 现有 `backend/ops/docker-compose.yaml`(dev,3 服务 + 老 `pity_net`)也保留不动;dev 与 deploy 并存可用。
-
-### 11.2 手动 4 步流程(取代 GitHub Actions 自动路径)
-
-| 步骤 | 操作 | 工具 |
-|---|---|---|
-| Step 1 | 本地构建 3 个自建镜像 | `./scripts/build-images.sh <tag>`(默认 tag = dev) |
-| Step 2 | 推到华为云 SWR | `./scripts/push-to-swr.sh <tag>`,环境变量提供 `SWR_REGISTRY` / `SWR_ORG` / `SWR_USER` / `SWR_PASS`(12h 凭证) |
-| Step 3 | 服务器 pull + up | scp 上 `docker-compose.deploy.yaml` + `.env`;服务器:`docker compose pull && docker compose up -d` |
-| Step 4 | GitHub Actions 自动 push/deploy | ⏸ **延后**,见 §11.4 |
-
-> `mysql:8.0` / `redis:7-alpine` 是 docker.io 公开镜像,**不需要本地 build 也不需要手动 push**,server 上 `docker compose pull` 时自动从 docker.io 拉(国内可能需换镜像源,见 §5 已列风险)。
-
-### 11.3 关键设计决定
-
-| 项 | 决定 | 备注 |
-|---|---|---|
-| 镜像数 | 3(`pity-backend` / `pity-frontend` / `pity-nginx`) | 沿用 §10.2,改动隔离 |
-| 数据卷布局 | bind mount 到 `/home/tester/pity-data/...` | 沿用 §2.6 单盘 40G 约定 |
-| backend 环境文件 | 复用 `dev.env.ops`(host bind mount),设 `pity_env=dev` | 等 `backend/conf/pro.env` 真正落地后再切 pro;`MYSQL_HOST=mysql` / `REDIS_HOST=redis` 在 compose 中显式覆盖 |
-| MySQL 凭证 | `.env` 提供 `MYSQL_ROOT_PASSWORD`,compose 用 `${MYSQL_ROOT_PASSWORD}` 同步到容器内 `MYSQL_PWD` | `${VAR:?required}` 强制要求,缺变量直接报错 |
-| 容器名后缀 | `_deploy`(`pity_mysql_deploy` 等) | 跟 dev compose 的同名容器(`pity_mysql`)区分,两套可并存 |
-| 前端 npm 镜像 | `--registry=https://registry.npmmirror.com` | 2M 带宽下拉得动 |
-| redis 启动参数 | `--appendonly yes --appendfsync everysec --save "" --auto-aof-rewrite-min-size 64mb --auto-aof-rewrite-percentage 100` | §2.6 单盘容量约定派生,AOF 限大小 |
-| mysql 启动参数 | `--expire_logs_days=3 --max_binlog_size=104857600 --innodb_file_per_table=1` | 同上,binlog 限大小 |
-| 网络 | 单 bridge `appnet` | 5 容器全在同一网络,通过服务名互访 |
-| 资源限制(每容器 `deploy.resources.limits.memory`) | backend 600M / mysql 700M / redis 80M / frontend 30M / nginx 30M | 合计 ~1.44G,2G 主机余量 ~500M 给 OS + buffer |
-
-### 11.4 归档:§10.4 GitHub Actions 草稿(本次未启用)
-
-保留 §10.4 的 Actions yml 草稿作为历史参考,**不实际启用**:
-- 理由:用户体感"乱",先把手动 4 步跑顺再讨论自动化
-- 启用 Actions 时建议**另起文件**(如 `.github/workflows/deploy-docker.yml`)而不是覆盖 §10.4 那份草稿,以便后续对比演进
-- 当前 `.github/workflows/deploy-{backend,frontend}.yml` 文件**未改动**,继续以原 SCP + gunicorn + PM2 触发(但当前 deploy 已切到 docker,老 workflow 实际是 no-op)
-
-### 11.5 §10.6 部分回答对账
-
-按本次 commit 落地的口径,§10.6 中:
-
-- ✅ **3 个镜像 vs 1 个** — 3 个,见 §11.3
-- ✅ **旧 workflow yml** — 保留不动,见 §11.4
-- ✅ **SWR 凭证策略** — 本次走手动 12h 凭证(`SWR_USER` / `SWR_PASS` export 到环境变量,actions 阶段再切换 ObsClient 自动生成)
-- ❓ **Flexus region / SWR org** — 待用户填 `SWR_REGISTRY` / `SWR_ORG` 后才能跑 Step 2 / Step 3
-- ❓ **服务器首次 docker login** — 待确认服务器上是否已 `docker login swr...`,首次需手动 login 一次
-
+- 服务器密码、SWR 凭证等敏感信息**绝对不要 commit**;`.env` 后缀的文件已在 root `.gitignore` 范围内
+- 每次部署完跑一次 `df -h /` 确认 40G 余量;docker image 自带 layer cache,5G 以内 build 一次不爆
+- 想重新做架构 / 选型,看 §0 决策树 + §3 资源,每个选择都有 rationale
+- 踩过的坑:**先看 §7 失败教训**,80% 的问题那里都有
+- 部署流程:严格走 §6,别跳步骤(尤其 §6.B 装 compose plugin、§6.E pull + up 都得 set env)
