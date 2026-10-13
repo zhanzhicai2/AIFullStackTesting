@@ -8,9 +8,10 @@
 
 ## 1. 部署目标(用户原话)
 
-- 单台华为云 Flexus `ahf.large.1.40g.2m`,2 核 2G 内存 / 40G 系统盘 + 100G 数据盘 / 2M 带宽
+- 单台华为云 Flexus `ahf.large.1.40g.2m`,2 核 2G 内存 / **仅 40G 系统盘,无独立数据盘** / 2M 带宽
 - 个人 demo,不要求 7×24 / 不要求 HA
 - 前端 + 后端**全部走 Docker**,跟开发环境隔离,跟 demo 部署流程统一
+- 系统盘是**唯一**磁盘 → MySQL 数据、Redis 持久化、应用日志、Docker 镜像层全部挤在这里,容量预算见 §2.6
 
 ---
 
@@ -54,9 +55,37 @@
 |---|---|
 | 2 核 CPU | 单容器进程够用,但 8 worker gunicorn 在请求突发时容易双核跑满 |
 | 2G 内存 | MySQL 8.0 idle ~500-700MB、Redis ~50MB、backend gunicorn `-w 2` ~250MB、nginx ~20MB,合计 ~1GB,可挤但要小心 |
-| 系统盘 40G | 镜像和容器放系统盘;业务数据**应该**挂到数据盘 `/data/` |
-| 数据盘 100G | MySQL 数据文件 + Redis 持久化 + 日志放这里 |
+| 系统盘 40G(**唯一磁盘**) | 镜像、容器运行时、MySQL 数据、Redis 持久化、应用日志**全**在此盘。MySQL/Redis 路径从原 `/data/...` 改到 `/home/tester/pity-data/...`(也在系统盘);**必须**做容量预算 + 日志/binglog/AOF 回收 + 监控,详见 §2.6 |
 | 2M 带宽 | `docker pull` 速度慢,镜像尽量本地 build 或提前拉取;scp 上传中小 frontend dist(<5M) 没压力 |
+
+---
+
+### 2.6 单盘 40G 容量预算(必读,基于"只有系统盘"前提)
+
+40G 系统盘的可用空间,按以下口径切;**留 8–10G buffer** 给 OS + apt 缓存 + Docker 引擎自身增长,**不要让数据落满到 90% 以上**,否则 apt/docker/journald 都开始报错。
+
+| 类别 | 路径 | 预算上限 | 回收策略 |
+|---|---|---|---|
+| 镜像层(含 builder cache) | `/var/lib/docker` + `/tmp`(builder) | ~6G | `docker builder prune -af --filter "until=72h"` 每周 cron;`docker system prune` 手敲 |
+| MySQL 数据 | `/home/tester/pity-data/mysql` | ~8G | `expire_logs_days=3`、`innodb_file_per_table`、`max_binlog_size=100M` |
+| Redis 数据 | `/home/tester/pity-data/redis` | ~500M | AOF only、`appendfsync everysec`、`auto-aof-rewrite-min-size 64mb` |
+| 应用日志(gunicorn + nginx) | `/home/tester/pity-data/logs/{pity,nginx}` | ~2G | logrotate 按天切,保留 14 天,`copytruncate` 不停服 |
+| MySQL binlog + slow log | `/home/tester/pity-data/logs/mysql` | ~1G | `expire_logs_days=3`,slow log 用 logrotate |
+| 部署包 + 临时上传 | `/home/tester/pity-deploy` | ~2G | `rm /tmp/pity-deploy.tgz` 后留 release 目录 |
+| 系统自身 | `/`、`/var/log/journal`、`/var/cache/apt` | ~10G | journald `SystemMaxUse=200M`、apt `clean` 周期 |
+| **Buffer(headroom)** | — | **~10G** | 任何单类别超过预算要先报警 |
+
+**磁盘占用监控(必装):** systemd timer 或 cron 跑:
+
+```bash
+USAGE=$(df -P / | awk 'NR==2 {print $5}' | tr -d '%')
+[ "$USAGE" -ge 70 ] && logger -t pity-disk "WARN rootfs ${USAGE}%"
+[ "$USAGE" -ge 85 ] && logger -t pity-disk "CRIT rootfs ${USAGE}%"
+```
+
+`logger` 走 journald,`SystemMaxUse=200M` 兜底不让日志也吃满。
+
+**Docker 引擎建议:** Docker data-root 默认就在 `/var/lib/docker`(系统盘),不动;如果以后真撑不住再考虑 `/home/tester/docker` 软链接(这次不做)。
 
 ---
 
@@ -86,8 +115,10 @@
               ┌─────▼──┐   ┌───▼────┐
               │ MySQL 8│   │ Redis  │
               └────────┘   └────────┘
-              ↓ 数据卷挂到主机
-        /data/mysql, /data/redis
+              ↓ bind mount 到系统盘
+        /home/tester/pity-data/mysql
+        /home/tester/pity-data/redis
+        /home/tester/pity-data/logs/{pity,nginx,mysql}
 ```
 
 ### 3.1 服务清单(单机 Docker Compose)
@@ -96,9 +127,9 @@
 |---|---|---|---|---|
 | `nginx` | 自建(`nginx:1.27-alpine` + 自定义 `nginx.conf`) | 80 (→ host 80) | ~20MB | 只读挂 `dist/` 也可省 |
 | `frontend` | 自建(`nginx:alpine` + COPY dist/) | 仅内网 | ~20MB | 无 |
-| `backend` (`pity`) | 自建(`backend/ops/dockerfile` 改 `-w 2`) | 仅内网 | ~250MB | `/data/pity_logs` |
-| `mysql` | `mysql:8.0` | 仅内网 | ~500-700MB | `/data/mysql` |
-| `redis` | `redis:7-alpine` | 仅内网 | ~50MB | `/data/redis` |
+| `backend` (`pity`) | 自建(`backend/ops/dockerfile` 改 `-w 2`) | 仅内网 | ~250MB | `/home/tester/pity-data/logs/pity` |
+| `mysql` | `mysql:8.0` | 仅内网 | ~500-700MB | `/home/tester/pity-data/mysql` |
+| `redis` | `redis:7-alpine` | 仅内网 | ~50MB | `/home/tester/pity-data/redis` |
 
 **端口只对外暴露 80(或 443)**。MySQL / Redis / backend / frontend 全部走 docker network 内网通信。
 
@@ -197,8 +228,13 @@ services:
     environment:
       MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD}
       MYSQL_DATABASE: pity
+    command:
+      - --expire_logs_days=3
+      - --max_binlog_size=104857600
+      - --innodb_file_per_table=1
     volumes:
-      - /data/mysql:/var/lib/mysql
+      - /home/tester/pity-data/mysql:/var/lib/mysql
+      - /home/tester/pity-data/logs/mysql:/var/log/mysql
     networks: [appnet]
     deploy:
       resources:
@@ -207,9 +243,16 @@ services:
   redis:
     image: redis:7-alpine
     restart: unless-stopped
-    command: redis-server --requirepass ${REDIS_PASSWORD}
+    command: >
+      redis-server
+      --requirepass ${REDIS_PASSWORD}
+      --appendonly yes
+      --appendfsync everysec
+      --save ""
+      --auto-aof-rewrite-min-size 64mb
+      --auto-aof-rewrite-percentage 100
     volumes:
-      - /data/redis:/data
+      - /home/tester/pity-data/redis:/data
     networks: [appnet]
     deploy:
       resources:
@@ -329,8 +372,10 @@ REMOTE
 
 - [ ] 主机 `:80` 能打开 web 前端
 - [ ] 主机 `:80/api/...` 接口能返回 `{"code": 0, ...}` 风格的数据(任选一个接口)
-- [ ] MySQL 数据落盘到 `/data/mysql`,服务器重启后数据仍在
-- [ ] Redis 数据落盘到 `/data/redis`
+- [ ] MySQL 数据落盘到 `/home/tester/pity-data/mysql`,服务器重启后数据仍在
+- [ ] Redis 数据落盘到 `/home/tester/pity-data/redis`
+- [ ] **`/` (根分区) 使用率 < 80%**,且 `du -sh /home/tester/pity-data/*` 各子目录未超过 §2.6 预算
+- [ ] docker system 干净:`docker image ls` 中无用 `<none>` 镜像已 `docker image prune` 清理
 - [ ] `docker stats` 各容器内存均不超过 limits
 - [ ] 重启某容器(down && up)后,5 个服务自动回到 healthy
 - [ ] (可选)GitHub push backend/** 自动触发部署
@@ -351,7 +396,7 @@ REMOTE
 - [ ] 切 HTTPS(Caddy 自动证书最省事)
 - [ ] 加 `healthcheck` 到 docker-compose 让 `docker compose ps` 真实反映状态
 - [ ] `frontend/Dockerfile` 改成多阶段 build:`node:20` build dist → `nginx:alpine` 部署,镜像更小
-- [ ] 数据盘 LVM / 快照备份
+- [ ] ~~数据盘 LVM / 快照备份~~ → **改**:基于单盘的系统盘 in-place 备份(`mysqldump` + `redis-cli BGSAVE` → `/home/tester/pity-data/backup/`),周期同步到对象存储(华为云 OBS / 阿里云 OSS / 腾讯云 COS);Flexus 单盘快照由控制台负责
 - [ ] 老 workflow yml 删除
 - [ ] 把 `frontend/deploy.sh`(老版"塞到 backend/statics")删掉
 
@@ -364,7 +409,10 @@ REMOTE
 3. **数据库密码处理**:`.env` 文件不入库,本地另外存一份,同意?(如果不放心 demo 期间直接硬编码也行)
 4. **GitHub Actions 迁移**:方案 A(保留老 yml,内部调 `deploy.sh`)还是方案 B(完全重写成一个 yml)?
 5. **旧 yml 处置**:保留作 manual trigger,还是直接删?
-6. **MySQL 数据**:`/data/mysql` 第一次 up 是空的,需要你手动灌初始数据或先 scp 老 dump 过来吗?
+6. **MySQL 数据**:`/home/tester/pity-data/mysql` 第一次 up 是空的,需要你手动灌初始数据或先 scp 老 dump 过来吗?
+7. **单盘布局路径**:确认使用 `/home/tester/pity-data/{mysql,redis,logs}` 的 Docker **bind mount**(推荐,直接 `du -sh` 看容量),还是改用 named volumes `pity-mysql`/`pity-redis`(Docker 自动管理位置,看似整洁但首台机器 reboot 后只能 `docker volume inspect` 才能看到路径)?
+8. **日志回收**:gunicorn access/error + nginx access + MySQL slow log 用 `logrotate` 走 `copytruncate`(不停服)— 还是接受 `docker logs` 轮转丢失中间几行?推荐前者。
+9. **系统盘快照**:华为云控制台里给这台 Flexus 挂"云备份",快照策略定在每天凌晨 02:00 OK?(单盘最便宜的兜底)
 
 ---
 
@@ -541,10 +589,10 @@ services:
       resources:
         limits: { memory: 30M }
 
-  mysql:    # 仍用 docker hub 公开镜像
+  mysql:    # 仍用 docker hub 公开镜像;volumes / command 与 §1.4 一致(/home/tester/pity-data/mysql 等)
     image: mysql:8.0
     # ...
-  redis:
+  redis:    # volumes / command 与 §1.4 一致(/home/tester/pity-data/redis;AOF 限大小参数同 §1.4)
     image: redis:7-alpine
     # ...
 ```
