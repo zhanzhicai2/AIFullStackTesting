@@ -28,7 +28,7 @@
 
 ### 2.2 现有 Docker 资产
 
-- `backend/ops/dockerfile` — 多阶段 `python:3.9-slim + builder`,镜像内部用 `supervisord` 起 `gunicorn main:pity -b 0.0.0.0:7777 -w 8`。
+- `backend/ops/dockerfile` — 多阶段 `python:3.10-slim + builder`(2026-10-14 由 3.9 升至 3.10,与本地 `pity-backend` conda env 对齐),镜像内部用 `supervisord` 起 `gunicorn main:pity -b 0.0.0.0:7777 -w 8`。
 - `backend/ops/docker-compose.yaml` — dev 用三件套(`mysql:8.0` / `redis` / `pity` 后端),**没有前端容器**。
 - `backend/ops/supervisor.conf` — 容器内的 supervisord 配置文件,启动 1 个 gunicorn 进程(8 worker)。
 - `backend/ops/dev.env.ops` — 当前 dev 用的环境文件(被 mount 进容器当 `/pity/conf/dev.env`)。
@@ -347,7 +347,7 @@ REMOTE
 |---|---|---|
 | 2G 内存紧张 | 4 容器同时跑可能 OOM | 加 `deploy.resources.limits.memory`;预留 200-400MB 给 OS / buffer |
 | MySQL 8 默认有 `caching_sha2_password` 鉴权 | 后端 pymysql / sqlalchemy 需兼容(已 OK) | 启动后建库,不要用 root 业务连接 |
-| 镜像 build 慢 | 2M 带宽拉 `python:3.9-slim` 镜像 60-100MB 首次拉取 ~5-10 分钟 | 国内服务器换 `registry.cn-hangzhou.aliyuncs.com/library/python:3.9-slim` 或 `swr.cn-north-4.myhuaweicloud.com` |
+| 镜像 build 慢 | 2M 带宽拉 `python:3.10-slim` 镜像 60-100MB 首次拉取 ~5-10 分钟 | 国内服务器换 `registry.cn-hangzhou.aliyuncs.com/library/python:3.10-slim` 或 `swr.cn-north-4.myhuaweicloud.com` |
 | 没有 HTTPS | 个人 demo 浏览器会拦 mixed content | 阶段 2 先 HTTP,以后挂 CDN / Let's Encrypt |
 | gunicorn 单 worker 处理静态慢 | 后端 `/` 返回 simple html | 不影响 demo 演示 |
 | `deploy.sh` 的密码明文 | `USERNAME` `PASSWORD` 直接写在 Actions secrets 里可以,但脚本里 `ssh` 也用密码 | 改成 SSH Key 部署更安全(个人 demo 可缓) |
