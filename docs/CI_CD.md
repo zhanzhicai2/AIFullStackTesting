@@ -64,6 +64,22 @@ SWR 控制台"我的凭证 → 临时登录指令"生成的临时凭证 12h 过�
 > - 启用"访问控制 → IP 限制" — 限制该 AK 只能从可信 IP 段调用(可填 `0.0.0.0/0` 不限制)
 > - 不在主账号下用,只在 SWR 子操作下挂名,出问题影响范围可控
 
+### 2.4 ⚠️ SWR login 的 username 格式必须带 region 前缀
+
+2026-10-14 实测坑:**SWR docker registry 不接受裸 AK**。docker login 必须用:
+
+```bash
+docker login "swr.<region>.myhuaweicloud.com" \
+  -u "<region>@<AK>" \
+  --password-stdin <<< "<SK>"
+```
+
+举例:`swr.cn-south-1.myhuaweicloud.com` 对应 `cn-south-1@<AK>`。
+
+> 这是华为云 SWR 的强制规则,不是 SKU 习惯命名。带 region 前缀是为了在多 region 账号下区分 namespace;永久 IAM AK/SK 同样要按这个格式,否则登录会被拒(`denied: Authenticate Error`)。
+
+workflow 已用 `sed` 从 `SWR_REGISTRY` 动态提取 region,见 `.github/workflows/deploy-docker.yml` 的 `Derive SWR region from registry` step。**不要**再单独配一个 `SWR_REGION` 变量,以防两者不一致。
+
 ## 3. 触发方式
 
 ### 3.1 自动 push 触发(推荐)

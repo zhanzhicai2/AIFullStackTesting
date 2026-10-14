@@ -86,13 +86,26 @@ jobs:
           }
           EOF
 
+      - name: Derive SWR region from registry
+        id: region
+        # SWR docker registry login 用户名格式必须是 `<region>@<AK>`,
+        # region 从 SWR_REGISTRY 提取(swrc.<region>.myhuaweicloud.com),
+        # 不要在 GH Variables 里再单独配 region,这里动态取跟 SWR_REGISTRY 严格对齐
+        env:
+          SWR_REGISTRY: ${{ vars.SWR_REGISTRY }}
+        run: |
+          REGION=$(echo "$SWR_REGISTRY" | sed -E 's/^swr\.(.+)\.myhuaweicloud\.com$/\1/')
+          echo "value=$REGION" >> "$GITHUB_OUTPUT"
+          echo "::debug::Derived SWR region: $REGION"
+
       - name: Push to SWR (via skopeo)
         env:
           # push-to-swr.sh 强制要求这 4 个 env
           SWR_REGISTRY: ${{ vars.SWR_REGISTRY }}
           SWR_ORG: ${{ vars.SWR_ORG }}
-          # IAM 永久凭证直接当 username/password 用(SWR docker registry 接受)
-          SWR_USER: ${{ secrets.SWR_ACCESS_KEY }}
+          # ⚠️ SWR docker registry 接受 IAM 永久 AK/SK,但 username 必须带 region 前缀
+          # (2026-10-14 实测:不带头会 'denied: Authenticate Error')
+          SWR_USER: ${{ steps.region.outputs.value }}@${{ secrets.SWR_ACCESS_KEY }}
           SWR_PASS: ${{ secrets.SWR_SECRET_KEY }}
         run: ./scripts/push-to-swr.sh "${{ steps.tag.outputs.value }}"
 
