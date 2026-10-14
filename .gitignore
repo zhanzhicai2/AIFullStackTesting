@@ -55,6 +55,8 @@ frontend/src/utils/request-temp.js
 # ---------- Backend (deeper ignores beyond backend/.gitignore) ----------
 # backend/.gitignore already covers most
 backend/logs/
+backend/statics/             # 老 UmiJS 构建产物,2026-10-14 已 git rm -r;main.py 不再挂载
+backend/docs/                # 另一份孤儿前端产物,2026-10-14 已 git rm -r;main.py 不挂载
 backend/__pycache__/
 backend/**/__pycache__/
 backend/*.pyc
