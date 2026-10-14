@@ -16,6 +16,7 @@ COPY . .
 COPY --from=builder /pity/venv/ /pity/venv/
 COPY --from=builder /usr/share/zoneinfo/Asia/Shanghai /etc/localtime
 RUN ln -sf /pity/ops/dev.env.ops /pity/conf/dev.env
+RUN mkdir -p /pity/logs
 
 EXPOSE 7777
 
