@@ -21,7 +21,6 @@ backend/
 ├── main.py                 # 应用入口（开发启动）
 ├── pity.py                 # 生产启动入口
 ├── config.py               # 配置类（BaseConfig + DevConfig/ProConfig）
-├── gunicorn.py             # Gunicorn 生产部署配置
 ├── alembic.ini             # Alembic 迁移配置
 ├── requirements.txt        # Python 依赖
 ├── conf/                   # 环境配置
