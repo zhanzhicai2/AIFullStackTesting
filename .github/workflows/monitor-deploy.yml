@@ -1,0 +1,46 @@
+# 新增于 2026-10-14
+# 周期健康检查:每 30 分钟 curl /auth/login,5xx/000 (连接失败) → GH fail → 邮件告警
+# 配套 deploy-docker.yml 形成部署闭环:deploy 出去 + 监控回来
+# 走 GH Actions cron 而不是自托管服务(服务器 1.7G 撑不开监控容器)
+# GH 2000 分钟/月免费额度:*/30 cron 每月 ≈ 720 次 × ~30s ≈ 360 分钟,留有余量
+# 详见 docs/CI_CD.md §7
+name: monitor-deploy
+
+on:
+  schedule:
+    # 每 30 分钟跑一次(UptimeRobot 同步补 5 分钟粒度,但更可控)
+    - cron: '*/30 * * * *'
+  workflow_dispatch:   # 手动触发,测试用
+
+jobs:
+  health-check:
+    runs-on: ubuntu-latest
+    timeout-minutes: 2
+    steps:
+      - name: Probe backend health
+        id: probe
+        run: |
+          # curl -s 不抛错; -w 输出 http_code; 200/4xx 都算 OK (业务层错误)
+          # 5xx = backend 崩溃; 000 = 连不上服务器
+          STATUS=$(curl -s -o /tmp/resp.txt -w "%{http_code}" \
+            -X POST "http://124.71.69.165/auth/login" \
+            -H "Content-Type: application/json" \
+            -d '{}' \
+            --max-time 10)
+          echo "STATUS=$STATUS"
+          echo "status=$STATUS" >> "$GITHUB_OUTPUT"
+
+          # 打印 body 片段(便于 debug)
+          echo "--- response body (first 200 chars) ---"
+          head -c 200 /tmp/resp.txt
+          echo ""
+
+          # 判定 OK / FAIL
+          if [ "$STATUS" = "000" ] || ([ "$STATUS" -ge "500" ] && [ "$STATUS" -lt "600" ]); then
+            echo "::error::pity 服务器异常 status=$STATUS"
+            exit 1
+          fi
+
+          if [ "$STATUS" -ge "200" ] && [ "$STATUS" -lt "500" ]; then
+            echo "::notice::pity 健康 status=$STATUS"
+          fi
