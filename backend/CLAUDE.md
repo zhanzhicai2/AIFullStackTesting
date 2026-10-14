@@ -21,11 +21,15 @@ backend/
 ├── main.py                 # 应用入口（开发启动）
 ├── pity.py                 # 生产启动入口
 ├── config.py               # 配置类（BaseConfig + DevConfig/ProConfig）
+├── proxy.py                # mitmproxy 启动入口（PROXY_ON=True 时由 main.py 调用）
 ├── alembic.ini             # Alembic 迁移配置
 ├── requirements.txt        # Python 依赖
 ├── conf/                   # 环境配置
 │   ├── dev.env             # 开发环境（MySQL、Redis、OAuth 等）
 │   └── pro.env             # 生产环境
+├── pity_proxy/             # mitmproxy 录制 / Mock 服务模块（PROXY_ON / MOCK_ON 开关）
+│   ├── mock.py             # PityMock：内置 Mock 服务（main.py 在 MOCK_ON=True 时启动）
+│   └── record.py           # PityRecorder：HAR / mitmproxy 用例录制（PROXY_ON=True 时启动）
 ├── app/
 │   ├── routers/            # API 路由（按模块目录组织）
 │   │   ├── auth/           # 认证（注册、登录、GitHub OAuth）
