@@ -167,7 +167,7 @@ export default [
   },
   {
     path: '/notification',
-    name: '消息中心',
+    name: '消息中心1',
     hideInMenu: true,
     component: './Notification',
   },
