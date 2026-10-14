@@ -37,6 +37,15 @@ services:
       - /home/tester/pity-data/logs/mysql:/var/log/mysql
     networks:
       - appnet
+    # healthcheck:让 backend 能用 depends_on.condition: service_healthy 等 MySQL ready
+    # (单纯 depends_on 只管启动顺序,不等就绪,backend cold start 会因 MySQL 慢启而崩)
+    # start_period 30s 留给 redo log / binlog replay
+    healthcheck:
+      test: ["CMD-SHELL", "mysqladmin ping -h localhost -uroot -p\"$$MYSQL_ROOT_PASSWORD\" --silent"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+      start_period: 30s
     deploy:
       resources:
         limits:
@@ -85,8 +94,10 @@ services:
       MYSQL_PWD: ${MYSQL_ROOT_PASSWORD}        # 对齐容器内 MYSQL user 密码
       REDIS_PASSWORD: ${REDIS_PASSWORD}
     depends_on:
-      - mysql
-      - redis
+      mysql:
+        condition: service_healthy   # 等 mysql healthcheck 通过
+      redis:
+        condition: service_started   # Redis 启动快,started 即可
     networks:
       - appnet
     deploy:
