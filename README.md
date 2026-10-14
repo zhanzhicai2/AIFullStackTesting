@@ -40,7 +40,7 @@ pip install -r requirements.txt
 # 编辑 conf/dev.env,改 MySQL/Redis/GitHub OAuth 连接信息
 # 第一个注册的用户自动成为超级管理员
 
-python main.py
+python pity.py
 # → 监听 http://localhost:7777
 ```
 

@@ -5,8 +5,8 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 ## 启动命令
 
 ```bash
-python main.py                                    # 启动后端服务 (0.0.0.0:7777)
-uvicorn main:pity --reload                        # 开发模式热重载
+python pity.py                                    # 启动后端服务（主流本机方式;由 pity.py 调 uvicorn.run("main:pity")）
+uvicorn main:pity --reload                        # 开发模式热重载（代码改动自动重启;与 python pity.py 二选一）
 alembic revision --autogenerate -m "描述"          # 生成数据库迁移
 alembic upgrade head                              # 执行迁移
 pip install -r requirements.txt                   # 安装依赖
@@ -18,8 +18,8 @@ pip install -r requirements.txt                   # 安装依赖
 
 ```
 backend/
-├── main.py                 # 应用入口（开发启动）
-├── pity.py                 # 生产启动入口
+├── main.py                 # 模块定义：路由注册 + startup 钩子 + WebSocket 端点（被 pity.py 加载）
+├── pity.py                 # 启动器：uvicorn.run("main:pity", host=Config.SERVER_HOST, port=Config.SERVER_PORT)
 ├── config.py               # 配置类（BaseConfig + DevConfig/ProConfig）
 ├── proxy.py                # mitmproxy 启动入口（PROXY_ON=True 时由 main.py 调用）
 ├── alembic.ini             # Alembic 迁移配置
