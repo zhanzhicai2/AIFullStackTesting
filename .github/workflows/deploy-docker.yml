@@ -137,6 +137,12 @@ jobs:
             set -e
             cd /home/tester/pity-deploy
 
+            # 先 git pull 让服务器拿到最新的 compose / scripts / 配置改动
+            # 凭证用 server 端的 GH deploy key (read-only),见 docs/CI_CD.md §5.1
+            # --ff-only 防止本地有未推改动时被 merge
+            echo ">> git pull origin main"
+            git pull origin main --ff-only
+
             # 把 GH Variables 的值注入 server 端 compose 环境
             export SWR_REGISTRY="${{ vars.SWR_REGISTRY }}"
             export SWR_ORG="${{ vars.SWR_ORG }}"

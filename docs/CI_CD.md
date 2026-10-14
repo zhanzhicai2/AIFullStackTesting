@@ -127,6 +127,56 @@ GitHub repo → **Actions → deploy-docker → Run workflow → 输入 tag(可�
 - 浏览器访问服务器公网 IP,前端应正常加载
 - SWR 控制台 → pity-backend / pity-frontend / pity-nginx 三个仓库 → "版本"页有新条目
 
+### 4.1 一次性:配置服务器端 GH Deploy Key(让 workflow 能自动 git pull)
+
+2026-10-14 起,Deploy on server step 会先 `git pull origin main` 拿最新 compose / scripts;**服务器端必须有自己的 GH 凭证**(read-only deploy key 最合适,不要用 PAT)。
+
+**服务器上生成 key**:
+
+```bash
+ssh root@124.71.69.165
+
+ssh-keygen -t ed25519 -f ~/.ssh/pity_deploy_key -N "" -C "pity-deploy@$(hostname)"
+# 输出:
+#   ~/.ssh/pity_deploy_key       (私钥,服务器保留)
+#   ~/.ssh/pity_deploy_key.pub   (公钥,粘到 GH)
+
+# 让 git pull 用这个 key
+cat >> ~/.ssh/config <<'EOF'
+Host github.com
+  IdentityFile ~/.ssh/pity_deploy_key
+  IdentitiesOnly yes
+EOF
+chmod 600 ~/.ssh/config
+
+# 测试
+ssh -T git@github.com
+# 应看到: Hi <org>/AIFullStackTesting! You've been granted access.
+```
+
+**GH repo 加 deploy key**:
+
+```
+GitHub repo → Settings → Deploy keys → Add deploy key →
+  Title: pity-deploy-server
+  Key:   把 ~/.ssh/pity_deploy_key.pub 内容粘进去
+  ☑ Allow read access   (勾上;不要勾 write,服务器端只读够用)
+  → Add key
+```
+
+**验证**:
+
+```bash
+ssh root@124.71.69.165
+cd /home/tester/pity-deploy
+git pull origin main --ff-only   # 应自动完成,不问用户名密码
+```
+
+之后 GH Actions 跑 deploy 时 ssh 进 server,会自动 `git pull` 拿到最新代码。
+
+> ⚠️ **不要把私钥 commit 进 git**(部署目录的 `.git/` 必须 ignore `~/.ssh/`;root 用户家目录通常已经在 git 之外)。
+> 如果服务器是多人共用**,考虑**每个 deploy key 加 `command="..."` 限制进一步收窄权限。
+
 ## 5. 老 workflow 怎么处理
 
 按"先留着做回滚兜底"思路,**当前不动**:
