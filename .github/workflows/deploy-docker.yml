@@ -96,7 +96,25 @@ jobs:
         run: |
           REGION=$(echo "$SWR_REGISTRY" | sed -E 's/^swr\.(.+)\.myhuaweicloud\.com$/\1/')
           echo "value=$REGION" >> "$GITHUB_OUTPUT"
-          echo "::debug::Derived SWR region: $REGION"
+          echo "Derived SWR region: $REGION"
+
+      - name: Debug SWR credentials (length + masked prefix)
+        # 临时调试:打印 SWR_USER 前 15 字符 + 长度(不会泄露 GH Secrets 完整值),
+        # 确认 username 拼装格式是 "cn-south-1@<AK>"。
+        # 跑通后这个 step 可以删。
+        env:
+          REGION: ${{ steps.region.outputs.value }}
+          SWR_USER: ${{ steps.region.outputs.value }}@${{ secrets.SWR_ACCESS_KEY }}
+          SWR_PASS: ${{ secrets.SWR_SECRET_KEY }}
+          SWR_ACCESS_KEY: ${{ secrets.SWR_ACCESS_KEY }}
+          SWR_SECRET_KEY: ${{ secrets.SWR_SECRET_KEY }}
+        run: |
+          echo "SWR_REGION=$REGION"
+          echo "SWR_ACCESS_KEY length=${#SWR_ACCESS_KEY}"
+          echo "SWR_SECRET_KEY length=${#SWR_SECRET_KEY}"
+          echo "SWR_USER prefix=${SWR_USER:0:15}..."
+          echo "SWR_USER length=${#SWR_USER}"
+          echo "SWR_PASS length=${#SWR_PASS}"
 
       - name: Push to SWR (via skopeo)
         env:
