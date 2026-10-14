@@ -212,7 +212,7 @@ export default [
   {
     path: '/system',
     icon: 'lock',
-    name: '后台管理',
+    name: '后台管理1',
     authority: ['superAdmin'],
     routes: [
       {
