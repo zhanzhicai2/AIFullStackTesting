@@ -274,7 +274,7 @@ export default [
   {
     path: '/datafactory',
     icon: 'icon-hebingxingzhuang',
-    name: '数据工厂',
+    name: '数据工厂测试',
     component: './datafactory',
   },
   {
