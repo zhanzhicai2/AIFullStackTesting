@@ -167,7 +167,7 @@ export default [
   },
   {
     path: '/notification',
-    name: '消息中心1',
+    name: '消息中心',
     hideInMenu: true,
     component: './Notification',
   },
@@ -212,7 +212,7 @@ export default [
   {
     path: '/system',
     icon: 'lock',
-    name: '后台管理1',
+    name: '后台管理',
     authority: ['superAdmin'],
     routes: [
       {
@@ -274,7 +274,7 @@ export default [
   {
     path: '/datafactory',
     icon: 'icon-hebingxingzhuang',
-    name: '数据工厂测试',
+    name: '数据工厂',
     component: './datafactory',
   },
   {
