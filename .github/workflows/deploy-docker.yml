@@ -158,4 +158,4 @@ jobs:
             docker image prune -f || true
 
             echo ">> done. 当前容器:"
-            docker compose -f docker-compose.deploy.yaml --env-file .env ps
+            docker compose -f backend/ops/docker-compose.deploy.yaml --env-file .env ps
