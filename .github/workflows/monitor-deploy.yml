@@ -3,7 +3,7 @@
 # 配套 deploy-docker.yml 形成部署闭环:deploy 出去 + 监控回来
 # 走 GH Actions cron 而不是自托管服务(服务器 1.7G 撑不开监控容器)
 # GH 2000 分钟/月免费额度:*/30 cron 每月 ≈ 720 次 × ~30s ≈ 360 分钟,留有余量
-# 详见 docs/CI_CD.md §7
+# 详见 docs/DEPLOY_AND_CI.md
 name: monitor-deploy
 
 on:

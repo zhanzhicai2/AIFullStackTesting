@@ -19,8 +19,8 @@ AIFullStackTesting/
 ├── backend/         # FastAPI 后端 (Python 3.10+, port 7777)
 ├── frontend/        # UmiJS 前端 (Node 20,  port 8000)
 ├── .github/workflows/
-│   ├── deploy-backend.yml    # backend/** 变更触发, SCP + Gunicorn
-│   └── deploy-frontend.yml   # frontend/** 变更触发, npm build + PM2
+│   ├── deploy-docker.yml      # 后端/前端/nginx/scripts/ops 变更触发, GH build + SWR push + ssh pull/up
+│   └── monitor-deploy.yml     # 每 30 分钟 cron 健康检查, curl 后端 + 邮件告警
 └── README.md
 ```
 
@@ -108,14 +108,14 @@ npx tsc --noEmit                               # 仅类型检查
 
 ## CI/CD
 
-两个 workflow 都在仓库根 `.github/workflows/`,通过 `paths` 过滤:
+两个 workflow 都在仓库根 `.github/workflows/`,Docker 化部署 + 健康检查闭环:
 
 | workflow | 触发 | 动作 |
 |----------|------|------|
-| `deploy-backend.yml` | `backend/**` 变更 | SCP `backend/` 到部署机 → `pip install` → `pkill gunicorn` |
-| `deploy-frontend.yml` | `frontend/**` 变更 | 在 CI 里 `npm run build` → SCP `dist/` → `pm2 restart` |
+| `deploy-docker.yml` | `backend/**` / `frontend/**` / `nginx/**` / `scripts/**` / `backend/ops/**` 变更 | GH Actions build 3 镜像 → push SWR → ssh pull/up |
+| `monitor-deploy.yml` | cron 每 30 分钟(可手动触发) | curl `/auth/login`,5xx/000 → GH fail → 邮件告警 |
 
-都需要 GitHub Secrets:`HOST`、`USERNAME`、`PASSWORD`。两个都支持手动 `workflow_dispatch`。
+`deploy-docker.yml` 需要的 GitHub Secrets:`HOST`、`USERNAME`、`PASSWORD`、`SWR_ACCESS_KEY`、`SWR_SECRET_KEY`;Variables:`SWR_REGISTRY`、`SWR_ORG`、`TAG`(默认 `dev`)。两个 workflow 都支持手动 `workflow_dispatch`。
 
 ## 工具配置
 

@@ -1,7 +1,7 @@
 # 新增于 2026-10-14
 # Docker 化部署 GH Actions 流水线:build → push SWR → ssh pull/up
 # 跟老 deploy-backend.yml / deploy-frontend.yml(走 SCP + gunicorn + PM2)并存,
-# 跑顺后再删老的。详见 docs/CI_CD.md
+# 跑顺后再删老的。详见 docs/DEPLOY_AND_CI.md
 #
 # 需要的 GH Secrets(在 repo Settings → Secrets and variables → Actions 配置):
 #   - HOST                       服务器 SSH host(沿用老 workflow)
@@ -138,7 +138,7 @@ jobs:
             cd /home/tester/pity-deploy
 
             # 先 git pull 让服务器拿到最新的 compose / scripts / 配置改动
-            # 凭证用 server 端的 GH deploy key (read-only),见 docs/CI_CD.md §5.1
+            # 凭证用 server 端的 GH deploy key (read-only),见 docs/DEPLOY_AND_CI.md §4.1
             # --ff-only 防止本地有未推改动时被 merge
             echo ">> git pull origin main"
             git pull origin main --ff-only
