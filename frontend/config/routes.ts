@@ -174,7 +174,7 @@ export default [
   {
     path: '/config',
     icon: 'icon-config',
-    name: '测试配置1',
+    name: '测试配置',
     authority: ['superAdmin', 'admin'],
     routes: [
       {
