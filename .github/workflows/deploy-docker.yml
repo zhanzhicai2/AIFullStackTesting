@@ -149,10 +149,10 @@ jobs:
             export TAG="${{ steps.tag.outputs.value }}"
 
             echo ">> pull latest images"
-            docker compose -f docker-compose.deploy.yaml --env-file .env pull
+            docker compose -f backend/ops/docker-compose.deploy.yaml --env-file .env pull
 
             echo ">> up -d"
-            docker compose -f docker-compose.deploy.yaml --env-file .env up -d
+            docker compose -f backend/ops/docker-compose.deploy.yaml --env-file .env up -d
 
             echo ">> prune old dangling images(可选,避免长期累积占空间)"
             docker image prune -f || true
