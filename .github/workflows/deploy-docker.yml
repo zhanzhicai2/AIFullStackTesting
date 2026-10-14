@@ -1,0 +1,126 @@
+# 新增于 2026-10-14
+# Docker 化部署 GH Actions 流水线:build → push SWR → ssh pull/up
+# 跟老 deploy-backend.yml / deploy-frontend.yml(走 SCP + gunicorn + PM2)并存,
+# 跑顺后再删老的。详见 docs/CI_CD.md
+#
+# 需要的 GH Secrets(在 repo Settings → Secrets and variables → Actions 配置):
+#   - HOST                       服务器 SSH host(沿用老 workflow)
+#   - USERNAME                   服务器 SSH 用户
+#   - PASSWORD                   服务器 SSH 密码
+#   - SWR_ACCESS_KEY             华为云 IAM 子用户永久 AK(推荐方案 A)
+#   - SWR_SECRET_KEY             华为云 IAM 子用户永久 SK
+#
+# 需要的 GH Variables(同上位置,切到 Variables tab):
+#   - SWR_REGISTRY               例如 swr.cn-south-1.myhuaweicloud.com
+#   - SWR_ORG                    SWR 组织/组织名
+#   - TAG                        默认 dev(可手动 workflow_dispatch 时改)
+
+name: deploy-docker
+
+on:
+  push:
+    branches: [main]
+    # 只在真正影响部署的路径变更时触发,文档/CLAUDE.md typo 不应触发
+    paths:
+      - 'backend/**'
+      - 'frontend/**'
+      - 'nginx/**'
+      - 'scripts/**'
+      - 'backend/ops/**'
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: '镜像 tag(默认 dev)'
+        required: false
+        default: 'dev'
+
+concurrency:
+  # 同一时间只跑一个 deploy,避免并发 push 打架
+  group: deploy-docker
+  cancel-in-progress: false
+
+jobs:
+  build-and-deploy:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Resolve TAG
+        id: tag
+        run: |
+          # workflow_dispatch 时用输入值,push 触发时用变量默认值 dev
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+            echo "value=${{ inputs.tag }}" >> "$GITHUB_OUTPUT"
+          else
+            echo "value=${{ vars.TAG }}" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Setup Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Install skopeo
+        # push-to-swr.sh 依赖 skopeo(GH ubuntu-latest 默认没装)
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y skopeo
+
+      - name: Build 3 self-built images
+        # 复用 scripts/build-images.sh(本地已验证)
+        run: ./scripts/build-images.sh "${{ steps.tag.outputs.value }}"
+
+      - name: Show built images
+        run: docker images | grep -E 'pity-(backend|frontend|nginx)' || true
+
+      - name: Prepare skopeo trust policy
+        # skopeo 在 Linux CI 上同样要 policy.json;permissive 仅本机/CI 用,生产无影响
+        run: |
+          mkdir -p ~/.config/containers
+          cat > ~/.config/containers/policy.json <<'EOF'
+          {
+            "default": [
+              {"type": "insecureAcceptAnything"}
+            ]
+          }
+          EOF
+
+      - name: Push to SWR (via skopeo)
+        env:
+          # push-to-swr.sh 强制要求这 4 个 env
+          SWR_REGISTRY: ${{ vars.SWR_REGISTRY }}
+          SWR_ORG: ${{ vars.SWR_ORG }}
+          # IAM 永久凭证直接当 username/password 用(SWR docker registry 接受)
+          SWR_USER: ${{ secrets.SWR_ACCESS_KEY }}
+          SWR_PASS: ${{ secrets.SWR_SECRET_KEY }}
+        run: ./scripts/push-to-swr.sh "${{ steps.tag.outputs.value }}"
+
+      - name: Deploy on server
+        uses: appleboy/ssh-action@v1.0.3
+        with:
+          host: ${{ secrets.HOST }}
+          username: ${{ secrets.USERNAME }}
+          password: ${{ secrets.PASSWORD }}
+          # command_timeout: GH Actions SSH 默认 10 分钟,后端 build 3 镜像可能压线
+          command_timeout: 20m
+          script: |
+            set -e
+            cd /home/tester/pity-deploy
+
+            # 把 GH Variables 的值注入 server 端 compose 环境
+            export SWR_REGISTRY="${{ vars.SWR_REGISTRY }}"
+            export SWR_ORG="${{ vars.SWR_ORG }}"
+            export TAG="${{ steps.tag.outputs.value }}"
+
+            echo ">> pull latest images"
+            docker compose -f docker-compose.deploy.yaml --env-file .env pull
+
+            echo ">> up -d"
+            docker compose -f docker-compose.deploy.yaml --env-file .env up -d
+
+            echo ">> prune old dangling images(可选,避免长期累积占空间)"
+            docker image prune -f || true
+
+            echo ">> done. 当前容器:"
+            docker compose -f docker-compose.deploy.yaml --env-file .env ps
