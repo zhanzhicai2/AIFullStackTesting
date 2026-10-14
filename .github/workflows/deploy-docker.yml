@@ -98,23 +98,20 @@ jobs:
           echo "value=$REGION" >> "$GITHUB_OUTPUT"
           echo "Derived SWR region: $REGION"
 
-      - name: Debug SWR credentials (length + masked prefix)
-        # 临时调试:打印 SWR_USER 前 15 字符 + 长度(不会泄露 GH Secrets 完整值),
-        # 确认 username 拼装格式是 "cn-south-1@<AK>"。
-        # 跑通后这个 step 可以删。
+      - name: Derive SWR pass (HMAC-SHA256 of AK with SK)
+        id: swr-creds
+        # ⚠️ SWR docker registry 的 password 不是 SK 字面,而是 HMAC-SHA256(AK, SK) 的 hex 输出。
+        # 2026-10-14 用户实测:服务器上 docker login 用算出来的 64 字符 hex 才 Login Succeeded,
+        # 直接把 secrets.SWR_SECRET_KEY 当 password 会 'denied: Authenticate Error'。
         env:
-          REGION: ${{ steps.region.outputs.value }}
-          SWR_USER: ${{ steps.region.outputs.value }}@${{ secrets.SWR_ACCESS_KEY }}
-          SWR_PASS: ${{ secrets.SWR_SECRET_KEY }}
           SWR_ACCESS_KEY: ${{ secrets.SWR_ACCESS_KEY }}
           SWR_SECRET_KEY: ${{ secrets.SWR_SECRET_KEY }}
         run: |
-          echo "SWR_REGION=$REGION"
-          echo "SWR_ACCESS_KEY length=${#SWR_ACCESS_KEY}"
-          echo "SWR_SECRET_KEY length=${#SWR_SECRET_KEY}"
-          echo "SWR_USER prefix=${SWR_USER:0:15}..."
-          echo "SWR_USER length=${#SWR_USER}"
-          echo "SWR_PASS length=${#SWR_PASS}"
+          DERIVED=$(printf "%s" "$SWR_ACCESS_KEY" \
+            | openssl dgst -binary -sha256 -hmac "$SWR_SECRET_KEY" \
+            | od -An -vtx1 | sed 's/[ \n]//g' | sed 'N;s/\n//')
+          echo "value=$DERIVED" >> "$GITHUB_OUTPUT"
+          echo "Derived SWR_PASS length=${#DERIVED}"
 
       - name: Push to SWR (via skopeo)
         env:
@@ -124,7 +121,8 @@ jobs:
           # ⚠️ SWR docker registry 接受 IAM 永久 AK/SK,但 username 必须带 region 前缀
           # (2026-10-14 实测:不带头会 'denied: Authenticate Error')
           SWR_USER: ${{ steps.region.outputs.value }}@${{ secrets.SWR_ACCESS_KEY }}
-          SWR_PASS: ${{ secrets.SWR_SECRET_KEY }}
+          # password 用 HMAC 派生值,不是 SK 本身(见 Derive SWR pass step)
+          SWR_PASS: ${{ steps.swr-creds.outputs.value }}
         run: ./scripts/push-to-swr.sh "${{ steps.tag.outputs.value }}"
 
       - name: Deploy on server

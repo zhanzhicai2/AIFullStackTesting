@@ -64,21 +64,32 @@ SWR 控制台"我的凭证 → 临时登录指令"生成的临时凭证 12h 过�
 > - 启用"访问控制 → IP 限制" — 限制该 AK 只能从可信 IP 段调用(可填 `0.0.0.0/0` 不限制)
 > - 不在主账号下用,只在 SWR 子操作下挂名,出问题影响范围可控
 
-### 2.4 ⚠️ SWR login 的 username 格式必须带 region 前缀
+### 2.4 ⚠️ SWR login 的 username 格式必须带 region 前缀,且 password 不是 SK 本身
 
-2026-10-14 实测坑:**SWR docker registry 不接受裸 AK**。docker login 必须用:
+2026-10-14 实测坑:**SWR docker registry 不接受裸 AK,且 password 是 HMAC 派生值,不是 SK 字面**。docker login 必须用:
 
 ```bash
+DERIVED_PASS=$(printf "%s" "<AK>" \
+  | openssl dgst -binary -sha256 -hmac "<SK>" \
+  | od -An -vtx1 | sed 's/[ \n]//g' | sed 'N;s/\n//')
+
 docker login "swr.<region>.myhuaweicloud.com" \
   -u "<region>@<AK>" \
-  --password-stdin <<< "<SK>"
+  --password-stdin <<< "$DERIVED_PASS"
 ```
 
-举例:`swr.cn-south-1.myhuaweicloud.com` 对应 `cn-south-1@<AK>`。
+举例:`swr.cn-south-1.myhuaweicloud.com` 对应 `cn-south-1@<AK>`,password 是 HMAC-SHA256(AK, SK) 的 64 字符小写 hex。
 
-> 这是华为云 SWR 的强制规则,不是 SKU 习惯命名。带 region 前缀是为了在多 region 账号下区分 namespace;永久 IAM AK/SK 同样要按这个格式,否则登录会被拒(`denied: Authenticate Error`)。
+> **两个 SWR 强制规则**(不搞清楚就 `denied: Authenticate Error`):
+> 1. **username 必须带 region 前缀**(`<region>@<AK>`),为了在多 region 账号下区分 namespace。
+> 2. **password 是 HMAC-SHA256(AK, SK) 的 hex,不是 SK 本身**。SK 字面字符串当 password 会被 SWR 拒。
+>
+> 手动算验证:把 HK mac(`printf AK | openssl dgst -sha256 -hmac SK`)的输出当 docker login password 用,应看到 `Login Succeeded`。
 
-workflow 已用 `sed` 从 `SWR_REGISTRY` 动态提取 region,见 `.github/workflows/deploy-docker.yml` 的 `Derive SWR region from registry` step。**不要**再单独配一个 `SWR_REGION` 变量,以防两者不一致。
+workflow 已经把这两个坑都自动化了:
+- `Derive SWR region from registry` step 用 `sed` 从 `SWR_REGISTRY` 动态提取 region
+- `Derive SWR pass (HMAC-SHA256 of AK with SK)` step 在 push 前自动算 password
+- **不要**再单独配 `SWR_REGION` 变量或手动改 `SWR_PASS`,会导致跟 workflow 不一致
 
 ## 3. 触发方式
 
