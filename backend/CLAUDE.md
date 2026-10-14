@@ -137,7 +137,6 @@ Request → CORS Middleware → Error Middleware → Router → DAO (connect装�
 
 ## 关键约定
 
-- 不要修改 2025-10-12 之前编写的代码，优先创建新文件
 - DAO 文件命名 `XxxDao.py`，放在 `app/crud/` 对应子目录下
 - 前端 `localStorage` 中 JWT token 的 key 为 `pityToken`
 - 所有 HTTP 响应 code 都在 200，业务错误通过 body 的 `code` 字段区分

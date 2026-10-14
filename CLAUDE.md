@@ -102,7 +102,6 @@ npx tsc --noEmit                               # 仅类型检查
 
 ### 代码改动守则
 
-- **2025-10-12 之前编写的代码优先创建新文件**,确实需要改老代码时先和原作者确认
 - 后端 DAO 命名 `XxxDao.py`,放在 `backend/app/crud/<模块>/`,配 `@ModelWrapper(Model)` 装饰器
 - 前端**新文件必须用 TypeScript + `@umijs/plugin-model`(hooks 风格)**,老 dva model 不迁移,新旧通过 `useModel('name')` 统一消费
 - 用例时间字段:`moment`,不要用 dayjs

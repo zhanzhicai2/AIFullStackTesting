@@ -249,7 +249,6 @@ bash deploy.sh
 - 前端**新文件**用 TypeScript + `@umijs/plugin-model` hooks 风格;老 dva model 保留不迁移
 - 路由 authority: `user (0)` · `admin (1)` · `superAdmin (2)`
 - 项目角色: `MEMBER (0)` · `ADMIN (1)` · `OWNER (2)`
-- 修改 2025-10-12 之前编写的代码优先创建新文件,与原作者商量后再决定
 
 ## License
 

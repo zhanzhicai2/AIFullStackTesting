@@ -190,7 +190,6 @@ export default function useNewFeature() {
 
 ## 重要规则
 
-1. **不要修改 2025-10-12 之前编写的代码** — 优先创建新文件。如需修改旧代码，需征得同意。
-2. 前端开发服务器运行在 `localhost:8000`，后端 API 运行在 `localhost:7777/7778`。
+1. 前端开发服务器运行在 `localhost:8000`，后端 API 运行在 `localhost:7777/7778`。
 3. `localStorage` 中的 `pityToken` 是 JWT token 的 key。
 4. 后端 FastAPI 应用的根目录在 `../backend/`。
