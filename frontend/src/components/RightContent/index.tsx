@@ -63,7 +63,8 @@ const GlobalHeaderRight = () => {
       <span
         className={actionClassName}
         onClick={() => {
-          window.open('https://wuranxu.github.io/pityDoc/');
+          // 文档链接已脱敏：原指向原作者文档站点
+          // window.open('https://wuranxu.github.io/pityDoc/');
         }}
       >
         <QuestionCircleOutlined/>
