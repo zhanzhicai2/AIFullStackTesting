@@ -121,7 +121,7 @@ AIFullStackTesting/
 │   ├── tests/                  # Jest 单元测试
 │   └── CLAUDE.md
 │
-├── .github/workflows/          # CI: deploy-backend.yml / deploy-frontend.yml
+├── .github/workflows/          # CI: deploy-docker.yml + monitor-deploy.yml
 ├── .gitignore
 └── README.md
 ```
@@ -219,19 +219,19 @@ AIFullStackTesting/
 
 ### CI/CD(GitHub Actions)
 
-仓库自带三个 workflow:
+仓库自带两个 workflow:
 
-- [`.github/workflows/deploy-backend.yml`](.github/workflows/deploy-backend.yml) — `backend/**` 变更时触发,经 SCP 推送到部署机后重启 Gunicorn(老的,SCP 路线)
-- [`.github/workflows/deploy-frontend.yml`](.github/workflows/deploy-frontend.yml) — `frontend/**` 变更时触发,构建后 SCP 推送到部署机,PM2 重启(老的,SCP 路线)
-- [`.github/workflows/deploy-docker.yml`](.github/workflows/deploy-docker.yml) — Docker 化部署,build 3 镜像 → push SWR → ssh pull/up(新路线,跑顺后会替换老的)
+- [`.github/workflows/deploy-docker.yml`](.github/workflows/deploy-docker.yml) — Docker 化部署,build 3 镜像 → push SWR → ssh pull/up(跑顺后会替换老的 SCP 路线)
+- [`.github/workflows/monitor-deploy.yml`](.github/workflows/monitor-deploy.yml) — 每 30 分钟 cron 健康检查,curl 后端 + 邮件告警
 
-三个 workflow 都支持手动 `workflow_dispatch`。需要在仓库 Settings → Secrets 配置:
+两个 workflow 都支持手动 `workflow_dispatch`(monitor 触发是 cron,deploy-docker 支持 workflow_dispatch)。需要在仓库 Settings → Secrets 配置:
 
 | Secret       | 用途                |
 |--------------|-------------------|
 | `HOST`       | 部署服务器 IP/域名     |
 | `USERNAME`   | SSH 用户            |
 | `PASSWORD`   | SSH 密码            |
+| `SWR_ACCESS_KEY` / `SWR_SECRET_KEY` | 华为云 SWR 推送镜像用(仅 deploy-docker) |
 
 ### 手动部署
 
