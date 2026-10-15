@@ -5,14 +5,25 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 ## 启动命令
 
 ```bash
-python pity.py                                    # 启动后端服务（主流本机方式;由 pity.py 调 uvicorn.run("main:pity")）
-uvicorn main:pity --reload                        # 开发模式热重载（代码改动自动重启;与 python pity.py 二选一）
+# 一次性创建 venv(首次)
+uv venv --python 3.10
+source .venv/bin/activate
+
+# 启动后端服务（主流本机方式;由 pity.py 调 uvicorn.run("main:pity")）
+uv pip install -r requirements.txt    # 首次或依赖变更后
+python pity.py
+
+# 开发模式热重载（代码改动自动重启;与 python pity.py 二选一）
+uvicorn main:pity --reload
+
+# Alembic 迁移
 alembic revision --autogenerate -m "描述"          # 生成数据库迁移
 alembic upgrade head                              # 执行迁移
-pip install -r requirements.txt                   # 安装依赖
 ```
 
 环境变量 `pity_env=dev`（默认）读 `conf/dev.env`，`pity_env=pro` 读 `conf/pro.env`。
+
+**Python 环境**：用 `uv venv` 创建独立虚拟环境（`backend/.venv/`），不要用 conda，详见 [`DEV_SETUP.md`](./DEV_SETUP.md)。首个注册用户自动成为超管。
 
 ## 项目结构
 

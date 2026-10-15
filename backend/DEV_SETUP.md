@@ -2,7 +2,7 @@
 
 > 配套 [`README.md`](./README.md):README 介绍项目,本文件记录**手把手跑起来**的具体步骤,以及这次跑通过程中踩过的坑。
 
-适用环境:macOS(Darwin),Python 用 Miniconda,Node 用 nvm。
+适用环境:macOS(Darwin),Python 用 uv(取代原 Miniconda 路线),Node 用 nvm。
 
 ---
 
@@ -10,7 +10,7 @@
 
 | 工具 | 版本 | 安装方式 |
 |------|------|----------|
-| Miniconda | 最新 | `brew install --cask miniconda` 或官网安装包 |
+| uv | ≥0.4 | `brew install uv` 或 `curl -LsSf https://astral.sh/uv/install.sh \| sh`(项目用 0.13.0 验证过) |
 | nvm | 最新 | `brew install nvm`(可选,前端用) |
 | MySQL | 8.0+ | `brew install mysql`,本地服务,root 密码见 §3 |
 | Redis | 6.x+ | `brew install redis`,本地服务,无密码 |
@@ -18,14 +18,19 @@
 
 ---
 
-## 2. Python 环境(conda + Python 3.10)
+## 2. Python 环境(uv venv + Python 3.10)
 
-⚠️ **必须用 Python 3.10,不能用 3.11+**。原因见 §7 踩坑记录。
+⚠️ **必须用 Python 3.10,不能用 3.11+**。原因见 §7 踩坑记录(历史问题,现在 Pydantic 已升 1.10)。
 
 ```bash
-# 建环境
-conda create -n pity-backend python=3.10 -y
-conda activate pity-backend
+# 进入后端目录
+cd backend
+
+# 创建独立 venv(uv 会下载 cpython-3.10.22 macOS wheel,约 24MB)
+uv venv --python 3.10
+
+# 激活
+source .venv/bin/activate
 
 # 验证版本
 python --version   # 应输出 Python 3.10.x
@@ -96,15 +101,20 @@ redis-cli ping                  # 应输出 PONG
 
 ```bash
 cd backend
-conda activate pity-backend
-pip install -r requirements.txt
+source .venv/bin/activate   # 复用 §2 创建的 venv
 
-# 装完核对关键版本(Pydantic 不能升到 2.x)
-pip show sqlalchemy pydantic fastapi | grep -E '^(Name|Version)'
+# uv 装依赖(走 PyPI 镜像,速度 10-100x 快于 pip)
+uv pip install -r requirements.txt
+
+# 装完核对关键版本
+uv pip list | grep -iE '^(fastapi|pydantic |pydantic-|starlette|sqlalchemy|aiohttp |pyjwt|redis |pyyaml|jinja2|loguru|requests |pycryptodome)'
 # 期望:
-#   Name: fastapi    Version: 0.75.0
-#   Name: pydantic   Version: 1.8.x   ← 不能是 2.x
-#   Name: sqlalchemy Version: 1.4.47
+#   fastapi     0.115.x
+#   pydantic    1.10.x
+#   sqlalchemy  1.4.47
+#   starlette   0.41.x
+#   aiohttp     3.9+
+#   redis       5.x
 ```
 
 ---
@@ -113,7 +123,7 @@ pip show sqlalchemy pydantic fastapi | grep -E '^(Name|Version)'
 
 ```bash
 cd backend
-conda activate pity-backend
+source .venv/bin/activate
 
 # 开发启动(默认读 conf/dev.env)
 python pity.py
@@ -211,7 +221,7 @@ ValueError: 'not' is not a valid parameter name
 
 **原因**:Python 3.11 收紧了 `inspect.Parameter` 的参数名校验,保留字 `not` 不能作为参数名。pydantic 1.8.x 的 `utils.generate_model_signature` 没做过滤,撞到了。
 
-**解决**:Python 降到 **3.10**(`requirements.txt` 写的是 `pydantic~=1.8.1`,整个 1.8 系列对 3.11 都不兼容)。
+**解决**:Python 降到 **3.10**(`requirements.txt` 锁的是 `pydantic~=1.10.13`,整个 1.10 系列对 3.11 都不兼容)。Pydantic 升 2.x 也可,但需要全栈迁移(见 §7 后续计划)。
 
 ### ❌ `nvm install 20` 报 "Version '20' not found"
 
@@ -278,9 +288,9 @@ CLAUDE.md 明确写死 v1,且全栈 FastAPI/Pydantic 都被钉在 v1 风格:
 
 `Base.metadata.create_all` 只建表,**不建库**。首次启动前必须手动 `CREATE DATABASE pity`。
 
-### ⚠️ `pip install` 可能微调 `requirements.txt`
+### ⚠️ setuptools 版本约束
 
-实测 pip 在某些场景会自动改写 `requirements.txt`(例如把 `aiohttp==3.8.1` 改成 `3.8.2`)。如果发现 `git status` 里有 `requirements.txt` 改动,正常 commit 即可,版本差异是 patch 级,不影响行为。
+`requirements.txt` 锁了 `setuptools<81`,因为 setuptools 81+ 正式移除了 `pkg_resources` 模块,而 `APScheduler 3.8.0` 和 `mitmproxy 8.0.0` 仍在用它。`uv pip install` 装到 84.x 时启动会报 `ModuleNotFoundError: No module named 'pkg_resources'`,降到 80.x 即可。后续如果把 APScheduler / mitmproxy 都升到大版本,可以放开这个约束。
 
 ---
 
@@ -304,9 +314,11 @@ CLAUDE.md 明确写死 v1,且全栈 FastAPI/Pydantic 都被钉在 v1 风格:
 | `redis connect failed` | Redis 没起,或密码不匹配(`lsof -iTCP:6379` 验证) |
 | `Access denied for user 'root'@'localhost'` | `dev.env` 里的 `MYSQL_PWD` 跟实际不符 |
 | `Unknown database 'pity'` | 没建库,回 §3 跑 `CREATE DATABASE` |
-| `ImportError: BaseSettings` | pydantic 升到 2.x,降到 `pip install "pydantic~=1.8.1"` |
-| `ModuleNotFoundError: aiomysql/apscheduler` | 没激活 conda,或 pip 没装完 |
-| `ModuleNotFoundError: yagmail/oss2/qiniu/...` | `pip install -r requirements.txt` 完整跑一遍 |
+| `ImportError: BaseSettings` | pydantic 升到 2.x,降到 `uv pip install "pydantic~=1.10.13"` |
+| `ModuleNotFoundError: aiomysql/apscheduler` | 没 `source .venv/bin/activate`,或 `uv pip install` 没跑完 |
+| `ModuleNotFoundError: No module named 'pkg_resources'` | setuptools ≥81,降到 `uv pip install "setuptools<81"` |
+| `ModuleNotFoundError: yagmail/oss2/qiniu/...` | `uv pip install -r requirements.txt` 完整跑一遍 |
+| `cannot import name 'ClusterConnectionPool' from 'redis.cluster'` | redis-py-cluster 没卸干净,`uv pip uninstall redis-py-cluster rediscluster` |
 | `npm error ... husky install ... .git can't be found` | 见 §7.6:`npm install --ignore-scripts` |
 | `npm error ERESOLVE ... antd@"^4.6.3"` | 见 §7.6:`legacy-peer-deps=true` 已配 |
 | `nvm install 20` 报 Version '20' not found | 见 §7.6:`NVM_NODEJS_ORG_MIRROR=...` |
