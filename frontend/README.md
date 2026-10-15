@@ -70,7 +70,12 @@ cd AIFullStackTesting/frontend
 2. 安装依赖
 
 ```bash
-npm install
+# 如果没装 Node 20,先安装并切换(.nvmrc 锁的版本)
+nvm install 20 && nvm use
+
+# monorepo 子目录跑 npm install 会卡在 husky install,加 --ignore-scripts 跳过
+# (项目仓库根没 .husky/,husky 钩子从未真正生效,跳过不影响功能)
+npm install --ignore-scripts
 ```
 
 3. 启动后端(参见 [backend/README.md](../backend/README.md))
@@ -82,6 +87,8 @@ npm install
 5. 启动开发服务器
 
 ```bash
+# 确保 Node 20(umi 4.x 不兼容 Node 22/24,会报 http_parser 缺失)
+nvm use
 npm run start:dev
 ```
 

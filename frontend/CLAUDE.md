@@ -9,13 +9,15 @@ Pity 前端 — Pity API 测试平台的 React 前端项目。基于 UmiJS v4 (`
 ## 开发命令
 
 ```bash
-npm run start:dev        # 启动开发服务器 (localhost:8000, 代理到后端 :7777)
-npm run build            # 生产构建
-npm run lint             # 完整 lint (ESLint + Prettier + TypeScript 检查)
-npm run lint:fix         # 自动修复 ESLint 问题
-npm run test             # 运行 Jest 测试
-npm run test:coverage    # 运行测试并生成覆盖率报告
-npx tsc --noEmit         # 仅类型检查
+nvm use                 # 自动切到 .nvmrc 锁的 Node 20(umi 4.x 不兼容 Node 22/24)
+npm install --ignore-scripts   # monorepo 子目录跑 npm install 必须加 --ignore-scripts
+npm run start:dev       # 启动开发服务器 (localhost:8000, 代理到后端 :7777)
+npm run build           # 生产构建
+npm run lint            # 完整 lint (ESLint + Prettier + TypeScript 检查)
+npm run lint:fix        # 自动修复 ESLint 问题
+npm run test            # 运行 Jest 测试
+npm run test:coverage   # 运行测试并生成覆盖率报告
+npx tsc --noEmit        # 仅类型检查
 ```
 
 ## 技术架构
