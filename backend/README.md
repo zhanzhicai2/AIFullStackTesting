@@ -88,7 +88,11 @@ cd AIFullStackTesting/backend
 2. 安装依赖
 
 ```bash
-pip install -r requirements.txt
+# 一次性创建 venv
+uv venv --python 3.10
+source .venv/bin/activate
+
+uv pip install -r requirements.txt
 # 可换豆瓣源或者清华源安装依赖
 ```
 
@@ -101,7 +105,7 @@ pip install -r requirements.txt
 5. 启动服务
 
 ```bash
-python main.py
+python pity.py
 ```
 
 6. 注册用户

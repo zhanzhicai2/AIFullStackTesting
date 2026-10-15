@@ -3,7 +3,7 @@
 > Pity API 测试平台 — 一个面向中小团队的开源接口自动化测试平台。采用 FastApi 后端 + React 前端的全栈方案,支持用例管理、定时调度、用例录制、在线 HTTP/SQL/Redis 客户端等功能。
 
 ![Python](https://img.shields.io/badge/Python-3.10+-green)
-![FastAPI](https://img.shields.io/badge/FastAPI-0.95+-green)
+![FastAPI](https://img.shields.io/badge/FastAPI-0.115+-green)
 ![React](https://img.shields.io/badge/React-18+-blue)
 ![UmiJS](https://img.shields.io/badge/UmiJS-4-blue)
 ![License](https://img.shields.io/badge/License-MIT-yellow)
@@ -35,7 +35,12 @@ Pity 是从 0 开始构建的接口自动化测试平台,2026 年起统一为 mo
 
 ```bash
 cd backend
-pip install -r requirements.txt
+
+# 一次性创建 venv(uv 会下载 cpython-3.10,约 24MB)
+uv venv --python 3.10
+source .venv/bin/activate
+
+uv pip install -r requirements.txt
 
 # 编辑 conf/dev.env,改 MySQL/Redis/GitHub OAuth 连接信息
 # 第一个注册的用户自动成为超级管理员
@@ -187,10 +192,10 @@ AIFullStackTesting/
 
 | 用途        | 命令                | 位置              |
 |-----------|-------------------|-----------------|
-| 启动后端      | `python main.py`  | `backend/`      |
+| 启动后端      | `source .venv/bin/activate && python pity.py` | `backend/` |
 | 后端热重载    | `uvicorn main:pity --reload` | `backend/`      |
 | 数据库迁移     | `alembic upgrade head`     | `backend/`      |
-| 启动前端      | `npm run start:dev`        | `frontend/`     |
+| 启动前端      | `nvm use && npm run start:dev` | `frontend/` |
 | 前端构建      | `npm run build`            | `frontend/`     |
 | 前端 lint   | `npm run lint`             | `frontend/`     |
 | 前端 lint 修复 | `npm run lint:fix`         | `frontend/`     |
@@ -214,12 +219,13 @@ AIFullStackTesting/
 
 ### CI/CD(GitHub Actions)
 
-仓库自带两个 workflow:
+仓库自带三个 workflow:
 
-- [`.github/workflows/deploy-backend.yml`](.github/workflows/deploy-backend.yml) — `backend/**` 变更时触发,经 SCP 推送到部署机后重启 Gunicorn
-- [`.github/workflows/deploy-frontend.yml`](.github/workflows/deploy-frontend.yml) — `frontend/**` 变更时触发,构建后 SCP 推送到部署机,PM2 重启
+- [`.github/workflows/deploy-backend.yml`](.github/workflows/deploy-backend.yml) — `backend/**` 变更时触发,经 SCP 推送到部署机后重启 Gunicorn(老的,SCP 路线)
+- [`.github/workflows/deploy-frontend.yml`](.github/workflows/deploy-frontend.yml) — `frontend/**` 变更时触发,构建后 SCP 推送到部署机,PM2 重启(老的,SCP 路线)
+- [`.github/workflows/deploy-docker.yml`](.github/workflows/deploy-docker.yml) — Docker 化部署,build 3 镜像 → push SWR → ssh pull/up(新路线,跑顺后会替换老的)
 
-两个 workflow 都支持手动 `workflow_dispatch`。需要在仓库 Settings → Secrets 配置:
+三个 workflow 都支持手动 `workflow_dispatch`。需要在仓库 Settings → Secrets 配置:
 
 | Secret       | 用途                |
 |--------------|-------------------|
@@ -232,7 +238,8 @@ AIFullStackTesting/
 ```bash
 # 1. 后端:本地构建产物
 cd backend
-pip install -r requirements.txt
+source .venv/bin/activate
+uv pip install -r requirements.txt
 
 # 2. 前端:本地构建 → 复制到后端 statics
 cd frontend

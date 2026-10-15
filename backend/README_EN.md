@@ -16,7 +16,11 @@ cd AIFullStackTesting/backend
 2. Install dependencies
 
 ```bash
-pip install -r requirements.txt
+# One-time venv setup
+uv venv --python 3.10
+source .venv/bin/activate
+
+uv pip install -r requirements.txt
 # Can use Tsinghua / Douban mirror for faster install
 ```
 
@@ -31,7 +35,7 @@ Edit the MySQL and Redis connection info. Redis is optional but disabling it wil
 6. Start the server
 
 ```bash
-python main.py
+python pity.py
 ```
 
 7. Register a user
