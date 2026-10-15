@@ -13,8 +13,8 @@ const Footer: React.FC = () => {
         background: 'none',
       }}
       // @ts-ignore
-      copyright={<span>{currentYear} woody个人出品 <a
-            href="https://beian.miit.gov.cn">鄂ICP备20001602号</a></span>}
+      copyright={<span>{currentYear} <a
+            href="https://beian.miit.gov.cn">粤ICP备20001602号</a></span>}
       links={false}
     />
   );
