@@ -34,10 +34,10 @@ on:
         required: false
         default: 'dev'
 
-# 临时禁用:Pydantic v1 → v2 / FastAPI 0.75 → 0.115 升级期间,避免自动部署线上炸
-# 升级改好后再回来把这一行注释掉即可恢复
-# 暂停期间,部署由老的 deploy-backend.yml / deploy-frontend.yml(走 SCP + gunicorn + PM2)继续负责
-if: false
+# 2026-10-15 阶段 1 升级验证通过后重新启用
+# (FastAPI 0.115.6 + Pydantic 1.10 + lifespan + P0 安全漏洞修复已 push)
+# 如需再次暂停,把下面这一行取消注释即可
+# if: false
 
 concurrency:
   # 同一时间只跑一个 deploy,避免并发 push 打架
