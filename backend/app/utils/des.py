@@ -1,6 +1,7 @@
 import binascii
 
-from pyDes import des, CBC, PAD_PKCS5
+from Crypto.Cipher import DES
+from Crypto.Util.Padding import pad, unpad
 
 # 秘钥
 KEY = 'pityspwd'
@@ -13,26 +14,29 @@ class Des(object):
         """
         DES 加密
         :param s: 原始字符串
-        :return: 加密后字符串，16进制
+        :return: 加密后字符串,16进制
+
+        替代 pyDes:pyDes 的 PAD_PKCS5 == pycryptodome 的 PKCS#7 pad/unpad
+        (DES block_size=8 下两者等价),DES-CBC 输出二进制完全一致,
+        旧的 16 进制密文可以被新代码 des_decrypt 正确解出。
         """
-        secret_key = KEY  # 密码
+        secret_key = KEY.encode()  # 8 字节
         iv = secret_key  # 偏移
-        # secret_key:加密密钥，CBC:加密模式，iv:偏移, padmode:填充
-        des_obj = des(secret_key, CBC, iv, pad=None, padmode=PAD_PKCS5)
-        # 返回为字节
-        secret_bytes = des_obj.encrypt(s, padmode=PAD_PKCS5)
-        # 返回为16进制
-        return binascii.b2a_hex(secret_bytes).decode()
+        cipher = DES.new(secret_key, DES.MODE_CBC, iv)
+        # pad=s 编码后再做 PKCS#7 padding,长度对齐 8 字节
+        ct = cipher.encrypt(pad(s.encode(), DES.block_size))
+        # 返回为 16 进制
+        return binascii.b2a_hex(ct).decode()
 
     @staticmethod
     def des_decrypt(s):
         """
         DES 解密
-        :param s: 加密后的字符串，16进制
+        :param s: 加密后的字符串,16 进制
         :return:  解密后的字符串
         """
-        secret_key = KEY
+        secret_key = KEY.encode()
         iv = secret_key
-        des_obj = des(secret_key, CBC, iv, pad=None, padmode=PAD_PKCS5)
-        decrypt_str = des_obj.decrypt(binascii.a2b_hex(s), padmode=PAD_PKCS5)
-        return decrypt_str.decode()
+        cipher = DES.new(secret_key, DES.MODE_CBC, iv)
+        plaintext = unpad(cipher.decrypt(binascii.a2b_hex(s)), DES.block_size)
+        return plaintext.decode()

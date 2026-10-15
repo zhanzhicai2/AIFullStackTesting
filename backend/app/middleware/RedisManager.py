@@ -12,7 +12,9 @@ from typing import Tuple
 from awaits.awaitable import awaitable
 from loguru import logger
 from redis import ConnectionPool, StrictRedis
-from rediscluster import RedisCluster, ClusterConnectionPool
+# redis-py 4+ 把 cluster 功能合并到主包,RedisCluster 自己管理连接池,
+# ClusterConnectionPool 已被移除,不再需要 redis-py-cluster
+from redis.cluster import RedisCluster
 
 from app.exception.error import RedisError
 from config import Config
@@ -104,7 +106,9 @@ class PityRedisManager(object):
     @staticmethod
     def get_cluster(address: str):
         """
-        获取集群连接池
+        获取集群连接
+        redis-py 4+:RedisCluster 直接接受 startup_nodes,内部管理连接池,
+        不再需要单独的 ClusterConnectionPool
         :param address:
         :return:
         """
@@ -113,8 +117,7 @@ class PityRedisManager(object):
             startup_nodes = [{"host": n.split(":")[0], "port": n.split(":")[1]} for n in nodes if ":" in n]
             if len(startup_nodes) == 0:
                 raise Exception("找不到集群节点，请检查配置")
-            pool = ClusterConnectionPool(startup_nodes=startup_nodes, max_connections=100, decode_responses=True)
-            client = RedisCluster(connection_pool=pool, decode_responses=True)
+            client = RedisCluster(startup_nodes=startup_nodes, max_connections=100, decode_responses=True)
             return client
         except Exception as e:
             raise RedisError(f"获取Redis连接失败, {e}")

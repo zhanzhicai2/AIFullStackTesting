@@ -1,19 +1,22 @@
-pyjwt==2.1.0
+pyjwt>=2.10.0,<3.0.0
 mysql-connector-python==8.0.26
-requests~=2.23.0
+requests>=2.32.0,<3.0.0
 sqlalchemy==1.4.47
 jsonschema
 fastapi==0.115.6
 uvicorn[standard]>=0.32.0,<0.34
 pydantic~=1.10.13
-PyYAML~=5.3.1
+PyYAML>=6.0.1,<7.0.0
 starlette>=0.41.0,<0.43
-aiohttp==3.8.1
+aiohttp>=3.9.2,<4.0.0
 aiomysql
-Jinja2==3.0.3
+Jinja2>=3.1.4,<4.0.0
 psycopg2-binary
+# setuptools 81+ 移除了 pkg_resources,APScheduler 3.8.0 / mitmproxy 8.0.0 仍依赖它
+# 锁到 <81 直到这两个包升级
+setuptools<81
 APScheduler==3.8.0
-redis==3.5.3
+redis>=5.0.4,<6.0.0
 redis-py-cluster
 redlock~=1.2.0
 yagmail
@@ -21,7 +24,7 @@ oss2~=2.15.0
 python-multipart
 awaits~=0.0.1
 grpc-requests
-loguru~=0.6.0
+loguru>=0.7.2,<0.8.0
 qiniu~=7.6.0
 cos-python-sdk-v5
 asyncpg
@@ -32,7 +35,7 @@ py-mock
 starlette_context
 gunicorn
 supervisor
-pyDes~=2.0.1
+pycryptodome>=3.20.0
 aioetcd3
 grpcio
 pydantic[email]
