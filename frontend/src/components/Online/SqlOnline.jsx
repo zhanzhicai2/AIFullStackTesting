@@ -213,7 +213,7 @@ const SqlOnline = ({online, dispatch, loading, leftHeight, cardHeight, tableHeig
                                                        onChange={data => {
                                                          setSqlValue(data)
                                                        }}/> :
-                <Empty image={emptyWork} imageStyle={{height: imageHeight || 190, marginTop: 32}}
+                <Empty image={emptyWork} styles={{image: {height: imageHeight || 190, marginTop: 32}}}
                        description="选中左侧的『数据库连接』开启sql之旅吧~"/>
             }
 
@@ -224,7 +224,7 @@ const SqlOnline = ({online, dispatch, loading, leftHeight, cardHeight, tableHeig
               <TabPane key="1" tab={<span><Data theme="outline" size="13" fill="#333"/> 执行结果</span>}>
                 {
                   testResults.length === 0 ?
-                    <Empty image={noResult} imageStyle={{height: imageHeight || 180}}
+                    <Empty image={noResult} styles={{image: {height: imageHeight || 180}}}
                            description="没有『查询结果』哦, 快去执行SQL吧~"/> :
                     <Table columns={getColumns(sqlColumns)} dataSource={testResults} size="small"
                            scroll={{x: sqlColumns.length > 8 ? 2000 : 1000, y: 190}} bordered={true}

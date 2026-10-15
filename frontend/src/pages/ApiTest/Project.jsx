@@ -162,7 +162,7 @@ const Project = ({dispatch, project, loading}) => {
     <div style={{fontSize: 16, fontWeight: 'bold', color: 'rgb(65, 74, 105)'}}>
       {item.name}
       <span style={{float: 'right', lineHeight: '24px', fontSize: 24, marginRight: 4}}>
-          <Dropdown overlay={menu(item)} onClick={e => {
+          <Dropdown menu={menu(item)} onClick={e => {
             e.stopPropagation();
           }}>
             <IconFont type="icon-more1" style={{cursor: 'pointer'}}/>
@@ -210,7 +210,7 @@ const Project = ({dispatch, project, loading}) => {
           {data.length === 0 ? (
             <Col span={24} style={{textAlign: 'center', marginBottom: 12}}>
               <Card>
-                <Empty description="暂无项目, 快点击『创建项目』创建一个吧!" image={noRecord} imageStyle={{height: 220}}/>
+                <Empty description="暂无项目, 快点击『创建项目』创建一个吧!" image={noRecord} styles={{image: {height: 220}}}/>
               </Card>
             </Col>
           ) : (

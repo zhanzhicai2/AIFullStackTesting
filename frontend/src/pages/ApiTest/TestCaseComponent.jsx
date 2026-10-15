@@ -175,7 +175,7 @@ const TestCaseComponent = ({loading, dispatch, user, testcase, gconfig}) => {
 
   const menu = envList.length === 0 ? <Card>
     <div>
-      <Empty image={noResult} imageStyle={{height: 90, width: 90, margin: '0 auto'}}
+      <Empty image={noResult} styles={{image: {height: 90, width: 90, margin: '0 auto'}}}
              description={<p>还没有任何环境, 去<a href="/#/config/environment">添加一个</a>?</p>}/>
     </div>
 
@@ -291,7 +291,7 @@ const TestCaseComponent = ({loading, dispatch, user, testcase, gconfig}) => {
                 }
               </Col>
             </Row> : <Empty description="你无法查看此用例，请联系对应项目组长开通权限。" image={NoPermission}
-                            imageStyle={{height: 400}}/>
+                            styles={{image: {height: 400}}}/>
         }
       </Spin>
 

@@ -9,14 +9,14 @@ export default ({visible, onCancel}) => {
     <Row gutter={18}>
       <Col span={12}>
         <Card hoverable bordered={false} className="help-card-left">
-          <Empty image={Study} imageStyle={{height: 200}} description={
+          <Empty image={Study} styles={{image: {height: 200}}} description={
             <span className="help-title">🎨了解数据工厂相关内容</span>
           }/>
         </Card>
       </Col>
       <Col span={12}>
         <Card hoverable bordered={false} className="help-card-right">
-          <Empty image={Design} imageStyle={{height: 200}} description={
+          <Empty image={Design} styles={{image: {height: 200}}} description={
             <span className="help-title">🙋‍♂️学习创建一个场景</span>
           }/>
         </Card>

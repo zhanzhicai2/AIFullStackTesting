@@ -18,6 +18,23 @@ const isDev = process.env.NODE_ENV === 'development';
 const loginPath = '/user/login';
 Spin.setDefaultIndicator(<Loading spin={true} theme="outline" size="36" fill="#4a90e2" strokeLinecap="butt" />)
 
+// 静默 umi-plugin-locale / react-intl 在控制台抛的"Missing message"噪音。
+// zh-CN 字典是 ant-design-pro 模板的精简版(53 行 menu key),远低于 ProLayout/ProComponents
+// 内置的完整 key 集(tabs.refresh / menu.project 等)。运行时已有 fallback(显示 key 字符串,
+// 对菜单来说就是显示中文名),UI 完全不受影响,只是不要让 [React Intl] 报错刷屏。
+// 同时屏蔽 SelectLang 在浏览器 locale 不匹配任何一种语言时的 warning。
+const _intlOriginalConsoleError = console.error;
+console.error = (...args: unknown[]) => {
+  const msg = typeof args[0] === 'string' ? args[0] : '';
+  if (
+    msg.startsWith('[React Intl]') ||
+    msg.includes('The current popular language does not exist')
+  ) {
+    return;
+  }
+  _intlOriginalConsoleError(...args);
+};
+
 /**
  * @see  https://umijs.org/zh-CN/plugins/plugin-initial-state
  * */
@@ -107,7 +124,7 @@ export const layout: RunTimeLayoutConfig = ({initialState, setInitialState}) => 
       if (initialState?.loading) return <PageLoading/>;
       return (
         <ConfigProvider
-        renderEmpty={() => <Empty image={NoTableData} imageStyle={{height: 160}}
+        renderEmpty={() => <Empty image={NoTableData} styles={{image: {height: 160}}}
                                                   description="暂无数据"/>}>
           {children}
           <IndexPage/>

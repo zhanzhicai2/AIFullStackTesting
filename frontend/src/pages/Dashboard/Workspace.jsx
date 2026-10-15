@@ -164,7 +164,7 @@ const Workspace = ({user, dispatch}) => {
             {
               followPlan.length === 0 ?
                 <Col span={24}>
-                  <Empty imageStyle={{height: 250}} image={noRecord}
+                  <Empty styles={{image: {height: 250}}} image={noRecord}
                          description={<span>你还没有关注测试计划, 赶紧去 <a href="/#/apiTest/testplan">关注</a> 一个吧！</span>}/>
                 </Col> :
                 followPlan.map(item =>

@@ -119,7 +119,7 @@ const Workspace = ({user, dispatch}) => {
           <Row>
             <Col span={24}>
               {
-                activities.length === 0 ? <Empty description="暂无数据" image={noRecord} imageStyle={{height: 120}}/> :
+                activities.length === 0 ? <Empty description="暂无数据" image={noRecord} styles={{image: {height: 120}}}/> :
                   <HeatMap startDate={shiftDate(today, -365)} endDate={shiftDate(today, 1)}
                            values={activities}/>
               }

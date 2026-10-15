@@ -141,7 +141,7 @@ const TestCaseDirectory = ({testcase, gconfig, project, user, loading, dispatch}
         <div>
           <Empty
             image={noResult}
-            imageStyle={{height: 90, width: 90, margin: '0 auto'}}
+            styles={{image: {height: 90, width: 90, margin: '0 auto'}}}
             description={
               <p>
                 还没有任何环境, 去<a href="/#/config/environment">添加一个</a>?
@@ -893,7 +893,7 @@ const TestCaseDirectory = ({testcase, gconfig, project, user, loading, dispatch}
                 ) : (
                   <Empty
                     image={emptyWork}
-                    imageStyle={{height: 230}}
+                    styles={{image: {height: 230}}}
                     description="快选中左侧的目录畅享用例之旅吧~"
                   />
                 )}

@@ -135,7 +135,7 @@ const RecorderDrawer = ({visible, setVisible, directory, loading, recorder, disp
       </Form>
       {
         record.length === 0 ?
-          <Empty image={NoRecord} imageStyle={{height: 220}} description="当前没有任何请求数据，你可以选择【录制】后的数据，也可以导入har文件提取接口👏">
+          <Empty image={NoRecord} styles={{image: {height: 220}}} description="当前没有任何请求数据，你可以选择【录制】后的数据，也可以导入har文件提取接口👏">
             <Space>
               <Button onClick={onLoadRecords}><CameraOutlined/> 录制请求</Button>
               <Upload showUploadList={false} customRequest={onUpload} fileList={[]}>
