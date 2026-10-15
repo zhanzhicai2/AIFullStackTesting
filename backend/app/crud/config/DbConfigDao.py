@@ -6,7 +6,6 @@ from sqlalchemy.exc import ResourceClosedError
 
 from app.crud import Mapper, ModelWrapper
 from app.crud.config.EnvironmentDao import EnvironmentDao
-from app.handler.encoder import JsonEncoder
 from app.handler.fatcory import PityResponse
 from app.middleware.RedisManager import RedisHelper
 from app.models import async_session, db_helper

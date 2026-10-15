@@ -2,6 +2,7 @@ import logging
 import os
 import sys
 import traceback
+from contextlib import asynccontextmanager
 from pprint import pformat
 
 from fastapi import FastAPI, Request, status
@@ -22,7 +23,66 @@ sys.path.append(__file__)
 
 # from starlette_context import middleware, plugins
 
-pity = FastAPI()
+
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    """
+    FastAPI 0.95+ 推荐的 lifespan context manager,替代 @app.on_event('startup')。
+    启动顺序保持与原 on_event 一致:Redis → APScheduler → 数据库建表。
+    启动逻辑放在 app/__init__.py 里,因为 FastAPI 实例化也在这;
+    main.py 通过 from app import pity 拿到已带 lifespan 的实例。
+    """
+    # 延迟 import 避免 app/__init__.py → main.py → app/__init__.py 的循环
+    from apscheduler.jobstores.sqlalchemy import SQLAlchemyJobStore
+    from apscheduler.schedulers.asyncio import AsyncIOScheduler
+
+    from app.crud import create_table
+    from app.middleware.RedisManager import RedisHelper
+    from app.utils.scheduler import Scheduler
+
+    # 1. init_redis
+    try:
+        await RedisHelper.ping()
+        logger.bind(name=None).success("redis connected success.        ✔")
+    except Exception as e:
+        if not Config.REDIS_ON:
+            logger.bind(name=None).warning(
+                f"Redis is not selected, So we can't ensure that the task is not executed repeatedly.        🚫")
+        else:
+            logger.bind(name=None).error(
+                f"Redis connect failed, Please check config.py for redis config.        ❌")
+            raise e
+
+    # 2. init_scheduler
+    job_store = {
+        'default': SQLAlchemyJobStore(
+            url=Config.SQLALCHEMY_DATABASE_URI,
+            engine_options={"pool_recycle": 1500},
+            pickle_protocol=3,
+        )
+    }
+    scheduler = AsyncIOScheduler()
+    Scheduler.init(scheduler)
+    Scheduler.configure(jobstores=job_store)
+    Scheduler.start()
+    logger.bind(name=None).success("ApScheduler started success.        ✔")
+
+    # 3. init_database
+    try:
+        import asyncio
+        asyncio.create_task(create_table())
+        logger.bind(name=None).success("database and tables created success.        ✔")
+    except Exception as e:
+        logger.bind(name=None).error(
+            f"database and tables  created failed.        ❌\nerror: {e}")
+        raise
+
+    yield
+    # shutdown 阶段:原 stop_test 是 pass,目前不需要额外清理
+    # APScheduler / Redis 连接由各自实现负责关闭
+
+
+pity = FastAPI(lifespan=lifespan)
 
 # pity.add_middleware(
 #     middleware.ContextMiddleware,
