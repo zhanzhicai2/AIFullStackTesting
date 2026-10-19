@@ -43,7 +43,7 @@ bash frontend/deploy.sh
 ```bash
 cd backend
 pip install -r requirements.txt
-python main.py                                # 开发启动 (0.0.0.0:7777)
+python pity.py                           # 开发启动 (0.0.0.0:7777)
 uvicorn main:pity --reload                    # 热重载
 alembic revision --autogenerate -m "描述"      # 生成迁移
 alembic upgrade head                          # 执行迁移
