@@ -5,10 +5,10 @@ import {useEmotionCss} from '@ant-design/use-emotion-css';
 import {FormattedMessage, Helmet, history, SelectLang, useIntl, useModel} from '@umijs/max';
 import {message, Tabs} from 'antd';
 import Settings from '../../../../config/defaultSettings';
-import React, {useState} from 'react';
+import React, {useEffect, useState} from 'react';
 import {flushSync} from 'react-dom';
 
-const clientId = `0f4fc0a875de30614a6a`;
+const clientId = `Ov23li1KFJ0RQ3yuSAQB`;
 
 const redirectToGithub = () => {
   // const current = window.location.href
@@ -61,7 +61,7 @@ const Lang = () => {
 const Login: React.FC = () => {
   const [type, setType] = useState<string>('account');
   const {initialState, setInitialState} = useModel('@@initialState');
-  const {loginPity, registerPity} = useModel('auth');
+  const {loginPity, registerPity, loginGithubPity} = useModel('auth');
 
   const containerClassName = useEmotionCss(() => {
     return {
@@ -88,6 +88,30 @@ const Login: React.FC = () => {
       });
     }
   };
+
+  // GitHub OAuth 回调处理:GitHub 授权后跳回 ?code=xxx,用 code 换 token
+  useEffect(() => {
+    const code = new URL(window.location.href).searchParams.get('code');
+    if (!code) return;
+    let cancelled = false;
+    loginGithubPity({code}).then(async (resp) => {
+      if (cancelled) return;
+      if (resp?.code === 0) {
+        await fetchUserInfo();
+        message.success('🎉 🎉 🎉 GitHub 登录成功');
+        // 清掉 URL 上的 code,避免刷新页面重复触发
+        window.history.replaceState(null, '', window.location.pathname);
+        history.push('/');
+      } else {
+        message.error(resp?.msg || 'GitHub 登录失败');
+      }
+    }).catch(() => {
+      if (!cancelled) message.error('GitHub 登录异常');
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, []);
 
   const handleSubmit = async (values: API.LoginParams) => {
     let resp;

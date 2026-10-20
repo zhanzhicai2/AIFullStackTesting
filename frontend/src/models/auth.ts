@@ -1,6 +1,6 @@
 // @ts-ignore
 import {getPageQuery} from "@/utils/utils";
-import {PityResponse, register} from "@/services/auth";
+import {PityResponse, register, loginGithub} from "@/services/auth";
 import {login} from "@/services/auth";
 import {useState} from "react";
 
@@ -28,9 +28,15 @@ export default () => {
 
   const registerPity = async (payload: Record<string, any>) => {
     const resp = await register(payload);
-    changeLoginStatus(resp)
+    changeLoginStatus(resp);
     return resp;
   }
 
-  return {status, loginPity, registerPity};
+  const loginGithubPity = async (payload: Record<string, string | undefined>) => {
+    const resp = await loginGithub(payload);
+    changeLoginStatus(resp);
+    return resp;
+  }
+
+  return {status, loginPity, registerPity, loginGithubPity};
 };
