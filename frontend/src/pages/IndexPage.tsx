@@ -12,7 +12,7 @@ const IndexPage: React.FC = () => {
 
   useEffect(() => {
     if (currentUser && currentUser.id) {
-      const ws = new WebSocket(`${CONFIG.WS_URL}/${currentUser.id}`);
+      const ws = new WebSocket(`${CONFIG.WS_URL}/ws/${currentUser.id}`);
       ws.onmessage = function (event) {
         event.preventDefault()
         const messages = event.data;

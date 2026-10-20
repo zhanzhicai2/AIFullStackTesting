@@ -60,7 +60,8 @@ async def login_with_github(code: str):
             token = r.text.split("&")[0].split("=")[1]
             res = session.get(Config.GITHUB_USER, headers={"Authorization": "token {}".format(token)}, timeout=8)
             user_info = res.json()
-            user = await UserDao.register_for_github(user_info.get("login"), user_info.get("name"),
+            user = await UserDao.register_for_github(user_info.get("login"),
+                                                     user_info.get("name") or user_info.get("login"),
                                                      user_info.get("email"),
                                                      user_info.get("avatar_url"))
             user = PityResponse.model_to_dict(user, "password")
