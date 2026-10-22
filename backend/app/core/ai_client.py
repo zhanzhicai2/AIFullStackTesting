@@ -12,9 +12,14 @@ import aiohttp
 
 from app import logger
 
-FETCH_TIMEOUT = 15      # 总超时
+FETCH_TIMEOUT = 15      # 拉模型列表的总超时
 CONNECT_TIMEOUT = 8     # 建连超时
+CHAT_SOCK_TIMEOUT = 60  # 对话流每次读的超时(单次 idle 超过即认为厂商挂了)
 MAX_MODEL_COUNT = 500   # 防止个别厂商返回上万条撑爆前端弹窗
+
+
+class ChatError(Exception):
+    """对话流异常,对外只暴露中文 message"""
 
 
 class FetchModelError(Exception):
@@ -132,3 +137,87 @@ async def fetch_remote_models(base_url: str, api_key: str) -> List[Dict[str, Any
         raise FetchModelError("未获取到模型列表, 请确认 API Key 是否可用")
     logger.bind(name=None).info(f"fetch models from {url}, got {len(models)}")
     return models
+
+def _build_chat_url(base_url: str) -> str:
+    """对话端点。兼容用户直接粘了完整的 /chat/completions 地址"""
+    url = (base_url or "").strip().rstrip("/")
+    if not url:
+        raise ChatError("Base URL 为空, 请先在模型设置里填写并保存")
+    if not url.startswith(("http://", "https://")):
+        raise ChatError("Base URL 必须以 http:// 或 https:// 开头")
+    return url if url.endswith("/chat/completions") else f"{url}/chat/completions"
+
+
+async def stream_chat(base_url: str, api_key: str, model_name: str, messages: list, params: dict = None):
+    """
+    流式对话,异步生成器
+
+    :param messages: OpenAI 格式 [{"role": "user", "content": "..."}, ...]
+    :param params:   额外参数(temperature/max_tokens/top_p),来自模型的齿轮设置
+    :yield: (增量文本, usage 或 None); 最后一帧携带 token 用量
+    """
+    url = _build_chat_url(base_url)
+    if not (api_key or "").strip():
+        raise ChatError("该厂商未配置 API Key, 请联系管理员在模型设置里补充")
+    if not model_name:
+        raise ChatError("未指定模型")
+
+    payload = {"model": model_name, "messages": messages, "stream": True,
+               "stream_options": {"include_usage": True}}
+    # params 来自 AIModel.params(齿轮里配的参数), 只覆盖白名单键
+    if isinstance(params, dict):
+        for key in ("temperature", "max_tokens", "top_p", "stop", "presence_penalty", "frequency_penalty"):
+            if params.get(key) is not None:
+                payload[key] = params[key]
+
+    headers = {"Authorization": f"Bearer {api_key.strip()}",
+               "Content-Type": "application/json",
+               # 与拉模型列表同理: 部分厂商默认返回 br, aiohttp 未必装了解码器
+               "Accept-Encoding": "gzip, deflate"}
+    # 注意 total=None: 拉列表的 15s 总超时会把长回复直接砍掉,
+    # 流式只能约束单次 idle(sock_read)
+    timeout = aiohttp.ClientTimeout(total=None, sock_connect=CONNECT_TIMEOUT, sock_read=CHAT_SOCK_TIMEOUT)
+    try:
+        async with aiohttp.ClientSession(timeout=timeout) as session:
+            async with session.post(url, json=payload, headers=headers, ssl=False) as resp:
+                if resp.status != 200:
+                    text = await resp.text()
+                    logger.bind(name=None).warning(f"对话请求失败 {resp.status}: {text[:200]}")
+                    raise ChatError(_status_message(resp.status, text))
+                async for raw in resp.content:
+                    line = raw.decode("utf-8", errors="ignore").strip()
+                    if not line or not line.startswith("data:"):
+                        continue
+                    data = line[5:].strip()
+                    if data == "[DONE]":
+                        break
+                    try:
+                        obj = json.loads(data)
+                    except Exception:
+                        # 心跳/注释/厂商夹带的非 JSON 行, 跳过不影响
+                        continue
+                    # usage 可能出现在任意一帧: OpenAI 系放在 choices 为空的最后一帧,
+                    # 部分厂商(含 DeepSeek)则与最后一帧的 choices 并列, 两种都要接
+                    usage = obj.get("usage")
+                    if usage:
+                        yield "", usage
+                    choices = obj.get("choices") or []
+                    if not choices:
+                        continue
+                    delta = choices[0].get("delta") or {}
+                    # reasoning_content 是部分厂商的思维链, 一并透传给前端
+                    text_piece = delta.get("content") or delta.get("reasoning_content") or ""
+                    if text_piece:
+                        yield text_piece, None
+    except (ChatError, GeneratorExit):
+        raise
+    except asyncio.TimeoutError:
+        raise ChatError(f"生成超时({CHAT_SOCK_TIMEOUT}s 无响应), 请稍后重试")
+    except aiohttp.ContentEncodingError:
+        raise ChatError("厂商返回了当前环境无法解码的压缩格式(br), 请联系管理员安装 brotlicffi")
+    except aiohttp.ClientConnectorError:
+        raise ChatError("无法连接到厂商地址, 请检查 Base URL / 本机网络 / 代理设置")
+    except aiohttp.ClientSSLError:
+        raise ChatError("HTTPS 证书校验失败, 请确认 Base URL 的协议与厂商一致")
+    except aiohttp.ClientError as e:
+        raise ChatError(f"请求厂商接口失败: {e}")

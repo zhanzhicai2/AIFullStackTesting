@@ -21,6 +21,7 @@ from app.middleware.RedisManager import RedisHelper
 from app.enums.AIModelEnum import AIModelTypeEnum
 from app.models import Base, async_session, async_engine
 from app.models.address import PityGateway
+from app.models.ai_chat import PityChatMessage, PityChatSession
 from app.models.ai_model import AIModel
 from app.models.ai_vendor import AIVendor
 from app.models.basic import PityRelationField, init_relation, PityBase
@@ -682,3 +683,10 @@ init_relation(GConfig, PityRelationField(GConfig.env, (Environment.id, Environme
 
 init_relation(AIModel, PityRelationField(AIModel.vendor_id, (AIVendor.id, AIVendor.name)),
               PityRelationField(AIModel.model_type, AIModelTypeEnum.name))
+
+init_relation(PityChatSession, PityRelationField(PityChatSession.user_id, (User.id, User.name)))
+
+# 消息表只关联会话, 不关联 User: assistant 消息的"作者"是模型不是人,
+# 关联 User.name 会显示成用户自己的名字, 有误导
+init_relation(PityChatMessage,
+              PityRelationField(PityChatMessage.session_id, (PityChatSession.id, PityChatSession.title)))

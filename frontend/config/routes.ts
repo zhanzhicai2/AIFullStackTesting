@@ -232,16 +232,20 @@ export default [
     path: '/ai',
     icon: 'api',
     name: 'AI 助手',
-    // access 由 src/access.ts 的 canAdmin 提供(role === 2),对非超管隐藏菜单
-    access: 'canAdmin',
     routes: [
       {
+        // 配置模型厂商是超管的事, access 挂在子路由而不是父路由,
+        // 否则普通用户连聊天助手都进不去
         path: '/ai/vendor',
         name: '模型服务商',
         component: './Ai/Vendor',
         access: 'canAdmin',
       },
-      // 二期预留:聊天助手消费 /ai 下已配置的厂商与模型
+      {
+        path: '/ai/chat',
+        name: '聊天助手',
+        component: './Chat/index',
+      },
     ],
   },
   {

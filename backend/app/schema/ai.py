@@ -66,3 +66,34 @@ class AIModelImportDto(BaseModel):
     @validator("vendor_id", "models")
     def not_empty(cls, v):
         return PityModel.not_empty(v)
+
+class ChatSessionInsertForm(BaseModel):
+    vendor_id: int = None
+    model_id: int = None
+
+
+class ChatSessionUpdateForm(BaseModel):
+    session_id: int
+    title: str = None
+    vendor_id: int = None
+    model_id: int = None
+
+    @validator("session_id")
+    def id_not_empty(cls, v):
+        return PityModel.not_empty(v)
+
+
+class ChatStreamForm(BaseModel):
+    session_id: int
+    content: str
+    # 可覆盖会话上记录的模型, 前端切换模型后立即生效
+    vendor_id: int = None
+    model_id: int = None
+
+    @validator("session_id")
+    def id_not_empty(cls, v):
+        return PityModel.not_empty(v)
+
+    @validator("content")
+    def content_not_empty(cls, v):
+        return PityModel.not_empty(v)

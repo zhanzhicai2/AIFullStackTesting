@@ -1,0 +1,213 @@
+.chat-container {
+  display: flex;
+  gap: 12px;
+  height: 100%;
+}
+
+.chat-list {
+  width: 300px;
+  flex: 0 0 300px;
+  display: flex;
+  flex-direction: column;
+  background: #fff;
+  border-radius: 8px;
+  overflow: hidden;
+}
+
+.chat-list-header {
+  padding: 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  border-bottom: 1px solid #f0f0f0;
+}
+
+/* flex item 默认 min-height:auto 会被内容撑破, 滚动层必须显式置 0 */
+.chat-list-body {
+  flex: 1;
+  overflow-y: auto;
+  min-height: 0;
+  padding: 8px;
+}
+
+.chat-list-item {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px;
+  border-radius: 6px;
+  cursor: pointer;
+  transition: background-color 0.2s;
+}
+
+.chat-list-item:hover {
+  background: #fafafa;
+}
+
+.chat-list-item.active {
+  background: #e6f4ff;
+}
+
+.chat-list-meta {
+  flex: 1;
+  min-width: 0;
+}
+
+.chat-list-title {
+  font-size: 14px;
+  line-height: 20px;
+}
+
+.chat-list-sub {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  font-size: 12px;
+  line-height: 18px;
+}
+
+.chat-list-time {
+  flex-shrink: 0;
+  font-size: 12px;
+}
+
+.chat-main {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  background: #fff;
+  border-radius: 8px;
+  overflow: hidden;
+}
+
+.chat-header {
+  flex: 0 0 auto;
+  height: 56px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 0 16px;
+  border-bottom: 1px solid #f0f0f0;
+}
+
+.chat-body {
+  flex: 1;
+  overflow-y: auto;
+  min-height: 0;
+}
+
+.chat-messages {
+  padding: 20px 24px;
+}
+
+.chat-messages-empty {
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+}
+
+.chat-empty-icon {
+  width: 56px;
+  height: 56px;
+  border-radius: 50%;
+  background: #e6f4ff;
+  color: #1677ff;
+  font-size: 26px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.chat-msg-row {
+  display: flex;
+  gap: 10px;
+  margin-bottom: 20px;
+  align-items: flex-start;
+}
+
+.chat-msg-row.user {
+  justify-content: flex-end;
+}
+
+.chat-msg-body {
+  min-width: 0;
+  max-width: 78%;
+}
+
+.chat-msg-author {
+  font-size: 12px;
+  color: rgba(0, 0, 0, 0.45);
+  margin-bottom: 6px;
+}
+
+.chat-msg-bubble {
+  border-radius: 8px;
+  padding: 10px 14px;
+  background: #f5f5f5;
+  word-break: break-word;
+}
+
+.chat-msg-row.user .chat-msg-bubble {
+  background: #1677ff;
+  color: #fff;
+}
+
+.chat-msg-text {
+  white-space: pre-wrap;
+}
+
+/* bytemd 的 markdown-body 自带大量 padding, 嵌在气泡里要收一下 */
+.chat-msg-bubble .markdown-body {
+  padding: 0;
+  background: transparent;
+}
+
+.chat-msg-bubble .markdown-body pre {
+  background: #282c34;
+  border-radius: 6px;
+}
+
+.chat-msg-row.user .chat-msg-bubble .markdown-body {
+  color: #fff;
+}
+
+.chat-input {
+  flex: 0 0 auto;
+  border-top: 1px solid #f0f0f0;
+  padding: 12px 16px 8px;
+}
+
+.chat-input-toolbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-top: 8px;
+}
+
+.chat-input-tip {
+  font-size: 12px;
+  color: rgba(0, 0, 0, 0.45);
+  margin-top: 6px;
+}
+/* 正在生成时的闪烁光标 */
+.chat-cursor {
+  display: inline-block;
+  width: 7px;
+  height: 15px;
+  margin-left: 2px;
+  vertical-align: text-bottom;
+  background: #1677ff;
+  animation: chat-blink 1s steps(2, start) infinite;
+}
+
+@keyframes chat-blink {
+  to {
+    visibility: hidden;
+  }
+}
