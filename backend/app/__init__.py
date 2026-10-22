@@ -69,9 +69,13 @@ async def lifespan(app: FastAPI):
 
     # 3. init_database
     try:
-        import asyncio
-        asyncio.create_task(create_table())
+        # 必须 await: 之前用 asyncio.create_task 让建表在后台跑,
+        # 但日志已经打印"created success"且 lifespan 已经放行请求,
+        # 首个请求可能撞上"表还不存在"。建表是幂等 DDL,await 只多花几十毫秒。
+        await create_table()
         logger.bind(name=None).success("database and tables created success.        ✔")
+        # 预置 AI 厂商不在这里插: 交给 AIVendorDao.ensure_seed 在首次 /ai 访问时
+        # 用真实操作人 id 写入,避免 create_user 落成 0
     except Exception as e:
         logger.bind(name=None).error(
             f"database and tables  created failed.        ❌\nerror: {e}")

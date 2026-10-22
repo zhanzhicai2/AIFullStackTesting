@@ -18,8 +18,11 @@ from app.enums.OperationEnum import OperationType
 from app.enums.ProjectEnum import ProjectRoleEnum
 from app.exception.database import DBError
 from app.middleware.RedisManager import RedisHelper
+from app.enums.AIModelEnum import AIModelTypeEnum
 from app.models import Base, async_session, async_engine
 from app.models.address import PityGateway
+from app.models.ai_model import AIModel
+from app.models.ai_vendor import AIVendor
 from app.models.basic import PityRelationField, init_relation, PityBase
 from app.models.environment import Environment
 from app.models.gconfig import GConfig
@@ -676,3 +679,6 @@ init_relation(TestCaseAsserts, PityRelationField(TestCaseAsserts.case_id, (TestC
 init_relation(PityGateway, PityRelationField(PityGateway.env, (Environment.id, Environment.name)))
 
 init_relation(GConfig, PityRelationField(GConfig.env, (Environment.id, Environment.name)))
+
+init_relation(AIModel, PityRelationField(AIModel.vendor_id, (AIVendor.id, AIVendor.name)),
+              PityRelationField(AIModel.model_type, AIModelTypeEnum.name))

@@ -229,6 +229,22 @@ export default [
     ],
   },
   {
+    path: '/ai',
+    icon: 'api',
+    name: 'AI 助手',
+    // access 由 src/access.ts 的 canAdmin 提供(role === 2),对非超管隐藏菜单
+    access: 'canAdmin',
+    routes: [
+      {
+        path: '/ai/vendor',
+        name: '模型服务商',
+        component: './Ai/Vendor',
+        access: 'canAdmin',
+      },
+      // 二期预留:聊天助手消费 /ai 下已配置的厂商与模型
+    ],
+  },
+  {
     path: '/mock',
     icon: 'icon-mockplus_doc',
     name: 'Mock配置',

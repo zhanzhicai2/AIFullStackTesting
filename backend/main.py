@@ -12,6 +12,7 @@ from app.core.msg.wss_msg import WebSocketMessage
 from app.core.ws_connection_manager import ws_manage
 from app.crud.notification.NotificationDao import PityNotificationDao
 from app.enums.MessageEnum import MessageStateEnum, MessageTypeEnum
+from app.routers.ai import router as ai_router
 from app.routers.auth import user
 from app.routers.config import router as config_router
 from app.routers.notification import router as msg_router
@@ -57,6 +58,7 @@ pity.include_router(oss_router, dependencies=[Depends(request_info)])
 pity.include_router(operation_router, dependencies=[Depends(request_info)])
 pity.include_router(msg_router, dependencies=[Depends(request_info)])
 pity.include_router(workspace_router, dependencies=[Depends(request_info)])
+pity.include_router(ai_router, dependencies=[Depends(request_info)])
 
 # pity.mount("/statics", StaticFiles(directory="statics"), name="statics")
 
