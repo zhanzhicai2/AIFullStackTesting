@@ -90,7 +90,10 @@ async def fetch_remote_models(base_url: str, api_key: str) -> List[Dict[str, Any
         raise FetchModelError("API Key 为空, 请先填写并保存 API Key")
 
     headers = {"Authorization": f"Bearer {api_key}",
-               "Accept": "application/json"}
+               "Accept": "application/json",
+               # 显式只要 gzip/deflate: 部分厂商(实测 DeepSeek)默认返回 br,
+               # 而 aiohttp 优先依赖 brotlicffi, 缺失时会抛 ContentEncodingError
+               "Accept-Encoding": "gzip, deflate"}
     timeout = aiohttp.ClientTimeout(total=FETCH_TIMEOUT, connect=CONNECT_TIMEOUT)
     payload: Optional[Any] = None
     try:
@@ -110,6 +113,8 @@ async def fetch_remote_models(base_url: str, api_key: str) -> List[Dict[str, Any
         raise
     except asyncio.TimeoutError:
         raise FetchModelError(f"请求厂商接口超时({FETCH_TIMEOUT}s), 请检查网络或 Base URL 是否正确")
+    except aiohttp.ContentEncodingError:
+        raise FetchModelError("厂商返回了当前环境无法解码的压缩格式(br), 请联系管理员安装 brotlicffi")
     except aiohttp.ClientConnectorError:
         raise FetchModelError("无法连接到厂商地址, 请检查 Base URL / 本机网络 / 代理设置")
     except aiohttp.ClientSSLError:

@@ -53,7 +53,8 @@ class AIModelDao(Mapper):
                 query = await session.execute(
                     select(AIModel.name).where(AIModel.vendor_id == vendor_id,
                                                AIModel.deleted_at == 0))
-                exists = {row[0] for row in query.scalars().all()}
+                # select(name) 后 .scalars().all() 返回的就是字符串,不要再 row[0]
+                exists = set(query.scalars().all())
                 added, skipped = 0, 0
                 for item in models:
                     # 兼容前端传字符串或 {"name": ..., "model_type": ...} 两种格式

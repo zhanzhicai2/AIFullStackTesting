@@ -42,7 +42,8 @@ class AIVendorDao(Mapper):
         async with async_session() as session:
             async with session.begin():
                 query = await session.execute(select(AIVendor.code).where(AIVendor.deleted_at == 0))
-                exists = {row[0] for row in query.scalars().all()}
+                # select(code) 后 .scalars().all() 返回的就是字符串,不要再 row[0]
+                exists = set(query.scalars().all())
                 for index, item in enumerate(VENDORS):
                     if item["code"] in exists:
                         continue
