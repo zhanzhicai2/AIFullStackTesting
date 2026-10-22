@@ -322,20 +322,20 @@ async def delete_testcase_out_parameters(id: int, user_info=Depends(Permission()
     return PityResponse.success()
 
 
-@router.get("/record/start", summary="开始录制接口请求")  # TODO
-async def record_requests(request: Request, regex: str, user_info=Depends(Permission())):
+@router.get("/record/start", summary="开始录制接口请求")
+async def start_record(request: Request, regex: str, user_info=Depends(Permission())):
     await RedisHelper.set_address_record(user_info['id'], request.client.host, regex)
     return PityResponse.success(msg="开始录制，可以在浏览器/app上操作啦！")
 
 
-@router.get("/record/stop", summary="停止录制接口请求")  # TODO
-async def record_requests(request: Request, _=Depends(Permission())):
+@router.get("/record/stop", summary="停止录制接口请求")
+async def stop_record(request: Request, _=Depends(Permission())):
     await RedisHelper.remove_address_record(request.client.host)
     return PityResponse.success(msg="停止成功，快去生成用例吧~")
 
 
-@router.get("/record/status", summary="获取录制接口请求状态")  # TODO
-async def record_requests(request: Request, _=Depends(Permission())):
+@router.get("/record/status", summary="获取录制接口请求状态")
+async def record_status(request: Request, _=Depends(Permission())):
     record = await RedisHelper.get_address_record(request.client.host)
     status = False
     regex = ''
@@ -347,7 +347,7 @@ async def record_requests(request: Request, _=Depends(Permission())):
     return PityResponse.success(dict(data=data, regex=regex, status=status))
 
 
-@router.get("/record/remove", summary="删除录制接口")  # TODO
+@router.get("/record/remove", summary="删除录制接口")
 async def remove_record(index: int, request: Request, _=Depends(Permission())):
     await RedisHelper.remove_record_data(request.client.host, index)
     return PityResponse.success()
