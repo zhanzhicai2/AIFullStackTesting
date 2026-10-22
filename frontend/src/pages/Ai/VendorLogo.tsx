@@ -11,6 +11,7 @@ const BRAND: Record<string, { color: string; short: string }> = {
   modelscope: { color: '#1677FF', short: 'Ms' },
   xiaomi: { color: '#FF6900', short: '米' },
   zhipu: { color: '#3859FF', short: 'GL' },
+  sensenova: { color: '#1E3A8A', short: 'SN' },
   ollama: { color: '#111827', short: 'Ol' },
 };
 

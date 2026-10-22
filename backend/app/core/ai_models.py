@@ -74,6 +74,13 @@ VENDORS = [
         "console_url": "https://open.bigmodel.cn/usercenter/apikeys",
     },
     {
+        "code": "sensenova",
+        "name": "商汤日日新",
+        "en_name": "SenseNova",
+        "base_url": "https://token.sensenova.cn/v1",
+        "console_url": "https://platform.sensenova.cn/console/keys",
+    },
+    {
         "code": "ollama",
         "name": "本地部署",
         "en_name": "Ollama",
@@ -136,6 +143,14 @@ SYSTEM_MODELS = {
         {"name": "glm-4-flash", "model_type": "chat"},
         {"name": "embedding-3", "model_type": "embedding"},
         {"name": "rerank", "model_type": "rerank"},
+    ],
+    "sensenova": [
+        {"name": "sensenova-6.8-flash-lite", "model_type": "chat"},
+        {"name": "sensenova-6.7-flash-lite", "model_type": "chat"},
+        {"name": "deepseek-v4-flash", "model_type": "chat"},
+        {"name": "deepseek-v4-pro", "model_type": "chat"},
+        {"name": "glm-5.2", "model_type": "chat"},
+        {"name": "kimi-k3", "model_type": "chat"},
     ],
     # 本地部署的模型取决于用户自己装了啥,不预置
     "ollama": [],
