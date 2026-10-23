@@ -202,19 +202,22 @@ class DbConfigDao(Mapper):
     @staticmethod
     async def execute(conn, sql):
         row_count = 0
+        start = time.perf_counter()
         session = conn.get("session")
         async with session() as s:
             async with s.begin():
                 try:
-                    start = time.perf_counter()
                     result = await s.execute(text(sql))
                     cost = time.perf_counter() - start
                     row_count = result.rowcount
                     ans = result.mappings().all()
                     return ans, int(cost * 1000)
                 except ResourceClosedError:
-                    # 说明是update或其他语句
-                    return [{"rowCount": row_count}]
+                    # CREATE/INSERT/UPDATE/DELETE 这类无结果集的语句, mappings() 会抛
+                    # ResourceClosedError。必须与成功分支保持同样的 (rows, elapsed) 形状 ——
+                    # 上游 online_sql / execute_sql 两个调用方都是 result, elapsed = ... 解包,
+                    # 这里如果只返回单个 list, 解包会报 "not enough values to unpack"
+                    return [{"rowCount": row_count}], int((time.perf_counter() - start) * 1000)
                 except Exception as e:
                     DbConfigDao.log.error(f"查询数据库配置失败, error: {e}")
                     raise Exception(f"执行sql失败: {e}")

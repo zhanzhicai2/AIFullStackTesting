@@ -102,6 +102,24 @@ Request → CORS Middleware → Error Middleware → Router → DAO (connect装�
 
 参数提取通过 `app/core/paramters/` 下的解析器（JSONPath、正则、状态码、KV）实现，全局配置解析通过 `app/utils/gconfig_parser.py`（String/JSON/YAML）。
 
+### 数据工厂（`app/core/data_factory/`）
+
+造数工厂：**字段规则 → 批量生成 → 导出 / 写库 / 绑定用例**。
+
+- `generator.py` — 生成内核。`DataGenerator(rules, seed)` 把规则集变成 N 行数据。
+  - 生成方式（`rule.kind`）：`fixed` / `random` / `enum` / `sequence` / `uuid` / `template` / `regex` / `reference` / `faker` / `func` / `date`
+  - **确定性**：所有随机都走 `faker.seed_instance(seed)` 出来的 `faker.random` 实例，`${uuid()}` / `${random_int(a,b)}` 在渲染上下文里被带种子的版本遮蔽，所以同样的 rules + seed 永远得到同样的数据。`PityFunction.now()` 这类取真实时间的函数无法重放
+  - **变量语法复用平台既有的 `${...}`**（Jinja2，`app/core/render.py`），`${字段名}` 引用同批次其他字段，`${函数()}` 调 `PityFunction`
+  - 字段之间按依赖做拓扑排序，引用成环会直接报错
+- `regex_gen.py` — 自研的轻量正则生成器（不引 exrex）。支持 `\d \w \s`、字符类、`{n,m}` 量词、分组、或分支
+- `writer.py` — 写库通道。复用 `db_helper.get_connection()`，用 SQLAlchemy Core 参数化 insert。
+  - **AsyncEngine 不能直接 reflection**，必须走 `conn.run_sync()` 绿桥（与 `DbConfigDao.load_table` 同款）
+  - 只支持 MySQL / PostgreSQL（`DatabaseEnum` 目前只有这两个）
+- `exporter.py` — 导出 JSON / SQL 临时文件，由 `PityResponse.file()` 返回下载
+- `ai_parser.py` — 自然语言 → 字段规则。AI **只翻译规则不生成数据**，逐字段校验，非法字段丢弃并作为 warning 返回
+
+**与数据驱动的衔接**：`bind_case` 把生成结果批量写进 `pity_testcase_data`（`json_data` 存整行），不改动该表结构。平台已有的 `Executor.run_single` 会按 `(env, case_id)` 取这些数据、把 `json_data` 当请求变量注入，并发跑 N 次 → N 条测试结果。
+
 ### 配置（`config.py`）
 
 `BaseConfig` 继承 pydantic `BaseSettings`，从 `.env` 文件加载。关键配置：

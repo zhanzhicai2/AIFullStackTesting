@@ -95,3 +95,12 @@ class DatabaseHelper(object):
 
 
 db_helper = DatabaseHelper()
+
+
+# 显式导入具体模型: alembic/env.py 的 target_metadata 依赖 Base.metadata,
+# 而本文件原先不 import 任何模型, 新增模型若不在这里显式登记,
+# `alembic revision --autogenerate` 可能漏掉新表。
+# 必须放在文件末尾 —— app.models.basic 里有 `from app.models import Base`,
+# 放在前面会形成循环导入。
+from app.models.data_factory import PityDataFactory  # noqa: E402,F401
+

@@ -25,6 +25,7 @@ from app.models.ai_chat import PityChatMessage, PityChatSession
 from app.models.ai_model import AIModel
 from app.models.ai_vendor import AIVendor
 from app.models.basic import PityRelationField, init_relation, PityBase
+from app.models.data_factory import PityDataFactory
 from app.models.environment import Environment
 from app.models.gconfig import GConfig
 from app.models.operation_log import PityOperationLog
@@ -685,6 +686,9 @@ init_relation(AIModel, PityRelationField(AIModel.vendor_id, (AIVendor.id, AIVend
               PityRelationField(AIModel.model_type, AIModelTypeEnum.name))
 
 init_relation(PityChatSession, PityRelationField(PityChatSession.user_id, (User.id, User.name)))
+
+init_relation(PityDataFactory, PityRelationField(PityDataFactory.env, (Environment.id, Environment.name)),
+              PityRelationField(PityDataFactory.project_id, (Project.id, Project.name)))
 
 # 消息表只关联会话, 不关联 User: assistant 消息的"作者"是模型不是人,
 # 关联 User.name 会显示成用户自己的名字, 有误导

@@ -168,7 +168,7 @@ AIFullStackTesting/
 - ✅ 测试集合(串行 / 并行)
 - ✅ 测试计划 + 定时调度(APScheduler + Redis 锁)
 - ✅ 测试报告(HTML 模板,带截图)
-- ✅ 数据工厂(开发中)
+- ✅ 数据工厂(字段规则 → 批量生成 → 导出 / 写库 / 绑定用例跑数据驱动)
 
 ### 平台能力
 
@@ -185,7 +185,7 @@ AIFullStackTesting/
 
 ### 待开发
 
-- 🚧 数据工厂 · 精准测试 · 用例评分 · 组织架构
+- 🚧 精准测试 · 用例评分 · 组织架构
 - 🚧 CI/CD(类 pipeline): 已落地 GitHub Actions,平台内 CI 在前端 `frontend/src/pages/CI/`
 
 ## 开发命令速查

@@ -15,6 +15,7 @@ from app import logger
 FETCH_TIMEOUT = 15      # 拉模型列表的总超时
 CONNECT_TIMEOUT = 8     # 建连超时
 CHAT_SOCK_TIMEOUT = 60  # 对话流每次读的超时(单次 idle 超过即认为厂商挂了)
+COMPLETE_TIMEOUT = 120  # 非流式对话的总超时
 MAX_MODEL_COUNT = 500   # 防止个别厂商返回上万条撑爆前端弹窗
 
 
@@ -213,6 +214,76 @@ async def stream_chat(base_url: str, api_key: str, model_name: str, messages: li
         raise
     except asyncio.TimeoutError:
         raise ChatError(f"生成超时({CHAT_SOCK_TIMEOUT}s 无响应), 请稍后重试")
+    except aiohttp.ContentEncodingError:
+        raise ChatError("厂商返回了当前环境无法解码的压缩格式(br), 请联系管理员安装 brotlicffi")
+    except aiohttp.ClientConnectorError:
+        raise ChatError("无法连接到厂商地址, 请检查 Base URL / 本机网络 / 代理设置")
+    except aiohttp.ClientSSLError:
+        raise ChatError("HTTPS 证书校验失败, 请确认 Base URL 的协议与厂商一致")
+    except aiohttp.ClientError as e:
+        raise ChatError(f"请求厂商接口失败: {e}")
+
+
+async def complete_chat(base_url: str, api_key: str, model_name: str, messages: list, params: dict = None) -> str:
+    """
+    非流式对话, 一次性返回完整文本
+
+    用于「自然语言 -> 结构化规则」这类需要拿到完整 JSON 的场景,
+    流式的增量片段在这里没法直接用。
+
+    :param base_url:  OpenAI 兼容 Base URL
+    :param api_key:   API Key
+    :param model_name: 模型名
+    :param messages:  OpenAI 格式 [{"role": "user", "content": "..."}, ...]
+    :param params:    额外参数(temperature/max_tokens/top_p), 来自模型的齿轮设置
+    :return: 模型返回的完整文本
+    """
+    url = _build_chat_url(base_url)
+    if not (api_key or "").strip():
+        raise ChatError("该厂商未配置 API Key, 请联系管理员在模型设置里补充")
+    if not model_name:
+        raise ChatError("未指定模型")
+
+    payload = {"model": model_name, "messages": messages}
+    # params 来自 AIModel.params(齿轮里配的参数), 只覆盖白名单键
+    if isinstance(params, dict):
+        for key in ("temperature", "max_tokens", "top_p", "stop", "presence_penalty", "frequency_penalty"):
+            if params.get(key) is not None:
+                payload[key] = params[key]
+
+    headers = {"Authorization": f"Bearer {api_key.strip()}",
+               "Content-Type": "application/json",
+               # 与拉模型列表同理: 部分厂商默认返回 br, aiohttp 未必装了解码器
+               "Accept-Encoding": "gzip, deflate"}
+    timeout = aiohttp.ClientTimeout(total=COMPLETE_TIMEOUT, sock_connect=CONNECT_TIMEOUT)
+    try:
+        async with aiohttp.ClientSession(timeout=timeout) as session:
+            async with session.post(url, json=payload, headers=headers, ssl=False) as resp:
+                if resp.status != 200:
+                    text = await resp.text()
+                    logger.bind(name=None).warning(f"对话请求失败 {resp.status}: {text[:200]}")
+                    raise ChatError(_status_message(resp.status, text))
+                # 部分厂商的 Content-Type 不是 application/json, 直接 resp.json() 会抛 ContentTypeError
+                text = await resp.text()
+                try:
+                    obj = json.loads(text)
+                except Exception:
+                    raise ChatError(f"厂商返回的不是合法 JSON: {text[:200]}")
+                choices = obj.get("choices") or []
+                if not choices:
+                    raise ChatError(f"厂商没有返回内容: {text[:200]}")
+                message = choices[0].get("message") or {}
+                content = message.get("content") or ""
+                if not content:
+                    # 少数厂商会把正文放在 reasoning_content 里
+                    content = message.get("reasoning_content") or ""
+                if not content:
+                    raise ChatError("厂商返回了空内容")
+                return content
+    except ChatError:
+        raise
+    except asyncio.TimeoutError:
+        raise ChatError(f"生成超时({COMPLETE_TIMEOUT}s 无响应), 请稍后重试")
     except aiohttp.ContentEncodingError:
         raise ChatError("厂商返回了当前环境无法解码的压缩格式(br), 请联系管理员安装 brotlicffi")
     except aiohttp.ClientConnectorError:

@@ -6,6 +6,8 @@ export interface PityResponse {
   code: number;
   data?: any;
   msg?: string;
+  /** 分页接口(PityResponse.success_with_size)会把总数放在顶层, 不在 data 里 */
+  total?: number;
 }
 
 export interface LoginResponse {
