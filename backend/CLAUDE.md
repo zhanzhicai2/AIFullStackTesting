@@ -104,34 +104,15 @@ Request → CORS Middleware → Error Middleware → Router → DAO (connect装�
 
 ### 数据工厂（`app/core/data_factory/`）
 
-造数工厂：**字段规则 → 批量生成 → 导出 / 写库 / 绑定用例**。
+造数工厂：**字段规则 → 批量生成 → 导出 / 写库 / 绑定用例跑数据驱动**。AI 只做「自然语言 → 字段规则」翻译，数据由确定性内核生成，同 rules + seed 可重放。
 
-- `generator.py` — 生成内核。`DataGenerator(rules, seed)` 把规则集变成 N 行数据。
-  - 生成方式（`rule.kind`）：`fixed` / `random` / `enum` / `sequence` / `uuid` / `template` / `regex` / `reference` / `faker` / `func` / `date`
-  - **确定性**：所有随机都走 `faker.seed_instance(seed)` 出来的 `faker.random` 实例，`${uuid()}` / `${random_int(a,b)}` 在渲染上下文里被带种子的版本遮蔽，所以同样的 rules + seed 永远得到同样的数据。`PityFunction.now()` 这类取真实时间的函数无法重放
-  - **变量语法复用平台既有的 `${...}`**（Jinja2，`app/core/render.py`），`${字段名}` 引用同批次其他字段，`${函数()}` 调 `PityFunction`
-  - 字段之间按依赖做拓扑排序，引用成环会直接报错
-- `regex_gen.py` — 自研的轻量正则生成器（不引 exrex）。支持 `\d \w \s`、字符类、`{n,m}` 量词、分组、或分支
-- `writer.py` — 写库通道。复用 `db_helper.get_connection()`，用 SQLAlchemy Core 参数化 insert。
-  - **AsyncEngine 不能直接 reflection**，必须走 `conn.run_sync()` 绿桥（与 `DbConfigDao.load_table` 同款）
-  - 只支持 MySQL / PostgreSQL（`DatabaseEnum` 目前只有这两个）
-- `exporter.py` — 导出 JSON / SQL 临时文件，由 `PityResponse.file()` 返回下载
-- `ai_parser.py` — 自然语言 → 字段规则。AI **只翻译规则不生成数据**，逐字段校验，非法字段丢弃并作为 warning 返回
+改这里前必须知道：
 
-**与数据驱动的衔接**：`bind_case` 把生成结果批量写进 `pity_testcase_data`（`json_data` 存整行），不改动该表结构。平台已有的 `Executor.run_single` 会按 `(env, case_id)` 取这些数据、把 `json_data` 当请求变量注入，并发跑 N 次 → N 条测试结果。
+- **不要改 `pity_testcase_data` 的表结构** —— `bind_case` 写这张表来接入数据驱动，执行引擎的 `Executor.run_single` 会按 `(env, case_id)` 取数并把 `json_data` 注入用例变量
+- **`rule.kind` 常量前后端两处同步** —— 后端 `app/core/data_factory/generator.py`、前端 `frontend/src/consts/datafactory.ts`，改一处必须同时改另一处
+- **AsyncEngine 不能直接 reflection**，必须走 `conn.run_sync()` 绿桥（与 `DbConfigDao.load_table` 同款）
 
-**回归脚本**（后端没有 pytest 框架，验证走独立脚本）：
-
-```bash
-cd backend
-.venv/bin/python scripts/datafactory_selftest.py     # 内核单测, 不需要起后端
-.venv/bin/python scripts/datafactory_e2e.py          # 端到端, 需要后端在跑(默认连 127.0.0.1:7777)
-.venv/bin/python scripts/datafactory_e2e.py http://127.0.0.1:7778   # 后端不在默认端口时传参改
-```
-
-- `selftest`：只需 MySQL 能连（import `app.models` 会建库）。覆盖生成内核、seed 重放、唯一性约束、错误处理、导出器、AI 规则解析、**自增列判定**
-- `e2e`：走 HTTP 接口，覆盖数据集 CRUD、生成与 seed 重放、导出、写库、绑定用例、AI 规则翻译、权限、**数据驱动端到端**（绑 4 条 → `/request/run` 跑 4 次 → 校验 body 里的 `${变量}` 按对应行替换）
-- `e2e` 会在库里留下测试痕迹：每轮注册一个 `e2e_*` 测试账号（写库那段会临时把它提权为 MANAGER）、建一张 `e2e_datafactory` 临时表。数据集和临时用例会在结束时删掉，账号和临时表不会
+模块拆分、字段规则 JSON 规范（11 种 `rule.kind` 参数表）、设计取舍、回归脚本跑法、已知缺口 → 见 [`docs/data-factory-design.md`](docs/data-factory-design.md)。
 
 ### 配置（`config.py`）
 
