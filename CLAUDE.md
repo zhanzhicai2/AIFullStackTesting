@@ -143,3 +143,13 @@ npx -y -p typescript@5.9.2 tsc -p tsconfig.json --noEmit   # ✅ 真正能查类
 - 20:30 是给还在用 Claude Code 干活的人留的缓冲 — 即使你踩着 9 点才收工,只要在 9:30 之前关掉会话,改动会跟着 commit 一起推上去
 - 21:30 之后到次日 20:30 之前:不自动推,白天手动推 — 防止 AI 在工作时间误推触发 CI、推错分支、或把没 review 的代码公开
 - **只要看到 Claude 在 20:30–21:30 窗口内自动 push,先自己 `git log -1` 看一眼再确认**
+
+### 版本与 CHANGELOG
+
+版本源是 **git tag**(SemVer,如 `v2.1.0`),日常改动累积在根目录 `CHANGELOG.md` 的 `[Unreleased]` 段 —— **日常提交不动 CHANGELOG**。
+
+- 用户说"打版本"或输入 `/release` 时,按 `.claude/commands/release.md` 的流程归档 `[Unreleased]` 并打 tag
+- bump 规则:有 `feat` → MINOR;只有 `fix`/`docs`/`chore` → PATCH;不兼容改造 → MAJOR(先确认再动)
+- **打版本后不自动 push tag**,让用户自己 `git push && git push --tags`
+- 一个功能拆成多个 commit 时,CHANGELOG 里合并成**一条**,不要按 commit 重复罗列
+
