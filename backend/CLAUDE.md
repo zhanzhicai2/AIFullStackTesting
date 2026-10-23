@@ -167,3 +167,26 @@ Request → CORS Middleware → Error Middleware → Router → DAO (connect装�
 - 前端 `localStorage` 中 JWT token 的 key 为 `pityToken`
 - 所有 HTTP 响应 code 都在 200，业务错误通过 body 的 `code` 字段区分
 - `app/crud/__init__.py` 启动时通过 `importlib` 动态导入所有 DAO 模块
+
+## 安全审查检查点
+
+涉及下列任一面的**新功能或改动**，落地后应跑一次 `security-review` 技能。
+
+**分工**：Claude 在功能边界**主动提示**，但**不自动执行** —— 跑不跑、什么时候跑由用户决定。（按功能节点跑比按每次 commit 跑更贴合安全审查的使用场景，所以没进 Stop hook。）
+
+**触发条件**（命中任一即提示）：
+
+- 新增或改动 `app/routers/` 下的接口，尤其是带写操作的
+- 引入或改动数据写入通道：写库（`app/core/data_factory/writer.py`）、写 Redis、文件上传（`app/routers/oss/`）
+- 改动鉴权：`Permission(role=...)` 的角色限定、`ProjectRoleDao` 的项目权限判断
+- 引入新的外部输入面：用户提供的脚本 / 表达式 / 正则、文件上传解析
+- 存储新的敏感数据（密码、Token、API Key）
+
+**为什么这里需要看** —— 项目有这些既有安全面，改动容易无意间放宽边界：
+
+| 安全面 | 位置 |
+|---|---|
+| `exec()` 任意代码执行 | `app/routers/online/script.py:15`、`app/core/constructor/python_constructor.py:20` |
+| Jinja2 未沙箱（可执行任意表达式） | `app/core/render.py` 用的是 `Environment()`，不是 `SandboxedEnvironment` |
+| 敏感数据明文存储 | `pity_database_info.password`、`pity_ai_vendor.api_key` |
+| 数据写入通道 | 数据工厂 `/write-db`、在线 SQL / Redis 客户端 |
