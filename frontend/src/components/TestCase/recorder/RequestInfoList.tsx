@@ -244,12 +244,13 @@ const RequestInfoList: React.FC<RequestInfoProps> = ({dataSource, dispatch, load
   ]
 
 
-  // rowKey 缺省走 index,与录制数据里的行号一致
+  // rowKey 缺省走 index,与录制数据里的行号一致。
+  // 直接把字段名交给 antd,让它取 record[rowKey] 原值(数字),不要包成函数
   const rowKey = restProps.rowKey ?? 'index';
 
   return (
     <Table columns={columns} dataSource={dataSource}
-           rowSelection={restProps.rowSelection} rowKey={record => record[rowKey].toString()}
+           rowSelection={restProps.rowSelection} rowKey={rowKey}
            loading={loading} locale={{emptyText: <NoRecord desc={restProps.emptyText} height={150}/>}}/>
   )
 }
