@@ -12,6 +12,10 @@
 
 ## [Unreleased]
 
+---
+
+## [2.1.0] - 2026-10-23
+
 ### Added
 
 - **数据工厂（造数工厂）** — 字段规则 → 批量生成 → 导出 / 写库 / 绑定用例
@@ -31,6 +35,7 @@
 
 ### Changed
 
+- **引入 CHANGELOG 与版本流程** — 版本源改为 git tag(SemVer)，新增 `/release` 命令归档 `[Unreleased]` 并打 tag。此前仓库 0 个 tag，`frontend/package.json` 的 `2.0.0` 是建仓脚手架值、从未随功能变更
 - **Stop hook 增加代码审查步骤** — 实质代码改动（非纯文档/配置且 ≥ 20 行）在 commit 前跑一次 `code-review`
 - 前端 TypeScript 检查现状已在 `frontend/CLAUDE.md` 标注失效，并给出可用命令
   `npx -y -p typescript@5.9.2 tsc -p tsconfig.json --noEmit`
