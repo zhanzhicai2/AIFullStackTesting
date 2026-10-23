@@ -32,7 +32,7 @@ export default () => {
     return resp;
   }
 
-  const loginGithubPity = async (payload: Record<string, string | undefined>) => {
+  const loginGithubPity = async (payload: Record<string, string>) => {
     const resp = await loginGithub(payload);
     changeLoginStatus(resp);
     return resp;

@@ -58,12 +58,11 @@ cd frontend
 npm install
 npm run start:dev                              # 开发 (localhost:8000)
 npm run build                                  # 生产构建
-npm run lint                                   # ESLint + Prettier + tsc(tsc 那步当前无效, 见 frontend/CLAUDE.md)
+npm run lint                                   # ESLint + Prettier + tsc
 npm run lint:fix                               # 自动修复 ESLint
 npm run test                                   # Jest
 npm run test:coverage                          # 覆盖率
-npx tsc --noEmit                               # ⚠️ 目前检测不到类型错误, 别用它做验收
-npx -y -p typescript@5.9.2 tsc -p tsconfig.json --noEmit   # ✅ 真正能查类型错误(原因见 frontend/CLAUDE.md)
+npx tsc --noEmit                               # ✅ 类型检查, 当前 0 错误(详见 frontend/CLAUDE.md)
 ```
 
 ## 跨模块约定

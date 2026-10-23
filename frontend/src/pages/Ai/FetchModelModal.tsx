@@ -1,6 +1,5 @@
 import React, { useEffect, useMemo, useState } from 'react';
-import { Modal, Transfer, Tag, Typography } from 'antd';
-import { modelTypeColor, modelTypeLabel } from '@/consts/ai';
+import { Modal, Transfer, Typography } from 'antd';
 import { AIModelBrief } from '@/services/ai';
 
 interface Props {
@@ -82,10 +81,11 @@ const FetchModelModal: React.FC<Props> = ({ open, loading, models, existed, titl
         <Transfer
           dataSource={filtered}
           targetKeys={selected}
-          showSearch
+          showSearch={{ placeholder: '搜索模型名' }}
           titles={['可选模型', '待添加']}
-          searchPlaceholder="搜索模型名"
-          onSearch={(_, direction, value) => direction === 'left' && setSearch(value)}
+          onSearch={(direction, value) => {
+            if (direction === 'left') setSearch(value);
+          }}
           onChange={(keys) => setSelected(keys as string[])}
           listStyle={{ width: 290, height: 380 }}
           render={(item) => ({
@@ -94,11 +94,7 @@ const FetchModelModal: React.FC<Props> = ({ open, loading, models, existed, titl
                 {item.title}
               </Typography.Text>
             ),
-            value: (
-              <Tag color={modelTypeColor(item.modelType)} style={{ marginRight: 0 }}>
-                {modelTypeLabel(item.modelType)}
-              </Tag>
-            ),
+            value: item.title,
           })}
         />
       )}

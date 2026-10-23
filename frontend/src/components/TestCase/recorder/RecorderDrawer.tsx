@@ -1,4 +1,6 @@
 import {Button, Col, Drawer, Empty, Form, Input, notification, Row, Space, TreeSelect, Upload} from "antd";
+import type {UploadProps} from "antd";
+import type {TableRowSelection} from "antd/lib/table/interface";
 // @ts-ignore
 import {connect} from '@umijs/max';
 // @ts-ignore
@@ -7,6 +9,7 @@ import React, {useEffect, useState} from "react";
 import CONFIG from '@/consts/config';
 import RequestInfoList from "./RequestInfoList";
 import {CameraOutlined, FireOutlined, ImportOutlined} from "@ant-design/icons";
+import type {RequestInfo} from "../../../types/RequestInfo";
 
 enum ImportType {
   har = 1
@@ -17,7 +20,12 @@ interface DirectoryProps {
 }
 
 interface RecorderProps {
-  recordLists: [];
+  recordLists: RequestInfo[];
+}
+
+interface RecorderState extends RecorderProps {
+  recordStatus: boolean;
+  regex: string;
 }
 
 interface RecorderDrawerProps {
@@ -25,20 +33,23 @@ interface RecorderDrawerProps {
   setVisible: Function;
   directory: Array<DirectoryProps>;
   loading?: any;
-  recorder?: RecorderProps;
-  dispatch?: Function;
+  recorder: RecorderProps;
+  dispatch: (payload: { type: string; payload?: any }) => any;
 }
+
+/** antd Upload 的 customRequest 回调参数 */
+type UploadRequestOption = Parameters<NonNullable<UploadProps['customRequest']>>[0];
 
 const RecorderDrawer = ({visible, setVisible, directory, loading, recorder, dispatch}: RecorderDrawerProps) => {
   const [form] = Form.useForm()
   const {recordLists} = recorder;
-  const [record, setRecord] = useState([]);
-  const [selectedRowKeys, setSelectedRowKeys] = useState([]);
+  const [record, setRecord] = useState<RequestInfo[]>([]);
+  const [selectedRowKeys, setSelectedRowKeys] = useState<number[]>([]);
 
-  const rowSelection = {
+  const rowSelection: TableRowSelection<RequestInfo> = {
     selectedRowKeys,
     onChange: keys => {
-      setSelectedRowKeys(keys)
+      setSelectedRowKeys(keys as number[])
     }
   };
   useEffect(() => {
@@ -96,7 +107,7 @@ const RecorderDrawer = ({visible, setVisible, directory, loading, recorder, disp
     }
   }
 
-  const onUpload = async fileData => {
+  const onUpload = async (fileData: UploadRequestOption) => {
     setSelectedRowKeys([])
     const res = await dispatch({
       type: 'recorder/import',
@@ -154,4 +165,4 @@ const RecorderDrawer = ({visible, setVisible, directory, loading, recorder, disp
   )
 }
 
-export default connect(({recorder, loading}) => ({recorder, loading}))(RecorderDrawer);
+export default connect(({recorder, loading}: {recorder: RecorderState; loading: any}) => ({recorder, loading}))(RecorderDrawer);

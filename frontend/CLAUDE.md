@@ -13,27 +13,22 @@ nvm use                 # 自动切到 .nvmrc 锁的 Node 20(umi 4.x 不兼容 N
 npm install --ignore-scripts   # monorepo 子目录跑 npm install 必须加 --ignore-scripts
 npm run start:dev       # 启动开发服务器 (localhost:8000, 代理到后端 :7777)
 npm run build           # 生产构建
-npm run lint            # 完整 lint (ESLint + Prettier + tsc; tsc 那步当前无效, 见下)
+npm run lint            # 完整 lint (ESLint + Prettier + tsc)
 npm run lint:fix        # 自动修复 ESLint 问题
 npm run test            # 运行 Jest 测试
 npm run test:coverage   # 运行测试并生成覆盖率报告
-npx tsc --noEmit        # ⚠️ 目前检测不到类型错误, 别用它做验收
-npx -y -p typescript@5.9.2 tsc -p tsconfig.json --noEmit   # ✅ 真正能查类型错误
+npx tsc --noEmit        # ✅ 类型检查, 当前 0 错误
 ```
 
-### ⚠️ TypeScript 检查当前是失效的
+### TypeScript 检查
 
-`npx tsc --noEmit`（以及 `npm run lint` 里的 tsc 那一步）**报不出任何 `src/` 下的类型错误**，不要拿它的"0 错误"当验收结果。
+`npx tsc --noEmit`（`npm run lint` 里的 tsc 那一步）**是有效的**，可以拿它的"0 错误"当验收结果。
 
-- 现象：它固定输出 70 个错误，全部在 `node_modules/@ant-design/pro-form/.../*.d.ts`（TS 4.9.5 解析不了 TS 5 语法）。
-- 后果：这些 `.d.ts` 语法错误会让整个**语义检查被跳过** —— 实测往 `src/` 里写故意的类型错误，tsc 一条都不报。
-- ESLint 也没兜住：本仓库的 eslint 配置没开 type-aware 规则，同样查不出这类问题。
-- 绕过办法（不改仓库依赖）：
-  ```bash
-  npx -y -p typescript@5.9.2 tsc -p tsconfig.json --noEmit
-  ```
-  这条能正常检查。当前基线是 **44 个错误，全部是既有的**（`components/TestCase/recorder/*`、`components/TestCase/variableModal.tsx`、`pages/Ai/*`、`pages/Chat/index.tsx`、`models/auth.ts`），改代码时只要**别让这个数字变多**，尤其别在自己改的文件里新增。
-- 根因是 `typescript@4.9.5` 与 `@ant-design/pro-form`（TS 5 语法）不匹配。升级 TypeScript 能根治，但会波及全站，是独立任务。
+- 版本：仓库锁 `typescript@5.9.2`。**不要降回 4.x** —— `@ant-design/pro-form@2.32.0` 和 `@types/node@26.x` 的 `.d.ts` 用了 TS 5.0 才有的 `const` 泛型参数（`function f<const T extends ...>`），TS 4.x 解析不了这个语法，**语义检查会被整个跳过**，表现为：`src/` 里写故意的类型错误，tsc 一条都不报，只剩 `node_modules` 里的语法错误。
+- `skipLibCheck: true` 只跳过 `.d.ts` 的**类型检查**，跳不过**语法解析**，救不了这种情况。
+- ESLint 没兜底：本仓库的 eslint 配置没开 type-aware 规则，类型错误只有 tsc 能查。
+- 改代码后建议 `./node_modules/.bin/tsc -p tsconfig.json --noEmit`（等价于 `npx tsc --noEmit`），目标是 **0 错误**。
+- 已知遗留：`npm run test` 目前**跑不起来** —— umi 的 jest 配置（`@umijs/test`）只给 css/less 做了 moduleNameMapper，没映射 `.svg`，`src/app.tsx` 里的 `import NoTableData from "@/assets/NoSearch.svg"` 解析失败。这是既有问题，与类型检查无关。
 
 ## 技术架构
 

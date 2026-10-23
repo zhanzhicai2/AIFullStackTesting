@@ -22,19 +22,23 @@ interface StepDataType extends GConfigDataType {
 
 const { TabPane } = Tabs;
 
+// 变量名列在全局变量/用例变量两张表里复用,抽成泛型以便两侧的
+// ColumnType 各自绑定到自己的行类型上
+const buildNameColumns = <T extends GConfigDataType>(): ColumnsType<T> => [
+    {
+        title: '变量名',
+        dataIndex: "name",
+        key: 'name',
+        render: (name) => <Typography.Text copyable>{name}</Typography.Text>
+    },
+]
+
 const VariableModal: React.FC<VariableModalProps> = ({ open, gconfig, variables, onCancel }) => {
 
-    const columns: ColumnsType<GConfigDataType> = [
-        {
-            title: '变量名',
-            dataIndex: "name",
-            key: 'name',
-            render: (name) => <Typography.Text copyable>{name}</Typography.Text>
-        },
-    ]
+    const columns: ColumnsType<GConfigDataType> = buildNameColumns<GConfigDataType>()
 
     const stepColumns: ColumnsType<StepDataType> = [
-        ...columns,
+        ...buildNameColumns<StepDataType>(),
         {
             title: '来源',
             dataIndex: "stepName",

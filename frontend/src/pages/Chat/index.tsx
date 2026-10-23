@@ -82,8 +82,8 @@ const Chat: React.FC = () => {
   return (
     <PageContainer
       title={false}
-      breadcrumb={null}
-      contentStyle={{ padding: 12, height: 'calc(100vh - 128px)' }}
+      breadcrumbRender={false}
+      childrenContentStyle={{ padding: 12, height: 'calc(100vh - 128px)' }}
     >
       <div className="chat-container">
         {/* ---------- 左:会话列表 ---------- */}

@@ -45,3 +45,5 @@ dist.zip
 src/.umi
 
 src/.umi-production
+
+src/.umi-test

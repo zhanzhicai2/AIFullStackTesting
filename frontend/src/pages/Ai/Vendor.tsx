@@ -125,7 +125,7 @@ const Vendor: React.FC = () => {
 
   if (authorized === false) {
     return (
-      <PageContainer title="模型服务商" breadcrumb={null}>
+      <PageContainer title="模型服务商" breadcrumbRender={false}>
         <NoRecord height={400} desc="对不起，只有超级管理员可以配置模型服务商" />
       </PageContainer>
     );
@@ -134,7 +134,7 @@ const Vendor: React.FC = () => {
   return (
     <PageContainer
       title="模型服务商"
-      breadcrumb={null}
+      breadcrumbRender={false}
       extra={[
         <Button
           key="system"

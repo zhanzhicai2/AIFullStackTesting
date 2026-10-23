@@ -3,10 +3,9 @@ import type {InputRef} from "antd";
 import {Button, Input, Modal, Space, Table, Tag, Tooltip} from 'antd';
 import SyntaxHighlighter from "react-syntax-highlighter";
 import {vs2015} from "react-syntax-highlighter/dist/cjs/styles/hljs";
-import type {FilterConfirmProps} from 'antd/lib/table/interface';
-import {TableRowSelection} from "antd/lib/table/interface";
+import type {FilterConfirmProps, TableRowSelection} from 'antd/lib/table/interface';
 import NoRecord from "@/components/NotFound/NoRecord";
-import RequestInfo from "../../../types/RequestInfo";
+import type {RequestInfo} from "../../../types/RequestInfo";
 import type {ColumnsType, ColumnType} from 'antd/lib/table';
 import {DeleteTwoTone, SearchOutlined} from "@ant-design/icons";
 import Highlighter from 'react-highlight-words';
@@ -14,18 +13,32 @@ import Highlighter from 'react-highlight-words';
 
 interface RequestInfoProps {
   dataSource: Array<RequestInfo>;
-  rowKey?: string;
+  rowKey?: keyof RequestInfo;
   rowSelection: TableRowSelection<any>;
   loading?: boolean;
-  dispatch: Function,
+  dispatch: (payload: { type: string; payload?: any }) => any;
   emptyText?: string | '暂无数据';
 }
 
-type DataIndex = keyof RequestInfoProps;
+type DataIndex = keyof RequestInfo;
 
 interface TagProps {
   color: string;
   fontColor: string;
+}
+
+interface MethodTagProps {
+  color: string;
+  fontColor: string;
+  text: string;
+}
+
+/** 详情弹窗里展示的字段,取自录制数据里可直接 JSON.parse 的那几项 */
+type DetailField = 'request_headers' | 'response_headers' | 'body' | 'response_content';
+
+interface DetailProps {
+  name: DetailField;
+  record: RequestInfo;
 }
 
 const tagColor = (method: string): TagProps => {
@@ -43,11 +56,11 @@ const tagColor = (method: string): TagProps => {
   }
 }
 
-const MethodTag = ({color, text, fontColor}) => {
+const MethodTag = ({color, text, fontColor}: MethodTagProps) => {
   return <Tag style={{color: fontColor, borderRadius: 12, padding: '0 12px'}} color={color}>{text}</Tag>
 }
 
-const Detail = ({name, record}) => {
+const Detail = ({name, record}: DetailProps) => {
   return <a onClick={() => {
     Modal.info({
       title: name,
@@ -152,7 +165,7 @@ const RequestInfoList: React.FC<RequestInfoProps> = ({dataSource, dispatch, load
       ),
   });
 
-  const onRemoveRecord = index => {
+  const onRemoveRecord = (index: number) => {
     dispatch({
       type: 'recorder/remove',
       payload: index,
@@ -231,9 +244,12 @@ const RequestInfoList: React.FC<RequestInfoProps> = ({dataSource, dispatch, load
   ]
 
 
+  // rowKey 缺省走 index,与录制数据里的行号一致
+  const rowKey = restProps.rowKey ?? 'index';
+
   return (
     <Table columns={columns} dataSource={dataSource}
-           rowSelection={restProps.rowSelection} rowKey={record => record[restProps.rowKey]}
+           rowSelection={restProps.rowSelection} rowKey={record => record[rowKey].toString()}
            loading={loading} locale={{emptyText: <NoRecord desc={restProps.emptyText} height={150}/>}}/>
   )
 }
