@@ -13,12 +13,27 @@ nvm use                 # 自动切到 .nvmrc 锁的 Node 20(umi 4.x 不兼容 N
 npm install --ignore-scripts   # monorepo 子目录跑 npm install 必须加 --ignore-scripts
 npm run start:dev       # 启动开发服务器 (localhost:8000, 代理到后端 :7777)
 npm run build           # 生产构建
-npm run lint            # 完整 lint (ESLint + Prettier + TypeScript 检查)
+npm run lint            # 完整 lint (ESLint + Prettier + tsc; tsc 那步当前无效, 见下)
 npm run lint:fix        # 自动修复 ESLint 问题
 npm run test            # 运行 Jest 测试
 npm run test:coverage   # 运行测试并生成覆盖率报告
-npx tsc --noEmit        # 仅类型检查
+npx tsc --noEmit        # ⚠️ 目前检测不到类型错误, 别用它做验收
+npx -y -p typescript@5.9.2 tsc -p tsconfig.json --noEmit   # ✅ 真正能查类型错误
 ```
+
+### ⚠️ TypeScript 检查当前是失效的
+
+`npx tsc --noEmit`（以及 `npm run lint` 里的 tsc 那一步）**报不出任何 `src/` 下的类型错误**，不要拿它的"0 错误"当验收结果。
+
+- 现象：它固定输出 70 个错误，全部在 `node_modules/@ant-design/pro-form/.../*.d.ts`（TS 4.9.5 解析不了 TS 5 语法）。
+- 后果：这些 `.d.ts` 语法错误会让整个**语义检查被跳过** —— 实测往 `src/` 里写故意的类型错误，tsc 一条都不报。
+- ESLint 也没兜住：本仓库的 eslint 配置没开 type-aware 规则，同样查不出这类问题。
+- 绕过办法（不改仓库依赖）：
+  ```bash
+  npx -y -p typescript@5.9.2 tsc -p tsconfig.json --noEmit
+  ```
+  这条能正常检查。当前基线是 **44 个错误，全部是既有的**（`components/TestCase/recorder/*`、`components/TestCase/variableModal.tsx`、`pages/Ai/*`、`pages/Chat/index.tsx`、`models/auth.ts`），改代码时只要**别让这个数字变多**，尤其别在自己改的文件里新增。
+- 根因是 `typescript@4.9.5` 与 `@ant-design/pro-form`（TS 5 语法）不匹配。升级 TypeScript 能根治，但会波及全站，是独立任务。
 
 ## 技术架构
 

@@ -120,6 +120,19 @@ Request → CORS Middleware → Error Middleware → Router → DAO (connect装�
 
 **与数据驱动的衔接**：`bind_case` 把生成结果批量写进 `pity_testcase_data`（`json_data` 存整行），不改动该表结构。平台已有的 `Executor.run_single` 会按 `(env, case_id)` 取这些数据、把 `json_data` 当请求变量注入，并发跑 N 次 → N 条测试结果。
 
+**回归脚本**（后端没有 pytest 框架，验证走独立脚本）：
+
+```bash
+cd backend
+.venv/bin/python scripts/datafactory_selftest.py     # 内核单测, 不需要起后端
+.venv/bin/python scripts/datafactory_e2e.py          # 端到端, 需要后端在跑(默认连 127.0.0.1:7777)
+.venv/bin/python scripts/datafactory_e2e.py http://127.0.0.1:7778   # 后端不在默认端口时传参改
+```
+
+- `selftest`：只需 MySQL 能连（import `app.models` 会建库）。覆盖生成内核、seed 重放、唯一性约束、错误处理、导出器、AI 规则解析、**自增列判定**
+- `e2e`：走 HTTP 接口，覆盖数据集 CRUD、生成与 seed 重放、导出、写库、绑定用例、AI 规则翻译、权限、**数据驱动端到端**（绑 4 条 → `/request/run` 跑 4 次 → 校验 body 里的 `${变量}` 按对应行替换）
+- `e2e` 会在库里留下测试痕迹：每轮注册一个 `e2e_*` 测试账号（写库那段会临时把它提权为 MANAGER）、建一张 `e2e_datafactory` 临时表。数据集和临时用例会在结束时删掉，账号和临时表不会
+
 ### 配置（`config.py`）
 
 `BaseConfig` 继承 pydantic `BaseSettings`，从 `.env` 文件加载。关键配置：

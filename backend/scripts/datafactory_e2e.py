@@ -15,7 +15,7 @@ import urllib.request
 # 让 `from config import Config` / pymysql 直连可用
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
-BASE = sys.argv[1] if len(sys.argv) > 1 else "http://127.0.0.1:7778"
+BASE = sys.argv[1] if len(sys.argv) > 1 else "http://127.0.0.1:7777"
 FAILED = []
 
 
