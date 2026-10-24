@@ -1,5 +1,6 @@
 import React, { useEffect, useMemo, useState } from 'react';
-import { Modal, Transfer, Typography } from 'antd';
+import { Modal, Transfer, Tag, Typography } from 'antd';
+import { modelTypeColor, modelTypeLabel } from '@/consts/ai';
 import { AIModelBrief } from '@/services/ai';
 
 interface Props {
@@ -89,10 +90,16 @@ const FetchModelModal: React.FC<Props> = ({ open, loading, models, existed, titl
           onChange={(keys) => setSelected(keys as string[])}
           listStyle={{ width: 290, height: 380 }}
           render={(item) => ({
+            // label 是 antd 真正渲染出来的内容,value 只用于搜索过滤和 title 提示
             label: (
-              <Typography.Text ellipsis style={{ maxWidth: 190 }} title={item.title}>
-                {item.title}
-              </Typography.Text>
+              <span style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                <Typography.Text ellipsis style={{ maxWidth: 190 }} title={item.title}>
+                  {item.title}
+                </Typography.Text>
+                <Tag color={modelTypeColor(item.modelType)} style={{ marginRight: 0 }}>
+                  {modelTypeLabel(item.modelType)}
+                </Tag>
+              </span>
             ),
             value: item.title,
           })}
