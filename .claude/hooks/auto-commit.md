@@ -14,10 +14,10 @@
    - `.claude/agents/local/` 下的所有文件
 4. 排除后如果路径列表为空,直接回复 `__DONE__`,不 commit。
 5. 跑 `git diff -- <文件列表>` 看每个文件的实际改动内容。
-6. **代码审查** —— 调用 `code-review` 技能审查本次改动,把发现的问题修掉。
-   - **跳过条件**(满足任一即跳过本步,直接进第 7 步):改动全部是文档/配置(`.md` / `.json` / `.yml` / `.yaml` / `.gitignore` / `.claude/`);或本次改动总量 < 20 行
-   - 只审本次改动,**不要**顺手重构无关代码 —— 审查发现的问题要修,不相关的旧债留给用户决定
-   - 修完后重新跑 `git status --porcelain`,把修复过程中产生的**新文件一并纳入第 8 步的 add 列表**(逐个,不要用通配符)
+6. **代码审查** —— **默认不做**。`code-review` 技能很耗时、很耗 token,自动 commit 阶段**不再调用**它。
+   - 只有**用户明确要求**(如"审一下这次改动""跑 code-review")时,才调用 `code-review` 技能审查本次改动,并修掉发现的问题。
+   - 审查只针对本次改动,**不要**顺手重构无关代码 —— 审查发现的问题要修,不相关的旧债留给用户决定。
+   - 审查修完后重新跑 `git status --porcelain`,把修复过程中产生的**新文件一并纳入第 8 步的 add 列表**(逐个,不要用通配符)。
 7. 基于改动内容生成 conventional commit message(格式:`type(scope): subject`,type 取 `feat`/`fix`/`chore`/`refactor`/`docs`/`test`/`build`/`ci`/`perf`/`style` 之一,scope 是受影响模块如 `backend`/`frontend`/`claude`/`spec`/`ci`)。
 8. **逐个** 执行 `git add <具体文件路径>`(例如 `git add backend/foo.py CLAUDE.md`),**不要** `git add .`、**不要** `git add -A`、**不要** 通配符 `git add *`。
 9. 跑 `git commit -m "<message>"`(直接用 step 7 生成的 message,**不要** 等用户 ack — message + commit 都自动执行)。

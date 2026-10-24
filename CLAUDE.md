@@ -126,13 +126,13 @@ npx tsc --noEmit                               # ✅ 类型检查, 当前 0 错�
 **约束**(详细步骤见 `.claude/hooks/auto-commit.md`):
 - 排除 `.claude/memory/`、`.claude/settings.local.json`、`.claude/agents/local/` 等个人/本地状态 — 这些不该入库
 - **逐个** add 文件路径(`git add <path>`),**禁止** `git add .` / `git add -A` / `git add *`
-- **代码审查** — commit 前若本次是实质代码改动(非纯文档/配置,且改动 ≥ 20 行),会先跑一次 `code-review` 并修掉发现的问题,再一起提交。纯文档或小改动会跳过
+- **代码审查** — **自动 commit 阶段不跑 code-review**(太耗时耗 token)。需要审查时由用户明确提出,再手动调用 `code-review` 技能
 - **push 时机** — 晚 **20:30–21:30**(9 点 ±30 分钟)之间自动 `git push`;**其他时间不 push**,你自己手动 `git push`
 - commit message 走 Conventional Commits(`type(scope): subject`)
 
 **调整方式**(改 `.claude/hooks/auto-commit.md` 里的对应步骤):
 - 想关掉自动 commit:把 `.claude/settings.json` 里的 `hooks.Stop` 数组清空(留个空 `[]` 或直接删字段)
-- 想关掉自动代码审查:删掉 `auto-commit.md` 的第 6 步;或调它的跳过阈值(`< 20 行` 那个数字)
+- 想恢复自动代码审查(按改动量触发):改 `auto-commit.md` 第 6 步,把"默认不做"换回"调用 `code-review` 技能"并写清跳过阈值
 - 想加更严的过滤(比如只允许 commit `backend/` 和 `frontend/`):改第 3 步排除规则
 - 想换成 commit 前弹确认:把第 9 步的"`git commit`"改成"展示 diff 和拟用 message,等用户确认后再 commit"
 - 想改自动 push 的时间窗口(比如改成 22:00–23:00):改第 10 步里的 `20:30–21:30` 字符串
