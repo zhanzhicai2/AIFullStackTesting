@@ -25,7 +25,6 @@ import json
 import time
 from typing import Dict, List, Optional, Tuple
 
-from app.crud.ui.UIElementDao import UIElementDao
 from app.utils.ui_security import UINavigationBlocked, check_url, resolve_step_url
 
 # ============================================================================
@@ -132,7 +131,7 @@ class UIExecutionError(Exception):
 # ============================================================================
 
 
-async def validate_steps(project_id: int, steps) -> Tuple[List[dict], List[str]]:
+async def validate_steps(project_id: int, steps, resolver=None) -> Tuple[List[dict], List[str]]:
     """
     校验步骤 DSL。
 
@@ -143,8 +142,13 @@ async def validate_steps(project_id: int, steps) -> Tuple[List[dict], List[str]]
 
     :param project_id: 所属项目
     :param steps: 原始步骤数组
+    :param resolver: 元素引用解析器, 默认走 `UIElementDao.resolve_reference`。
+                     做成可注入是为了让回归脚本不依赖数据库。
     :return: (合法步骤, 告警列表)
     """
+    if resolver is None:
+        from app.crud.ui.UIElementDao import UIElementDao
+        resolver = UIElementDao.resolve_reference
     warnings: List[str] = []
     if steps is None:
         return [], warnings
@@ -175,7 +179,7 @@ async def validate_steps(project_id: int, steps) -> Tuple[List[dict], List[str]]
             continue
         if spec["target"]:
             if step.get("element"):
-                element, err = await UIElementDao.resolve_reference(project_id, step["element"])
+                element, err = await resolver(project_id, step["element"])
                 if element is None:
                     warnings.append(f"步骤 {index} {err}, 已丢弃该步骤")
                     continue
