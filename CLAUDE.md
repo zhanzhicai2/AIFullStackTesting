@@ -18,6 +18,7 @@ AIFullStackTesting 是 Pity API 测试平台的 monorepo,从 2026 年起把原 `
 AIFullStackTesting/
 ├── backend/         # FastAPI 后端 (Python 3.10+, port 7777)
 ├── frontend/        # UmiJS 前端 (Node 20,  port 8000)
+├── specs/           # Spec Kit 产物 (spec/plan/tasks/contracts), 特性设计的权威出处
 ├── .github/workflows/
 │   ├── deploy-docker.yml      # 后端/前端/nginx/scripts/ops 变更触发, GH build + SWR push + ssh pull/up
 │   └── monitor-deploy.yml     # 每 30 分钟 cron 健康检查, curl 后端 + 邮件告警
@@ -25,6 +26,9 @@ AIFullStackTesting/
 ```
 
 每个子目录都有自己的 `CLAUDE.md`,进入对应模块工作时优先读那里的文件。
+
+> **在做 Spec Kit 管理的特性时**:先读 `specs/<feature>/spec.md`(需求)与 `tasks.md`(任务),
+> 契约以 `specs/<feature>/contracts/` 为准。跨特性的交接入口见 [`specs/HANDOFF.md`](specs/HANDOFF.md)。
 
 ## 常用命令
 

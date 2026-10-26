@@ -114,6 +114,35 @@ Request → CORS Middleware → Error Middleware → Router → DAO (connect装�
 
 模块拆分、字段规则 JSON 规范（11 种 `rule.kind` 参数表）、设计取舍、回归脚本跑法、已知缺口 → 见 [`docs/data-factory-design.md`](docs/data-factory-design.md)。
 
+### AI 工作台（设计稿，未实现）
+
+四个 AI 场景（用例生成 / Bug 分析 / 日志分析 / SQL 分析）共用一层公共能力。核心约定：
+
+- **AI 只做翻译与解读，落地由确定性内核做** —— 与数据工厂同源原则。AI 产物先进草稿态（`pity_ai_case_draft`），人工审核后才写业务表
+- **用例生成有 14 条硬校验**，其中最致命的两条：断言 `actually` 引用的 `${变量}` 必须在 `out_parameters` 里存在，否则断言取不到值、**静默失败**（`Executor.my_assert` 的取值只来自 `extract_out_parameters`）；Web UI 步骤引用的元素必须存在于元素库且启用，否则**采纳时被拦下**（草稿不进用例库）
+- **模型输出不可重放** —— 同一份输入两次生成结果不同。确定性的锚点是草稿**当前 content 版本**：重复采纳同一版本结果一致；重新生成产生新草稿，旧草稿保留
+- **断言类型白名单的权威定义在后端** `app/enums/AIWorkbenchEnum.py`（前端 `src/consts/config.ts` 镜像），DSL 常量在 `app/core/ai_prompts/case_gen.py` 与 `src/consts/aiWorkbench.ts` —— **改一处必须同时改另一处**
+- **日志分析先聚类再解读** —— 归一化 + fingerprint 分组是纯 Python，AI 只解读 Top-N 簇；突增检测完全不需要 AI
+- **SQL 分析禁用 `EXPLAIN ANALYZE`** —— MySQL 8.0.18+ 会真实执行查询，对 UPDATE/DELETE 直接改数据，只能用普通 `EXPLAIN`
+
+公共层 `app/core/ai_service.py`（统一厂商/模型解析 + 调用埋点 + JSON 提取）、4 张新表、API 清单、前后端契约 → 见 [`docs/ai-workbench-design.md`](docs/ai-workbench-design.md)。
+
+### UI 自动化子系统（设计稿，未实现）
+
+Playwright 驱动的 UI 自动化。核心约定：
+
+- **元素库是地基，先于 AI 生成做** —— 步骤引用元素而非内联 locator（Page Object 模式），页面改版只改元素库一处
+- **录制在本地完成再导入** —— 用户跑 `npx playwright codegen --target python`，粘贴回平台自动建页面/元素/步骤；v1 不做 Chrome 扩展与服务端注入
+- **步骤 DSL 是封闭动作白名单** —— 不允许 `evaluate` / 任意脚本执行（仓库已有两个 `exec()` 执行面，不能再开第三个）；不在白名单的动作**在加载步骤时就拒绝**
+- **UI 用例复用 `pity_testcase`** —— 加 `request_type=4`；结果照写 `pity_test_result`，报告链路零改造
+- **浏览器出网必须设边界（SSRF）** —— 目标地址只能取自**项目级允许域名白名单**（增删需 ADMIN）；仅 http/https；**DNS 解析后**拒绝私网/环回/链路本地/保留地址；重定向**逐跳**重校验；白名单为空 = 不可执行（不是"允许全部"）
+- **确定性等待** —— 引擎不得插入隐式 sleep、退避必须固定不随机、定位到多个元素必须**显式失败**而非取第一个；执行结果不可重放（取决于被测系统），需在代码与文档中显式标注
+- **镜像代价 +600MB** —— `playwright install --with-deps chromium` 只能在 builder stage 装，用 build arg 控制
+
+数据模型（`pity_ui_page` / `pity_ui_element` / `pity_ui_case` / `pity_ui_node` / `pity_ui_import_log` / `pity_ui_allowed_domain`）、步骤 DSL 规范、codegen 解析规则、SSRF 拦截清单、执行流程 → 见 [`docs/ui-automation-design.md`](docs/ui-automation-design.md)。
+
+**步骤 DSL 的权威出处**是 [`specs/002-ui-automation/contracts/steps.md`](../specs/002-ui-automation/contracts/steps.md)（`001-ai-workbench` 的规则 11–14 引用同一份）—— 动作白名单与定位策略两端常量必须同步：后端 `app/core/ui_executor.py`、前端 `src/consts/uiTest.ts`。
+
 ### 配置（`config.py`）
 
 `BaseConfig` 继承 pydantic `BaseSettings`，从 `.env` 文件加载。关键配置：
