@@ -27,6 +27,7 @@
 > 7. **SSRF 白名单的 `*.example.com` 不匹配 apex** `example.com`（要同时配两条）。刻意保持严格 —— 通配符覆盖 apex 会让白名单的实际范围比用户以为的宽。
 > 8. **dockerfile 额外拷了浏览器二进制**：契约写「最终 stage 只拷贝 venv」，但 chromium 的二进制不在 venv 里（`PLAYWRIGHT_BROWSERS_PATH=/ms-playwright`），只拷 venv 浏览器跑不起来；系统库也要在最终镜像里再装一次（`playwright install-deps chromium`）—— builder 阶段 `--with-deps` 装的那份留在 builder 的文件系统里，不会跟过来。
 > 9. **T007 / T008 的录制导入只有前端封装**：后端端点 `/ui/record/import` 属于 Phase 4（T034），本轮没实现。前端 service / model 已备好调用封装，等 T034 落地即可用。
+> 10. **前端页面目录名是 `src/pages/uiTest/`（小写 t）**：仓库里早就有一个 `src/pages/uiTest/`（旧的 JS 页面），macOS 大小写不敏感 → 新建 `src/pages/UiTest/` 会**落到同一个目录**里，TypeScript 随即报 TS1261（同一个文件两种大小写各被收进 program 一次）。**所有路径引用必须用磁盘上的真实大小写 `uiTest`**：`config/routes.ts` 写 `'./uiTest/Element'`，样式文件是 `UiTest.less`（名字与目录不同大小写没关系，导入路径要与文件名一致）。Linux CI 是大小写敏感的，写错就构建失败。
 
 ---
 
@@ -80,18 +81,18 @@
 
 ### Tests for User Story 1 ⚠️
 
-- [ ] T023 [P] [US1] 在 `backend/scripts/ui_selftest.py` 实现步骤 DSL 校验的测试用例：动作白名单正例、必填字段缺失、定位策略枚举、未知字段丢弃并告警
-- [ ] T024 [P] [US1] 在 `backend/scripts/ui_selftest.py` 实现**动作白名单的负例**：`evaluate` / `exec` / `run` / `script` 等动作必须被拒绝，且**在加载步骤时就被拒绝**（不是执行时）
-- [ ] T025 [P] [US1] 在 `backend/scripts/ui_selftest.py` 实现 **SSRF 拦截的测试用例**：协议非 http/https、域名不在白名单、解析到 `127.0.0.1` / `10.x` / `192.168.x` / `169.254.169.254` / IPv6 私有与环回、重定向跳内网、白名单为空
-- [ ] T026 [P] [US1] 在 `backend/scripts/ui_selftest.py` 实现**确定性等待的断言**：引擎不得插入隐式 sleep、退避必须固定、多元素匹配必须显式失败
+- [x] T023 [P] [US1] 在 `backend/scripts/ui_selftest.py` 实现步骤 DSL 校验的测试用例：动作白名单正例、必填字段缺失、定位策略枚举、未知字段丢弃并告警
+- [x] T024 [P] [US1] 在 `backend/scripts/ui_selftest.py` 实现**动作白名单的负例**：`evaluate` / `exec` / `run` / `script` 等动作必须被拒绝，且**在加载步骤时就被拒绝**（不是执行时）
+- [x] T025 [P] [US1] 在 `backend/scripts/ui_selftest.py` 实现 **SSRF 拦截的测试用例**：协议非 http/https、域名不在白名单、解析到 `127.0.0.1` / `10.x` / `192.168.x` / `169.254.169.254` / IPv6 私有与环回、重定向跳内网、白名单为空
+- [x] T026 [P] [US1] 在 `backend/scripts/ui_selftest.py` 实现**确定性等待的断言**：引擎不得插入隐式 sleep、退避必须固定、多元素匹配必须显式失败
 
 ### Implementation for User Story 1
 
-- [ ] T027 [US1] 实现 `backend/app/core/ui_executor.py` 的断言汇总：UI 内联断言转成 `pity_testcase_asserts` 同构的 JSON（映射见 `contracts/steps.md` §5.2），写入 `pity_test_result.asserts`，**不新增断言表**
-- [ ] T028 [P] [US1] 实现 `frontend/src/pages/UiTest/Element/index.tsx`：页面树 + 元素列表 + 启用停用切换；空元素库时就地提示（U4）
-- [ ] T029 [P] [US1] 实现 `frontend/src/pages/UiTest/Element/ElementModal.tsx`：新建/编辑元素弹窗，定位策略下拉 8 种；`role` 策略时额外显示可访问名称字段；**优先用语义定位的提示文案**
-- [ ] T030 [US1] 实现 `frontend/src/pages/UiTest/CaseManage/index.tsx`：用例列表（复用既有目录树），列含编号/名称/所属模块/优先级/类型/状态/更新时间；**目录选择器旁提供「新建目录」入口**（U3，项目下无目录时就地建完即选中）
-- [ ] T031 [US1] 实现 `frontend/src/pages/UiTest/CaseManage/CaseEditor.tsx`：步骤编排（增删改步骤、从元素库选目标）、元素引用失效的高亮与跳转处理、**调试执行按钮**、base_url 旁就地指引（U1/U2/U4）；**检测到全内联定位时提示建议纳入元素库**（FR-010）；**用例名超长时提示长度限制并给出建议的截断结果**（FR-035）
+- [x] T027 [US1] 实现 `backend/app/core/ui_executor.py` 的断言汇总：UI 内联断言转成 `pity_testcase_asserts` 同构的 JSON（映射见 `contracts/steps.md` §5.2），写入 `pity_test_result.asserts`，**不新增断言表**
+- [x] T028 [P] [US1] 实现 `frontend/src/pages/UiTest/Element/index.tsx`：页面树 + 元素列表 + 启用停用切换；空元素库时就地提示（U4）
+- [x] T029 [P] [US1] 实现 `frontend/src/pages/UiTest/Element/ElementModal.tsx`：新建/编辑元素弹窗，定位策略下拉 8 种；`role` 策略时额外显示可访问名称字段；**优先用语义定位的提示文案**
+- [x] T030 [US1] 实现 `frontend/src/pages/UiTest/CaseManage/index.tsx`：用例列表（复用既有目录树），列含编号/名称/所属模块/优先级/类型/状态/更新时间；**目录选择器旁提供「新建目录」入口**（U3，项目下无目录时就地建完即选中）
+- [x] T031 [US1] 实现 `frontend/src/pages/UiTest/CaseManage/CaseEditor.tsx`：步骤编排（增删改步骤、从元素库选目标）、元素引用失效的高亮与跳转处理、**调试执行按钮**、base_url 旁就地指引（U1/U2/U4）；**检测到全内联定位时提示建议纳入元素库**（FR-010）；**用例名超长时提示长度限制并给出建议的截断结果**（FR-035）
 - [ ] T032 [US1] 在 `backend/scripts/ui_e2e.py` 实现 US1 端到端：页面/元素 CRUD → 元素去重与停用 → 用例创建（引用元素）→ 执行 → `pity_test_result` 回写 → 失败截图落 OSS → 元素停用后执行失败且信息指明元素与定位策略
 
 **Checkpoint**: US1 完整可用 —— 最小闭环跑通（MVP）

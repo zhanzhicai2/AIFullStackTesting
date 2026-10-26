@@ -128,6 +128,7 @@ frontend/
 │   ├── services/              # API 请求服务
 │   ├── pages/                 # 页面组件（镜像路由结构）
 │   │   ├── ApiTest/           # 接口测试（用例、录制、计划）
+│   │   ├── uiTest/            # UI 自动化（Element/ 元素库、CaseManage/ 用例）
 │   │   ├── Dashboard/         # 工作台
 │   │   ├── BuildHistory/      # 测试报告
 │   │   ├── Config/            # 测试配置（环境、数据库、Redis等）
@@ -220,6 +221,8 @@ export default function useNewFeature() {
 
 - 后端是最终裁决者（不合规的步骤被丢弃）；前端只做**提前提示**，不在前端做最终判定 —— 前端放行、后端丢弃会造成「改了还是被丢弃」的困惑
 - `src/services/uiTest.ts` + `src/models/uiTest.ts`（hooks 风格）封装 `/ui/*` 的 21 个端点（录制导入的 `/ui/record/import` 属于后端 Phase 4，尚未落地）
+- 页面在 `src/pages/uiTest/`（**小写 t**）：`Element/`（元素库）、`CaseManage/`（用例列表 + 用例编辑器）
+  - ⚠️ 目录名是 `uiTest` 不是 `UiTest` —— 仓库里早就有个同名的旧 JS 页面目录，macOS 大小写不敏感，写错大小写会让 TypeScript 报 TS1261、Linux CI 直接构建失败。**路径一律用磁盘上的真实大小写**
 - **白名单为空 = 不可执行**（不是「允许全部」）：前端要提示「本项目尚未配置允许访问的域名，去配置」
 
 ## 重要规则
