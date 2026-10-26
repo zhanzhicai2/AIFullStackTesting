@@ -16,20 +16,32 @@
 > - T017 补 D1 的显式角色说明
 > - 任务编号在 T016 之后统一 +1（原 T016~T049 → T017~T050）
 
+> **实现记录（Phase 1 + Phase 2 落地时）** —— T001~T022 已完成，实现与契约有 9 处偏差/补齐，逐条记在这里：
+>
+> 1. **T004 多落地 1 个 DAO**：任务列了 5 个 DAO，但 6 张表里的 `pity_ui_allowed_domain` 同样需要 DAO —— 补 `backend/app/crud/ui/UIAllowedDomainDao.py`（共 6 个）。
+> 2. **T020 的分派点在 `Executor.run` 而非 `run_single`**：`case_info` 是在 `run()` 里取的，`run_single` 只负责分发到 `run_with_test_data` → `run`。按契约「拿到 case_info 之后、HTTP 请求之前」分派，落在 `run()` 里，批量与单条调试共用同一条路径。
+> 3. **`request_type = 4` 与既有枚举冲突**：既有 `RequestType.websocket = 4`，但 websocket 从未真正落地（前端 `REQUEST_TYPE` 只提供 1/2/3，新建用例的表单只允许 HTTP）。契约明确 4 = web_ui，已把 websocket 挪到 5，存量数据里不存在 `request_type=4` 的用例。
+> 4. **UI 断言写进 `pity_test_result.asserts` 用的是「接口用例同构」格式**（`{key: {status, msg}}`），不是 `contracts/api.md` §3.2 示例里的数组。理由：research §3.10 要求「沿用既有 asserts 字段」、spec FR-034 要求「口径一致」，且既有报告页 `src/components/TestCase/TestResult.jsx` 的 `getSource()` 只认 `{k: {status, msg}}` 结构 —— 写数组会让报告页渲染直接报错。富断言明细（name / assert_type / expected / actually）放在 API 响应的 `assertions[]` 里返回。
+> 5. **`timeout` 字段的单位**：契约 §2 字段表说「覆盖用例级超时（秒）」，§3.3 动作表说 `wait_timeout` 的 `timeout` 是毫秒 —— 两者不一致。实现按**动作表**（更具体）执行：`wait_timeout` 用毫秒，其余动作用秒，并在 `ACTIONS` 的注释里写明。
+> 6. **`value` 字段的双重语义**（内联定位值 vs 断言期望值）：实现规则为 —— 有 `element` 时 `value` 是动作自己的值；没有 `element` 时，**只有 `value` 语义为 `locator` 的动作**才允许内联定位（`expect_text` / `expect_value` / `expect_count` / `expect_url` / `select` / `drag` 必须走 `element`）。
+> 7. **SSRF 白名单的 `*.example.com` 不匹配 apex** `example.com`（要同时配两条）。刻意保持严格 —— 通配符覆盖 apex 会让白名单的实际范围比用户以为的宽。
+> 8. **dockerfile 额外拷了浏览器二进制**：契约写「最终 stage 只拷贝 venv」，但 chromium 的二进制不在 venv 里（`PLAYWRIGHT_BROWSERS_PATH=/ms-playwright`），只拷 venv 浏览器跑不起来；系统库也要在最终镜像里再装一次（`playwright install-deps chromium`）—— builder 阶段 `--with-deps` 装的那份留在 builder 的文件系统里，不会跟过来。
+> 9. **T007 / T008 的录制导入只有前端封装**：后端端点 `/ui/record/import` 属于 Phase 4（T034），本轮没实现。前端 service / model 已备好调用封装，等 T034 落地即可用。
+
 ---
 
 ## Phase 1: Setup (Shared Infrastructure)
 
 **Purpose**: 依赖、部署形态、数据模型与前端骨架
 
-- [ ] T001 在 `backend/requirements.txt` 追加 `playwright>=1.49`（Python 包；浏览器二进制见 T002）
-- [ ] T002 修改 `backend/ops/dockerfile`：新增 `ARG INSTALL_PLAYWRIGHT=0`，值为 `1` 时在 **builder stage** 执行 `/pity/venv/bin/playwright install --with-deps chromium`（最终 stage 只拷贝 venv —— 系统库只能在 builder 装）；并在文档中标注镜像 +~600MB
-- [ ] T003 [P] 创建 `backend/app/models/ui_case.py` 的六个 Model，字段与约束**逐条照抄 `data-model.md` §2**：`PityUIPage`（`UniqueConstraint('project_id','name','parent','deleted_at')`）、`PityUIElement`（去重唯一约束含 `strategy`/`locator`/`name_attr`）、`PityUICase`（`UniqueConstraint('case_id','deleted_at')`）、`PityUINode`、`PityUIImportLog`、`PityUIAllowedDomain`（`domain` 必须是裸域名）
-- [ ] T004 [P] 创建 `backend/app/crud/ui/` 下五个 DAO：`UIPageDao.py`、`UIElementDao.py`、`UICaseDao.py`、`UINodeDao.py`、`UIImportLogDao.py`，沿用 `@ModelWrapper` + `Mapper` + `@connect` 模式
-- [ ] T005 [P] 创建 `backend/app/schema/ui_case.py` 的 Pydantic v1 表单：页面表单、元素表单（含 8 种策略枚举）、UI 用例表单（含步骤模型）、白名单表单、录制导入表单
-- [ ] T006 [P] 创建 `frontend/src/consts/uiTest.ts`，镜像后端 `app/core/ui_executor.py` 的 `ACTIONS`（动作白名单）与 `STRATEGIES`（8 种定位策略）；文件头注释必须写明"权威定义在 `backend/app/core/ui_executor.py`，改一处必须同步另一处"
-- [ ] T007 [P] 创建 `frontend/src/services/uiTest.ts`，封装页面/元素/用例/白名单/节点/录制的接口调用（签名与 URL 严格照 contracts/api.md；用 `request` + `auth.headers()`）
-- [ ] T008 [P] 创建 `frontend/src/models/uiTest.ts`，hooks 风格（`useState` + `useCallback`），不得使用 dva model
+- [x] T001 在 `backend/requirements.txt` 追加 `playwright>=1.49`（Python 包；浏览器二进制见 T002）
+- [x] T002 修改 `backend/ops/dockerfile`：新增 `ARG INSTALL_PLAYWRIGHT=0`，值为 `1` 时在 **builder stage** 执行 `/pity/venv/bin/playwright install --with-deps chromium`（最终 stage 只拷贝 venv —— 系统库只能在 builder 装）；并在文档中标注镜像 +~600MB
+- [x] T003 [P] 创建 `backend/app/models/ui_case.py` 的六个 Model，字段与约束**逐条照抄 `data-model.md` §2**：`PityUIPage`（`UniqueConstraint('project_id','name','parent','deleted_at')`）、`PityUIElement`（去重唯一约束含 `strategy`/`locator`/`name_attr`）、`PityUICase`（`UniqueConstraint('case_id','deleted_at')`）、`PityUINode`、`PityUIImportLog`、`PityUIAllowedDomain`（`domain` 必须是裸域名）
+- [x] T004 [P] 创建 `backend/app/crud/ui/` 下五个 DAO：`UIPageDao.py`、`UIElementDao.py`、`UICaseDao.py`、`UINodeDao.py`、`UIImportLogDao.py`，沿用 `@ModelWrapper` + `Mapper` + `@connect` 模式
+- [x] T005 [P] 创建 `backend/app/schema/ui_case.py` 的 Pydantic v1 表单：页面表单、元素表单（含 8 种策略枚举）、UI 用例表单（含步骤模型）、白名单表单、录制导入表单
+- [x] T006 [P] 创建 `frontend/src/consts/uiTest.ts`，镜像后端 `app/core/ui_executor.py` 的 `ACTIONS`（动作白名单）与 `STRATEGIES`（8 种定位策略）；文件头注释必须写明"权威定义在 `backend/app/core/ui_executor.py`，改一处必须同步另一处"
+- [x] T007 [P] 创建 `frontend/src/services/uiTest.ts`，封装页面/元素/用例/白名单/节点/录制的接口调用（签名与 URL 严格照 contracts/api.md；用 `request` + `auth.headers()`）
+- [x] T008 [P] 创建 `frontend/src/models/uiTest.ts`，hooks 风格（`useState` + `useCallback`），不得使用 dva model
 
 **Checkpoint**: 骨架就绪 —— 依赖已声明、部署形态已定、数据模型与前端常量就位
 
@@ -41,20 +53,20 @@
 
 **⚠️ CRITICAL**: 本阶段未完成前，任何用户故事都不能开工
 
-- [ ] T009 实现 `backend/app/core/ui_locator.py`：8 种定位策略 → Playwright Locator 的映射（`role` 策略额外用 accessible name）；**定位到多个元素时显式抛错，不得静默取第一个**（research §4.4）
-- [ ] T010 实现 `backend/app/core/ui_executor.py` 的 Browser 管理：Browser **进程内单例复用**、每用例独立 Context（cookie/storage 隔离）、`asyncio.Semaphore` 限流（默认 2/进程）、浏览器异常不得带崩 gunicorn worker
-- [ ] T011 实现 `backend/app/core/ui_executor.py` 的**动作分派**（封闭白名单，逐条照抄 `contracts/steps.md` §3）：不在白名单内的动作**在加载步骤时就拒绝**，不是执行时才拦；`evaluate` / `exec` / 任何"执行代码"的动作一律不接受
-- [ ] T012 实现 `backend/app/utils/ui_security.py` 的 **SSRF 拦截**（逐条照抄 `data-model.md` §7.2 的 6 条检查点）：协议白名单（仅 http/https）、项目级域名白名单匹配（含 `*.example.com` 子域通配）、**DNS 解析后**逐个 IP 检查私网/环回/链路本地/保留地址、重定向**逐跳**重新校验、页面子资源请求同样拦截
-- [ ] T013 实现 `backend/app/core/ui_executor.py` 的**确定性等待**（`contracts/steps.md` §6）：条件等待优先；**引擎不得插入任何隐式 sleep**；固定等待必须显式配置；重试退避必须固定不随机；定位多元素显式失败而非随机挑选
-- [ ] T014 实现 `backend/app/core/ui_recorder.py` 的 codegen 脚本解析：识别 `page.goto(url)` 与 `page.<locator_method>(args).<action>(args)` 模式（映射见 research §3.7）；**只做静态文本解析，绝不 eval / exec / 在浏览器里跑脚本内容**；无法解析的行跳过并记录原因，不中断整段
-- [ ] T015 实现 `backend/app/core/ui_recorder.py` 的**自动建页面与元素**：页面按 URL 的 origin+path 归一后建立或复用；元素按 `(project_id, page_id, strategy, locator, name_attr)` 去重，已存在则复用只追加步骤
-- [ ] T016 实现 `backend/app/routers/ui/page.py` 的**页面树 CRUD**：`/ui/page/list`（返回带 `element_count` 的树）、`/ui/page/insert`、`/ui/page/update`、`/ui/page/delete`；删除页面**不级联删元素**，元素转为停用并提示用户处理引用（data-model §8）；`parent` 必须同项目且不得成环
-- [ ] T017 实现 `backend/app/routers/ui/element.py` 的 CRUD + 启停：`/ui/element/list`、`insert`、`update`、`delete`、`status`；去重时返回既有元素 id 与 `duplicated` 标志；**写入权限显式说明** —— 页面与元素的写入保持 `Permission()`（元素库是团队协作资产，与既有"创建用例"同级、不扩大权限面），而 `pity_ui_allowed_domain` 收紧到 ADMIN（那是安全边界，见 T018）
-- [ ] T018 实现 `backend/app/routers/ui/domain.py` 的白名单 CRUD：**增删必须 `Permission(role=Config.ADMIN)`**（这是安全边界，配错等于放行内网）；`domain` 必须是裸域名，含协议或路径的串一律拒绝
-- [ ] T019 实现 `backend/app/routers/ui/node.py`：内置本地节点的自注册与列表；节点删除需 ADMIN
-- [ ] T020 修改 `backend/app/core/executor.py` 的 `run_single`：在拿到 `case_info` 之后、HTTP 请求之前，按 `request_type == 4` 分派到 UI 执行器；UI 用例**复用既有的前置/后置构造器**
-- [ ] T021 实现 `backend/app/routers/ui/case.py` 的 UI 用例 CRUD：步骤校验逐条照抄 `contracts/steps.md`（动作白名单、必填字段、元素引用解析、未知字段丢弃并告警）；单个步骤无效只丢该步骤并告警，**全部步骤无效则拒绝创建**；**`base_url` 与步骤里的字符串字段走既有 `Render.render` 渲染**（FR-013，变量来源为 `pity_gconfig` 全局变量与出参）；**用例名/目录名超长时按既有列长度截断并回显告警**（FR-035）
-- [ ] T022 实现 `backend/app/routers/ui/case.py` 的 `POST /case/run`：调用 UI 执行器，结果按 `data-model.md` §6 的映射写入**既有的 `pity_test_result`**；失败时截图 → 上传 OSS → URL 写入 `case_log`；错误原因按 `contracts/api.md` §3.2 的 6 类分类返回，**且每步回传元素的定位策略与定位值**（FR-023）；单步超时后停止后续步骤并保留现场
+- [x] T009 实现 `backend/app/core/ui_locator.py`：8 种定位策略 → Playwright Locator 的映射（`role` 策略额外用 accessible name）；**定位到多个元素时显式抛错，不得静默取第一个**（research §4.4）
+- [x] T010 实现 `backend/app/core/ui_executor.py` 的 Browser 管理：Browser **进程内单例复用**、每用例独立 Context（cookie/storage 隔离）、`asyncio.Semaphore` 限流（默认 2/进程）、浏览器异常不得带崩 gunicorn worker
+- [x] T011 实现 `backend/app/core/ui_executor.py` 的**动作分派**（封闭白名单，逐条照抄 `contracts/steps.md` §3）：不在白名单内的动作**在加载步骤时就拒绝**，不是执行时才拦；`evaluate` / `exec` / 任何"执行代码"的动作一律不接受
+- [x] T012 实现 `backend/app/utils/ui_security.py` 的 **SSRF 拦截**（逐条照抄 `data-model.md` §7.2 的 6 条检查点）：协议白名单（仅 http/https）、项目级域名白名单匹配（含 `*.example.com` 子域通配）、**DNS 解析后**逐个 IP 检查私网/环回/链路本地/保留地址、重定向**逐跳**重新校验、页面子资源请求同样拦截
+- [x] T013 实现 `backend/app/core/ui_executor.py` 的**确定性等待**（`contracts/steps.md` §6）：条件等待优先；**引擎不得插入任何隐式 sleep**；固定等待必须显式配置；重试退避必须固定不随机；定位多元素显式失败而非随机挑选
+- [x] T014 实现 `backend/app/core/ui_recorder.py` 的 codegen 脚本解析：识别 `page.goto(url)` 与 `page.<locator_method>(args).<action>(args)` 模式（映射见 research §3.7）；**只做静态文本解析，绝不 eval / exec / 在浏览器里跑脚本内容**；无法解析的行跳过并记录原因，不中断整段
+- [x] T015 实现 `backend/app/core/ui_recorder.py` 的**自动建页面与元素**：页面按 URL 的 origin+path 归一后建立或复用；元素按 `(project_id, page_id, strategy, locator, name_attr)` 去重，已存在则复用只追加步骤
+- [x] T016 实现 `backend/app/routers/ui/page.py` 的**页面树 CRUD**：`/ui/page/list`（返回带 `element_count` 的树）、`/ui/page/insert`、`/ui/page/update`、`/ui/page/delete`；删除页面**不级联删元素**，元素转为停用并提示用户处理引用（data-model §8）；`parent` 必须同项目且不得成环
+- [x] T017 实现 `backend/app/routers/ui/element.py` 的 CRUD + 启停：`/ui/element/list`、`insert`、`update`、`delete`、`status`；去重时返回既有元素 id 与 `duplicated` 标志；**写入权限显式说明** —— 页面与元素的写入保持 `Permission()`（元素库是团队协作资产，与既有"创建用例"同级、不扩大权限面），而 `pity_ui_allowed_domain` 收紧到 ADMIN（那是安全边界，见 T018）
+- [x] T018 实现 `backend/app/routers/ui/domain.py` 的白名单 CRUD：**增删必须 `Permission(role=Config.ADMIN)`**（这是安全边界，配错等于放行内网）；`domain` 必须是裸域名，含协议或路径的串一律拒绝
+- [x] T019 实现 `backend/app/routers/ui/node.py`：内置本地节点的自注册与列表；节点删除需 ADMIN
+- [x] T020 修改 `backend/app/core/executor.py` 的 `run_single`：在拿到 `case_info` 之后、HTTP 请求之前，按 `request_type == 4` 分派到 UI 执行器；UI 用例**复用既有的前置/后置构造器**
+- [x] T021 实现 `backend/app/routers/ui/case.py` 的 UI 用例 CRUD：步骤校验逐条照抄 `contracts/steps.md`（动作白名单、必填字段、元素引用解析、未知字段丢弃并告警）；单个步骤无效只丢该步骤并告警，**全部步骤无效则拒绝创建**；**`base_url` 与步骤里的字符串字段走既有 `Render.render` 渲染**（FR-013，变量来源为 `pity_gconfig` 全局变量与出参）；**用例名/目录名超长时按既有列长度截断并回显告警**（FR-035）
+- [x] T022 实现 `backend/app/routers/ui/case.py` 的 `POST /case/run`：调用 UI 执行器，结果按 `data-model.md` §6 的映射写入**既有的 `pity_test_result`**；失败时截图 → 上传 OSS → URL 写入 `case_log`；错误原因按 `contracts/api.md` §3.2 的 6 类分类返回，**且每步回传元素的定位策略与定位值**（FR-023）；单步超时后停止后续步骤并保留现场
 
 **Checkpoint**: 基础就绪 —— 定位器、执行引擎、安全边界、录制解析、路由齐备，三个故事可并行开工
 

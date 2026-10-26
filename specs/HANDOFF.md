@@ -7,7 +7,7 @@
 
 ## 0. 一句话状态
 
-用 Spec Kit 给两个 feature 走完了「specify → plan → tasks → analyze」全流程，设计产物齐全、两轮 `/speckit-analyze` 的发现全部修完（CRITICAL / HIGH 清零）。**下一步是进 `/speckit-implement` 按任务清单写代码。**
+用 Spec Kit 给两个 feature 走完了「specify → plan → tasks → analyze」全流程，设计产物齐全、两轮 `/speckit-analyze` 的发现全部修完（CRITICAL / HIGH 清零）。**`002-ui-automation` 的 Phase 1 + Phase 2（T001~T022）已落地** —— 元素库地基、Playwright 底座、SSRF 边界、录制解析、21 个 `/ui/*` 端点、前端常量/服务/model 三件套全部写完并跑过验证；**US1~US3（前端页面与三个用户故事）还没做**。
 
 ---
 
@@ -55,21 +55,24 @@
 
 ## 3. 下一步：具体做什么
 
-### 起点：两个 feature 的 Phase 1 + 2（可并行，互不阻塞）
+### 起点：002 的 Phase 3（US1 —— 最小可演示闭环）
 
 ```
-001 Phase 1 (T001–T010)  依赖 + 枚举 + Model + DAO + Schema + 常量 + 路由
-001 Phase 2 (T011–T020)  公共层 ai_service + 提示词基座 + 聚类器 + 既有重复迁移
-002 Phase 1 (T001–T008)  playwright 依赖 + 镜像 build arg + 6 张表 + DAO + 前端骨架
-002 Phase 2 (T009–T022)  定位器 + 执行引擎 + SSRF 边界 + 录制解析 + 路由 + 分派
+002 Phase 3 (T023–T032)  US1：元素库 → 手写用例 → 执行 → 逐步骤日志 + 失败截图
 ```
 
 **建议顺序**：
-1. **002 Phase 1+2 先做** —— 元素库是地基，且它带 Playwright 依赖与镜像改动，早做早暴露部署问题
-2. **001 Phase 1+2 紧跟** —— 公共层是另外三个场景的共同前提
-3. 之后 001/002 的用户故事可并行
+
+1. **先补 Phase 3 的测试任务（T023–T026）** —— constitution 原则 V 把测试列为落地门禁，`backend/scripts/ui_selftest.py` 与 `ui_e2e.py` 这一轮还没写。**T025（SSRF）与 T024（动作白名单负例）是守住两个新安全面的关键测试。**
+2. **再做前端页面（T028–T031）** —— `frontend/src/pages/UiTest/` 下的元素库、用例列表、用例编辑器；这一轮只落了 consts / services / model 三件套，页面还没写
+3. **最后做 T032 的 e2e** —— 需要 chromium
+4. 之后 002 的 US2（录制导入，T033–T036）与 US3（执行中心与报告，T037–T041）
+5. 001 的公共层（Phase 1+2）可以并行做 —— 它与 002 无循环依赖
 
 **第一个可演示增量**：002 的 US1（元素库 → 手写用例 → 执行）跑通，即"沉淀元素定位并跑通第一条 UI 用例"。
+
+> ⚠️ **动手前先装浏览器**：`pip install playwright && playwright install chromium`。
+> 只装 Python 包不装二进制，执行时会报「未安装 playwright」。
 
 ### 用 speckit 继续推进
 
@@ -137,6 +140,9 @@ printf '{\n  "feature_directory": "specs/001-ai-workbench"\n}\n' > .specify/feat
 8. **前端跑测试用 `npm test` / `npm run jest`，不要用 `npx jest`**；跑之前 `nvm use`（必须 Node 20）。见 `frontend/CLAUDE.md` 的 Jest 章节。
 9. **`backend/scripts/` 下的回归脚本会留下 e2e 痕迹**（e2e 账号、临时表），这是既有约定，不要清理。
 10. **`.specify/feature.json` 不入库**，切 feature 时手动改。
+11. **`pity_testcase` 没有 `project_id` 列** —— UI 用例的项目要从用例所在目录（`pity_testcase_directory.project_id`）反查，`UICaseDao.query_project_id()` 就是干这个的。别去 `pity_testcase` 上找项目字段（`TestCaseDao.list_testcase_tree` 里那段 `TestCase.project_id` 是既有的死代码）。
+12. **别用 `python -c` 跑会写库的脚本** —— `RedisHelper.up_cache` 里 `inspect.getframeinfo(...)[3]` 取的是 `code_context`，在 `python -c` 下是 `None` → `TypeError`。这是**既有代码的坑**（它本意是取函数名，索引应为 `[2]`），跑脚本要写成 `.py` 文件再执行。
+13. **MySQL 的唯一约束对 NULL 不生效** —— `pity_ui_page.parent` / `pity_ui_element.name_attr` / `pity_ui_allowed_domain.env` 都可为 NULL，唯一约束拦不住重名，**去重必须在 DAO 层显式做**（已做）。
 
 ---
 
@@ -180,16 +186,22 @@ npm run lint:js
 复制这段给新会话：
 
 ```
-继续 AIFullStackTesting 的两个 feature 实现。交接文档在 specs/HANDOFF.md，先读它。
+继续 AIFullStackTesting 的 UI 自动化子系统实现。交接文档在 specs/HANDOFF.md，先读它。
 
-当前状态：设计已完成（specify→plan→tasks→analyze 全流程），两轮 analyze 的 CRITICAL/HIGH 已清零，
-业务代码一行没写。
+当前状态：
+- 002-ui-automation 的 Phase 1 + Phase 2（T001~T022）已落地并跑过验证 ——
+  元素库、Playwright 底座、SSRF 边界、录制静态解析、21 个 /ui/* 端点、前端三件套。
+- US1~US3（前端页面与三个用户故事）还没做。
+- 001-ai-workbench 仍是纯设计。
 
-下一步：按 specs/002-ui-automation/tasks.md 的 Phase 1 + Phase 2 开始实现（002 的元素库 +
-Playwright 底座 + SSRF 边界），因为 001 的 Web UI 用例生成依赖它的元素库。
-001 的公共层可以并行做。
+下一步：按 specs/002-ui-automation/tasks.md 的 Phase 3 开始 —— 先补 T023~T026 的
+selftest（constitution 原则 V 的门禁，T024/T025 守着两个新安全面），再做 T028~T031 的前端页面，
+最后 T032 的 e2e。
 
-注意 specs/HANDOFF.md §4 的硬约束（宪法门禁、安全边界、契约单一出处）和 §5 的坑。
+注意 specs/HANDOFF.md §4 的硬约束（宪法门禁、安全边界、契约单一出处）、§5 的坑，
+以及 specs/002-ui-automation/tasks.md 顶部「实现记录」的 9 条偏差。
+
+动手前先装浏览器：pip install playwright && playwright install chromium
 每完成一个任务就更新 tasks.md 的勾选状态。
 ```
 
@@ -197,16 +209,72 @@ Playwright 底座 + SSRF 边界），因为 001 的 Web UI 用例生成依赖它
 
 ## 9. 当前工作区状态
 
+### 9.1 已落地的代码（002 Phase 1+2）
+
+| 位置 | 内容 |
+|---|---|
+| `backend/app/models/ui_case.py` | 6 张表 Model（`pity_ui_page` / `pity_ui_element` / `pity_ui_case` / `pity_ui_node` / `pity_ui_import_log` / `pity_ui_allowed_domain`） |
+| `backend/app/crud/ui/` | 6 个 DAO |
+| `backend/app/schema/ui_case.py` | Pydantic v1 表单 |
+| `backend/app/core/ui_executor.py` | **动作白名单 + 8 种定位策略的权威定义**、动作分派、确定性等待、Browser 单例 + 并发限流、断言汇总、`run_ui_case()` |
+| `backend/app/core/ui_locator.py` | 策略 → Playwright Locator；**多元素显式失败** |
+| `backend/app/core/ui_recorder.py` | codegen 脚本**静态解析**（`ast`，不 eval/exec）+ 自动建页面/元素 |
+| `backend/app/utils/ui_security.py` | SSRF 六道拦截（协议 / 域名白名单 / DNS 后逐 IP / 重定向逐跳 / 子资源 / 步骤内 URL） |
+| `backend/app/routers/ui/` | 21 个端点，前缀 `/ui`（page 4 / element 5 / domain 3 / node 3 / case 6） |
+| `backend/app/core/executor.py` | `Executor.run` 在拿到 `case_info` 后按 `request_type == 4` 分派到 UI 执行器，复用既有前后置构造器 |
+| `backend/app/enums/RequestTypeEnum.py` | 新增 `web_ui = 4`，`websocket` 挪到 5 |
+| `backend/ops/dockerfile` + `scripts/build-images.sh` | `INSTALL_PLAYWRIGHT` build arg（默认 0，装 chromium 时镜像 +~600MB） |
+| `frontend/src/consts/uiTest.ts` | 后端 `ACTIONS` / `STRATEGIES` 的前端镜像 |
+| `frontend/src/services/uiTest.ts` | `/ui/*` 的 service 封装 |
+| `frontend/src/models/uiTest.ts` | hooks 风格 model |
+
+**实现与契约的 9 处偏差/补齐**逐条记在 [`002-ui-automation/tasks.md`](./002-ui-automation/tasks.md) 顶部的「实现记录」里 —— 动手前先读那 9 条。
+
+### 9.2 已验证 / 未验证
+
+**已验证**（跑过）：
+
+- 6 张表建表成功，列与 `data-model.md` §2 一致
+- 21 个 `/ui/*` 端点全部注册
+- 页面 / 元素 DAO 全流程：重名拒绝、元素去重（返回既有 id + `duplicated`）、元素引用解析、**停用即失效**、重新启用即恢复、页面树 `element_count`、**删页面 → 元素转停用而不删**
+- 步骤校验：动作白名单封闭（`evaluate` / `exec` / `run` / `script` **在加载步骤时**就被拒）、必填字段、未知字段丢弃并告警、定位策略枚举、等待状态枚举
+- SSRF：私网 / 环回 / 链路本地 / IPv6 私有与环回 / IPv4-mapped 全部拦下；`*.example.com` 子域通配命中、apex 不命中
+- codegen 解析：sync 与 async 两种输出、8 种定位写法、`expect(...)` 断言写法、**含自由代码的行被跳过且不中断整段**
+- UI 用例建单 → 执行 → 落 `pity_test_result`（status / asserts / case_log 都写进去了）
+
+**未验证**（环境限制）：
+
+- **浏览器实际执行路径没跑过** —— 本机 `.venv` 里没装 `playwright`，且 Bash 分类器把 `pip install` / `playwright install chromium` 全部拦了。执行器在缺 playwright 时会优雅报错「未安装 playwright, 请执行 pip install playwright && playwright install chromium」而不是崩。**要验证浏览器路径，得先在装了 chromium 的环境里跑一次。**
+- 前端只做了 `npx tsc --noEmit`（0 错误）与 eslint（无告警）；**没有 UI 页面**（Phase 3 才有）
+
+### 9.3 工作区
+
 ```
- M backend/CLAUDE.md              新增两个 feature 的段落（硬约束 + 指针）
- M frontend/CLAUDE.md             （本次之前就有的改动，与本工作无关）
- M frontend/jest.config.ts        （同上）
- D frontend/src/pages/User/Login/login.test.tsx
- D frontend/src/pages/User/Login/__snapshots__/login.test.tsx.snap
-?? backend/docs/ai-workbench-design.md    深设计附录
-?? backend/docs/ui-automation-design.md   深设计附录
-?? specs/                                18 份 Spec Kit 产物
-?? frontend/tests/__mocks__/              （同上，与本工作无关）
+ M backend/app/core/executor.py            request_type == 4 分派
+ M backend/app/enums/RequestTypeEnum.py    web_ui = 4
+ M backend/app/models/__init__.py           登记 6 个新 Model
+ M backend/main.py                         注册 /ui 路由
+ M backend/ops/dockerfile                  INSTALL_PLAYWRIGHT build arg
+ M backend/requirements.txt                playwright>=1.49
+ M backend/CLAUDE.md                       UI 自动化段落从「设计稿」改为「已实现」
+ M frontend/CLAUDE.md                      补 UI 自动化常量与跨端同步约定
+ M scripts/build-images.sh                 传 INSTALL_PLAYWRIGHT build arg
+ M specs/002-ui-automation/tasks.md        T001~T022 勾选 + 实现记录
+?? backend/app/core/ui_executor.py
+?? backend/app/core/ui_locator.py
+?? backend/app/core/ui_recorder.py
+?? backend/app/crud/ui/
+?? backend/app/models/ui_case.py
+?? backend/app/routers/ui/
+?? backend/app/schema/ui_case.py
+?? backend/app/utils/ui_security.py
+?? frontend/src/consts/uiTest.ts
+?? frontend/src/models/uiTest.ts
+?? frontend/src/services/uiTest.ts
 ```
 
-**尚未 commit**。按 CLAUDE.md 的约定，commit message 走 Conventional Commits；`specs/` 与 `backend/docs/` 建议**分两个 commit**（一个是"设计产物"，一个是"索引指针"），或者合成一个 `feat(spec): 新增 AI 工作台与 UI 自动化子系统的设计产物`。
+> `001-ai-workbench` 仍是纯设计，一行业务代码没写。
+
+**commit 建议**：commit message 走 Conventional Commits。建议**分两个 commit**：
+- `feat(backend): 新增 UI 自动化子系统的元素库、执行引擎与 SSRF 边界` —— 后端 + 契约相关改动
+- `feat(frontend): 新增 UI 自动化常量、服务与 model` —— 前端三件套
