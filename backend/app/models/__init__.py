@@ -103,4 +103,6 @@ db_helper = DatabaseHelper()
 # 必须放在文件末尾 —— app.models.basic 里有 `from app.models import Base`,
 # 放在前面会形成循环导入。
 from app.models.data_factory import PityDataFactory  # noqa: E402,F401
+from app.models.ui_case import (PityUIAllowedDomain, PityUICase, PityUIElement,  # noqa: E402,F401
+                               PityUIImportLog, PityUINode, PityUIPage)
 

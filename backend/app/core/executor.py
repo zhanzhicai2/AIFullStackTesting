@@ -31,6 +31,7 @@ from app.enums.ConstructorEnum import ConstructorType
 from app.enums.GconfigEnum import GConfigParserEnum, GconfigType
 from app.enums.NoticeEnum import NoticeType
 from app.enums.RequestBodyEnum import BodyType
+from app.enums.RequestTypeEnum import RequestType
 from app.middleware.AsyncHttpClient import AsyncRequest
 from app.models.constructor import Constructor
 from app.models.out_parameters import PityTestCaseOutParameters
@@ -194,6 +195,13 @@ class Executor(object):
             case_info = await TestCaseDao.async_query_test_case(case_id)
             response_info['case_id'] = case_info.id
             response_info["case_name"] = case_info.name
+
+            # UI 用例分派 —— 在 HTTP 请求之前。
+            # UI 用例也是 pity_testcase 的一种(request_type = 4), 走既有的用例库、
+            # 目录树与执行记录, 只是执行体换成浏览器。
+            if case_info.request_type == RequestType.web_ui:
+                return await self.run_ui(env, case_info, case_params, path)
+
             method = case_info.request_method.upper()
             response_info["request_method"] = method
 
@@ -263,6 +271,42 @@ class Executor(object):
     @staticmethod
     def get_dict(json_data: str):
         return json.loads(json_data)
+
+    async def run_ui(self, env: int, case_info, case_params: dict, path: str):
+        """
+        UI 用例的执行分支(request_type = 4)。
+
+        **复用既有的前置 / 后置构造器** —— UI 用例也能配前置(准备数据)与后置(清理),
+        不另起一套。结果照写 `pity_test_result`, 报告链路零改造。
+        """
+        from app.core.ui_executor import run_ui_case
+
+        response_info = dict()
+        response_info['case_id'] = case_info.id
+        response_info["case_name"] = case_info.name
+        # 前置条件
+        constructors = await self.get_constructor(case_info.id)
+        await self.execute_constructors(env, path, case_params, constructors)
+        # 浏览器执行
+        result = await run_ui_case(case_info.id, env, params=case_params, logger=self.logger)
+        # 后置条件
+        await self.execute_constructors(env, path, case_params, constructors, True)
+        status = result.get("status", 2)
+        response_info["url"] = result.get("url")
+        response_info["request_data"] = ""
+        response_info["request_headers"] = ""
+        response_info["asserts"] = result.get("asserts") or "{}"
+        response_info["steps"] = result.get("steps") or []
+        response_info["response"] = result.get("error") or json.dumps(result.get("steps") or [],
+                                                                        ensure_ascii=False)
+        self.append(f"UI 用例执行结果: {status}")
+        if status == 2:
+            # 出错(不是断言失败)—— 交给外层的异常处理, 记为 status 2
+            raise Exception(result.get("error") or "UI 用例执行出错")
+        response_info["status"] = status == 0
+        if self._main:
+            response_info["logs"] = self.logger.join()
+        return response_info, None
 
     @staticmethod
     async def run_with_test_data(env, data, report_id, case_id, params_pool: dict = None, request_param: dict = None,

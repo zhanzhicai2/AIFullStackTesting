@@ -6,13 +6,19 @@
 # 用法: 在仓库根目录
 #   ./scripts/build-images.sh           # 默认 tag = dev
 #   ./scripts/build-images.sh 0.1       # tag = 0.1
+#
+# UI 自动化子系统: 后端镜像默认**不**装 chromium(体积 +~600MB)。
+# 需要跑 UI 用例时用环境变量打开:
+#   INSTALL_PLAYWRIGHT=1 ./scripts/build-images.sh dev
 set -euo pipefail
 
 cd "$(dirname "$0")/.."
 TAG="${1:-dev}"
+INSTALL_PLAYWRIGHT="${INSTALL_PLAYWRIGHT:-0}"
 
-echo ">> [1/3] pity-backend:$TAG"
-docker build -f backend/ops/dockerfile -t "pity-backend:$TAG" backend
+echo ">> [1/3] pity-backend:$TAG (INSTALL_PLAYWRIGHT=$INSTALL_PLAYWRIGHT)"
+docker build -f backend/ops/dockerfile -t "pity-backend:$TAG" \
+  --build-arg "INSTALL_PLAYWRIGHT=$INSTALL_PLAYWRIGHT" backend
 
 echo ">> [2/3] pity-frontend:$TAG (max build 走国内 npm 镜像)"
 docker build -f frontend/Dockerfile.production -t "pity-frontend:$TAG" frontend

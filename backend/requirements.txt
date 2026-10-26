@@ -40,3 +40,7 @@ pycryptodome>=3.20.0
 aioetcd3
 grpcio
 pydantic[email]
+
+# UI 自动化子系统: 浏览器驱动。浏览器二进制不在这个包里, 由 ops/dockerfile 的
+# INSTALL_PLAYWRIGHT build arg 控制是否装进镜像(镜像体积 +~600MB)
+playwright>=1.49

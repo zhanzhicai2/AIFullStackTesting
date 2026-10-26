@@ -52,7 +52,8 @@ backend/
 │   │   ├── oss/            # 对象存储
 │   │   ├── notification/   # 消息通知
 │   │   ├── operation/      # 操作日志
-│   │   └── request/        # HTTP 请求 / Mock 录制
+│   │   ├── request/        # HTTP 请求 / Mock 录制
+│   │   └── ui/             # UI 自动化（页面/元素/用例/白名单/节点，前缀 /ui）
 │   ├── models/             # SQLAlchemy 数据模型（继承 PityBase）
 │   ├── crud/               # DAO 层（@ModelWrapper + @connect 模式）
 │   ├── schema/             # Pydantic v1 验证模型（注意不是 schemas）
@@ -127,14 +128,14 @@ Request → CORS Middleware → Error Middleware → Router → DAO (connect装�
 
 公共层 `app/core/ai_service.py`（统一厂商/模型解析 + 调用埋点 + JSON 提取）、4 张新表、API 清单、前后端契约 → 见 [`docs/ai-workbench-design.md`](docs/ai-workbench-design.md)。
 
-### UI 自动化子系统（设计稿，未实现）
+### UI 自动化子系统（Phase 1+2 已实现，US1~US3 未做）
 
 Playwright 驱动的 UI 自动化。核心约定：
 
 - **元素库是地基，先于 AI 生成做** —— 步骤引用元素而非内联 locator（Page Object 模式），页面改版只改元素库一处
 - **录制在本地完成再导入** —— 用户跑 `npx playwright codegen --target python`，粘贴回平台自动建页面/元素/步骤；v1 不做 Chrome 扩展与服务端注入
 - **步骤 DSL 是封闭动作白名单** —— 不允许 `evaluate` / 任意脚本执行（仓库已有两个 `exec()` 执行面，不能再开第三个）；不在白名单的动作**在加载步骤时就拒绝**
-- **UI 用例复用 `pity_testcase`** —— 加 `request_type=4`；结果照写 `pity_test_result`，报告链路零改造
+- **UI 用例复用 `pity_testcase`** —— 加 `request_type=4`（`websocket` 已被挪到 5）；结果照写 `pity_test_result`，报告链路零改造
 - **浏览器出网必须设边界（SSRF）** —— 目标地址只能取自**项目级允许域名白名单**（增删需 ADMIN）；仅 http/https；**DNS 解析后**拒绝私网/环回/链路本地/保留地址；重定向**逐跳**重校验；白名单为空 = 不可执行（不是"允许全部"）
 - **确定性等待** —— 引擎不得插入隐式 sleep、退避必须固定不随机、定位到多个元素必须**显式失败**而非取第一个；执行结果不可重放（取决于被测系统），需在代码与文档中显式标注
 - **镜像代价 +600MB** —— `playwright install --with-deps chromium` 只能在 builder stage 装，用 build arg 控制
@@ -142,6 +143,28 @@ Playwright 驱动的 UI 自动化。核心约定：
 数据模型（`pity_ui_page` / `pity_ui_element` / `pity_ui_case` / `pity_ui_node` / `pity_ui_import_log` / `pity_ui_allowed_domain`）、步骤 DSL 规范、codegen 解析规则、SSRF 拦截清单、执行流程 → 见 [`docs/ui-automation-design.md`](docs/ui-automation-design.md)。
 
 **步骤 DSL 的权威出处**是 [`specs/002-ui-automation/contracts/steps.md`](../specs/002-ui-automation/contracts/steps.md)（`001-ai-workbench` 的规则 11–14 引用同一份）—— 动作白名单与定位策略两端常量必须同步：后端 `app/core/ui_executor.py`、前端 `src/consts/uiTest.ts`。
+
+**已落地（Phase 1+2，T001~T022）**：
+
+| 位置 | 内容 |
+|---|---|
+| `app/models/ui_case.py` | 6 张表 Model |
+| `app/crud/ui/` | 6 个 DAO（页面 / 元素 / 用例 / 节点 / 导入日志 / 允许域名） |
+| `app/schema/ui_case.py` | Pydantic v1 表单 |
+| `app/core/ui_executor.py` | **动作白名单 + 定位策略的权威定义**、动作分派、确定性等待、Browser 单例与并发限流、断言汇总 |
+| `app/core/ui_locator.py` | 8 种策略 → Playwright Locator；**多元素显式失败** |
+| `app/core/ui_recorder.py` | codegen 脚本**静态解析**（`ast`，不 eval/exec）+ 自动建页面/元素 |
+| `app/utils/ui_security.py` | SSRF 六道拦截 |
+| `app/routers/ui/` | 21 个端点，前缀 `/ui`（page 4 / element 5 / domain 3 / node 3 / case 6） |
+
+**跑 UI 用例前必须装浏览器**：`pip install playwright && playwright install chromium`（只装 Python 包不装二进制会在执行时报「未安装 playwright」）。镜像里由 `INSTALL_PLAYWRIGHT=1` build arg 控制（见 `scripts/build-images.sh`）。
+
+**改这里前必须知道**：
+- **`ACTIONS` / `STRATEGIES` 只在 `app/core/ui_executor.py` 定义一次**，前端 `src/consts/uiTest.ts` 是镜像 —— 改一处必须同时改另一处
+- **`value` 字段有双重语义**：有 `element` 时是动作自己的值（期望值 / 选项值），没有 `element` 时只有 `value` 语义为 `locator` 的动作才允许内联定位
+- **`timeout` 单位**：`wait_timeout` 是毫秒，其余动作是秒
+- **UI 断言写进 `pity_test_result.asserts` 用的是接口用例同构格式**（`{key: {status, msg}}`），报告页的 `getSource()` 只认这个结构；富明细走 API 响应的 `assertions[]`
+- **执行结果不可重放** —— 步骤定义确定，但页面内容与断言成败取决于被测系统，代码与文档里都要显式标注
 
 ### 配置（`config.py`）
 

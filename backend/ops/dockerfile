@@ -1,4 +1,9 @@
 FROM python:3.10-slim AS builder
+# UI 自动化子系统: 置 1 时把 chromium 装进镜像(体积 +~600MB)。
+# 默认 0 —— 不是所有部署都需要浏览器, 不装就别背这个体积。
+ARG INSTALL_PLAYWRIGHT=0
+# 浏览器二进制装到固定路径, 最终阶段整目录拷贝过去
+ENV PLAYWRIGHT_BROWSERS_PATH=/ms-playwright
 WORKDIR /pity
 COPY ./requirements.txt ./requirements.txt
 RUN python -m venv /pity/venv  \
@@ -7,13 +12,27 @@ RUN python -m venv /pity/venv  \
     && apt update -y \
     && apt upgrade -y \
     && apt install -y tzdata
+# playwright 的浏览器二进制不在 venv 里, 单独装到 /ms-playwright。
+# --with-deps 会顺带装系统库(apt), 那些库留在 builder 里, 最终阶段要再装一次(见下)。
+RUN if [ "$INSTALL_PLAYWRIGHT" = "1" ]; then \
+        /pity/venv/bin/playwright install --with-deps chromium; \
+    fi
 
 
 FROM python:3.10-slim
+ARG INSTALL_PLAYWRIGHT=0
 ENV PYTHONUNBUFFERED=1
+ENV PLAYWRIGHT_BROWSERS_PATH=/ms-playwright
 WORKDIR /pity
 COPY . .
 COPY --from=builder /pity/venv/ /pity/venv/
+# 浏览器二进制必须一起拷 —— 只拷 venv 的话 chromium 是跑不起来的
+COPY --from=builder /ms-playwright/ /ms-playwright/
+# chromium 运行时需要的系统库(apt 装的 .so)。builder 阶段 --with-deps 装的那份
+# 留在 builder 的文件系统里, 不会跟过来, 所以最终镜像要自己装一次。
+RUN if [ "$INSTALL_PLAYWRIGHT" = "1" ]; then \
+        /pity/venv/bin/playwright install-deps chromium; \
+    fi
 COPY --from=builder /usr/share/zoneinfo/Asia/Shanghai /etc/localtime
 RUN ln -sf /pity/ops/dev.env.ops /pity/conf/dev.env
 RUN mkdir -p /pity/logs

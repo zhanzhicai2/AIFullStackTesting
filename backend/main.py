@@ -24,6 +24,7 @@ from app.routers.oss import router as oss_router
 from app.routers.project import project
 from app.routers.request import http
 from app.routers.testcase import router as testcase_router
+from app.routers.ui import router as ui_router
 from app.routers.workspace import router as workspace_router
 from config import Config, PITY_ENV, BANNER
 
@@ -62,6 +63,7 @@ pity.include_router(msg_router, dependencies=[Depends(request_info)])
 pity.include_router(workspace_router, dependencies=[Depends(request_info)])
 pity.include_router(datafactory_router, dependencies=[Depends(request_info)])
 pity.include_router(ai_router, dependencies=[Depends(request_info)])
+pity.include_router(ui_router, dependencies=[Depends(request_info)])
 # 聊天流式接口刻意不挂 request_info: 它会把 POST body 写进 DEBUG 日志,
 # prompt 明文落盘不合适
 pity.include_router(ai_chat_router)
