@@ -93,6 +93,8 @@ export interface UiStepResult {
   status: 'ok' | 'failed' | 'skipped';
   cost: number;
   error?: string;
+  /** 失败原因分类 —— element_not_found / element_ambiguous / timeout / ... */
+  reason?: string;
 }
 
 export interface UiRunResult {

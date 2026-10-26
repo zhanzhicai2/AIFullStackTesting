@@ -68,51 +68,23 @@ export default [
     name: '项目详情',
     component: './ApiTest/ProjectDetail',
   },
-  // {
-  //   path: '/uiTest',
-  //   name: 'UI测试',
-  //   icon: 'api',
-  //   routes: [
-  //     {
-  //       path: '/uiTest/uitest',
-  //       name: '元素管理',
-  //       component: './uiTest/TestCaseDirectory',
-  //     },
-  //     {
-  //       path: '/uiTest/testcase',
-  //       name: '场景管理',
-  //       component: './uiTest/TestCaseDirectory',
-  //     },
-  //     {
-  //       path: '/uiTest/record',
-  //       name: '用例录制',
-  //       hideInMenu: true,
-  //       component: './uiTest/TestCaseRecorder',
-  //     },
-  //     {
-  //       path: '/uiTest/testcase/:directory/add',
-  //       name: '添加用例',
-  //       hideInMenu: true,
-  //       component: './uiTest/TestCaseComponent',
-  //     },
-  //     {
-  //       path: '/uiTest/testcase/:directory/:case_id',
-  //       name: '编辑用例',
-  //       hideInMenu: true,
-  //       component: './uiTest/TestCaseComponent',
-  //     },
-  //     {
-  //       path: '/uiTest/testplan',
-  //       name: '计划管理',
-  //       component: './uiTest/TestPlan',
-  //     },
-  //     {
-  //       path: '/uiTest/testplan',
-  //       name: '测试报告',
-  //       component: './uiTest/TestPlan',
-  //     },
-  //   ],
-  // },
+  {
+    path: '/uiTest',
+    name: 'UI测试',
+    icon: 'api',
+    routes: [
+      {
+        path: '/uiTest/element',
+        name: '元素管理',
+        component: './uiTest/Element',
+      },
+      {
+        path: '/uiTest/case',
+        name: '用例管理',
+        component: './uiTest/CaseManage',
+      },
+    ],
+  },
   {
     path: '/apiTest',
     name: '接口测试',
