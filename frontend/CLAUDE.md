@@ -122,8 +122,9 @@ frontend/
 │   ├── app.tsx                # 应用入口、getInitialState、layout 配置
 │   ├── requestErrorConfig.ts  # @umijs/max 请求错误处理配置
 │   ├── consts/
-│   │   └── config.ts          # 全局常量（角色、状态、断言类型等）
-│   ├── models/                # dva 状态管理
+│   │   ├── config.ts          # 全局常量（角色、状态、断言类型等）
+│   │   └── uiTest.ts          # UI 自动化常量（镜像后端 ui_executor.py）
+│   ├── models/                # dva 状态管理 + hooks 风格新 model
 │   ├── services/              # API 请求服务
 │   ├── pages/                 # 页面组件（镜像路由结构）
 │   │   ├── ApiTest/           # 接口测试（用例、录制、计划）
@@ -212,6 +213,14 @@ export default function useNewFeature() {
 - `2` — Redis 命令
 - `3` — Python 方法
 - `4` — HTTP 请求
+
+### UI 自动化常量（跨端同步）
+
+`src/consts/uiTest.ts` 里的 `UI_ACTIONS`（动作白名单）与 `UI_STRATEGIES`（8 种定位策略）是**后端 `backend/app/core/ui_executor.py` 的 `ACTIONS` / `STRATEGIES` 的镜像** —— **改一处必须同时改另一处**。契约文档：`../specs/002-ui-automation/contracts/steps.md`。
+
+- 后端是最终裁决者（不合规的步骤被丢弃）；前端只做**提前提示**，不在前端做最终判定 —— 前端放行、后端丢弃会造成「改了还是被丢弃」的困惑
+- `src/services/uiTest.ts` + `src/models/uiTest.ts`（hooks 风格）封装 `/ui/*` 的 21 个端点（录制导入的 `/ui/record/import` 属于后端 Phase 4，尚未落地）
+- **白名单为空 = 不可执行**（不是「允许全部」）：前端要提示「本项目尚未配置允许访问的域名，去配置」
 
 ## 重要规则
 
