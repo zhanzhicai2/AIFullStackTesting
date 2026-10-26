@@ -15,7 +15,7 @@ npm run start:dev       # 启动开发服务器 (localhost:8000, 代理到后端
 npm run build           # 生产构建
 npm run lint            # 完整 lint (ESLint + Prettier + tsc)
 npm run lint:fix        # 自动修复 ESLint 问题
-npm run test            # 运行 Jest 测试
+npm run test            # 运行 Jest 测试(当前无真实用例,退出码 0)
 npm run test:coverage   # 运行测试并生成覆盖率报告
 npx tsc --noEmit        # ✅ 类型检查, 当前 0 错误
 ```
@@ -28,7 +28,20 @@ npx tsc --noEmit        # ✅ 类型检查, 当前 0 错误
 - `skipLibCheck: true` 只跳过 `.d.ts` 的**类型检查**，跳不过**语法解析**，救不了这种情况。
 - ESLint 没兜底：本仓库的 eslint 配置没开 type-aware 规则，类型错误只有 tsc 能查。
 - 改代码后建议 `./node_modules/.bin/tsc -p tsconfig.json --noEmit`（等价于 `npx tsc --noEmit`），目标是 **0 错误**。
-- 已知遗留：`npm run test` 目前**跑不起来** —— umi 的 jest 配置（`@umijs/test`）只给 css/less 做了 moduleNameMapper，没映射 `.svg`，`src/app.tsx` 里的 `import NoTableData from "@/assets/NoSearch.svg"` 解析失败。这是既有问题，与类型检查无关。
+
+### Jest 测试
+
+`npm run test` **现在可以跑起来**（2026-10-26 修复）。此前完全跑不起来，根因和现状：
+
+- **根因**：`@umijs/max/test` 的 `createConfig` 只给 css/less 系列做了资源映射，**没映射 `.svg`**。Jest 于是把 svg 当 js 源码解析，报 `SyntaxError: Unexpected token '<'`。触发路径是 `src/app.tsx:11` 的 `import NoTableData from "@/assets/NoSearch.svg"` —— 测试文件只要碰了 `@@/`（如 `@@/testBrowser`），umi 生成的运行时入口就会加载 `app.tsx`，把它所有顶层 import 一起拽进来。
+- **修复**：`jest.config.ts` 里叠加 `moduleNameMapper`，把 `\.svg$` 指向 `tests/__mocks__/svgMock.jsx`（默认导出 url 字符串 + `ReactComponent`，对齐 umi 编译期的导出形状）；同时加了 `passWithNoTests: true`。
+- **⚠️ 顺序陷阱（很容易再踩）**：jest 的 `moduleNameMapper` 按 **key 插入顺序**匹配，**首个命中即生效，且不会递归重匹配**。`configUmiAlias`（`umi/dist/test.js`）会把 umi 的路径别名写进 `moduleNameMapper`（`^@/(.*)$` → `src/$1`）。所以 **svg 规则必须排在别名规则前面** —— 否则 `@/assets/NoSearch.svg` 会先被改写成绝对路径，svg 规则再也匹配不上，报错和没加一样。
+- **⚠️ 跑测试用 `npm test` / `npm run jest`，不要用 `npx jest`**：`package.json` 里有 `"jest": "jest"` 这个 script，npm 7+ 的 `npx` 会优先匹配**本地 script** 而不是 `node_modules` 里的二进制，于是进入交互式 npm script 环境（提示 `Entering npm script environment` + `sh-3.2$`），把命令卡住不返回。
+- **⚠️ 必须 Node 20**：Node 22+ 移除了 `process.binding('http_parser')`，jest 连配置文件都解析不了，报 `Error: Register plugin .../registerMethods.js failed, since No such module: http_parser` —— 这跟 jest 配置无关，纯粹是 node 版本问题。跑之前先 `nvm use`。
+- **注意**：svg 资源以后再新增格式（png/webp 等）同样要在 `moduleNameMapper` 里补，umi 那边不会替你兜底。
+- **当前状态**：仓库**没有真实测试用例**。原有的 `src/pages/User/Login/login.test.tsx` 是 umi 脚手架自带的 demo 测试，断言的是 Ant Design Pro 默认登录页文案（"Xihu district" 那句、默认 placeholder），跟 pity 登录页完全对不上，且依赖不存在的 `mock/login` 录屏场景 —— 属于必然失败的废测试，已连同 1110 行过时快照一起删除。所以 `npm run test` 现在是 **0 个测试、退出码 0**。
+- **写新测试的坑**：umi 4 的 svg **默认导出是 url 字符串**，`ReactComponent` 才是 React 组件（见 `src/.umi-production/typings.d.ts`）。antd `Empty` 的 `image` 属性两种都吃，但如果你要当组件渲染必须用 `ReactComponent`。
+
 
 ## 技术架构
 
