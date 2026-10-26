@@ -14,7 +14,8 @@ from datetime import datetime
 
 from fastapi import APIRouter, Depends
 
-from app.core.ui_executor import run_ui_case, upload_failure_screenshot, validate_steps
+from app.core.ui_executor import (run_ui_case, strip_internal, upload_failure_screenshot,
+                                  validate_steps)
 from app.crud.test_case.TestCaseDao import TestCaseDao
 from app.crud.test_case.TestResult import TestResultDao
 from app.crud.ui.UICaseDao import UICaseDao
@@ -39,6 +40,23 @@ def _truncate_name(name: str, warnings: list) -> str:
     truncated = name[:MAX_CASE_NAME]
     warnings.append(f"用例名超过 {MAX_CASE_NAME} 个字符, 已截断为「{truncated}」")
     return truncated
+
+
+async def _check_base_url(project_id: int, base_url: str):
+    """
+    base_url 的域名必须在项目白名单内。
+
+    **白名单为空时不在这里拦** —— 用户可能先把用例写好再配白名单,
+    执行时会被拦并给出 U1 的就地指引(见 ui_executor 的 check_url)。
+    """
+    from app.crud.ui.UIAllowedDomainDao import UIAllowedDomainDao
+    from app.utils.ui_security import domain_allowed, url_host
+    domains = await UIAllowedDomainDao.list_domain_names(project_id)
+    if not domains:
+        return
+    host = url_host(base_url)
+    if host and not domain_allowed(host, domains):
+        raise Exception(f"目标域名 {host} 不在本项目允许列表内")
 
 
 @router.get("/case/list", description="UI 用例列表")
@@ -96,6 +114,7 @@ async def insert_case(form: UICaseForm, user_info=Depends(Permission())):
         if not steps:
             return PityResponse.failed("所有步骤均无效, 用例未创建", data=dict(warnings=warnings))
         name = _truncate_name(form.name, warnings)
+        await _check_base_url(form.project_id, form.base_url)
         exist = await TestCaseDao.query_record(name=name, directory_id=form.directory_id)
         if exist is not None:
             return PityResponse.failed("用例已存在")
@@ -104,7 +123,7 @@ async def insert_case(form: UICaseForm, user_info=Depends(Permission())):
                          create_user=user_info['id'])
         model = await TestCaseDao.insert(model=model, log=True)
         await UICaseDao.insert_ui_case(case_id=model.id, base_url=form.base_url,
-                                       steps=json.dumps(steps, ensure_ascii=False),
+                                       steps=json.dumps(strip_internal(steps), ensure_ascii=False),
                                        user_id=user_info['id'], viewport=form.viewport,
                                        timeout=form.timeout)
         return PityResponse.success(dict(case_id=model.id, warnings=warnings), msg="创建成功")
@@ -128,6 +147,7 @@ async def update_case(form: UICaseForm, user_info=Depends(Permission())):
         if not steps:
             return PityResponse.failed("所有步骤均无效, 用例未更新", data=dict(warnings=warnings))
         name = _truncate_name(form.name, warnings)
+        await _check_base_url(form.project_id, form.base_url)
         exist = await TestCaseDao.query_record(name=name, directory_id=form.directory_id)
         if exist is not None and exist.id != form.id:
             return PityResponse.failed("用例已存在")
@@ -137,7 +157,7 @@ async def update_case(form: UICaseForm, user_info=Depends(Permission())):
         # UI 专有数据
         await UICaseDao.update_ui_case(case_id=form.id, user_id=user_info['id'],
                                        base_url=form.base_url,
-                                       steps=json.dumps(steps, ensure_ascii=False),
+                                       steps=json.dumps(strip_internal(steps), ensure_ascii=False),
                                        viewport=form.viewport, timeout=form.timeout)
         return PityResponse.success(dict(case_id=form.id, warnings=warnings), msg="更新成功")
     except Exception as e:

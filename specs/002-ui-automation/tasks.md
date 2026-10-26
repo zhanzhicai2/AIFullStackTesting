@@ -16,7 +16,7 @@
 > - T017 补 D1 的显式角色说明
 > - 任务编号在 T016 之后统一 +1（原 T016~T049 → T017~T050）
 
-> **实现记录（Phase 1 + Phase 2 落地时）** —— T001~T022 已完成，实现与契约有 9 处偏差/补齐，逐条记在这里：
+> **实现记录（Phase 1 ~ Phase 4 落地时）** —— T001~T036 已完成，实现与契约有 15 处偏差/补齐，逐条记在这里：
 >
 > 1. **T004 多落地 1 个 DAO**：任务列了 5 个 DAO，但 6 张表里的 `pity_ui_allowed_domain` 同样需要 DAO —— 补 `backend/app/crud/ui/UIAllowedDomainDao.py`（共 6 个）。
 > 2. **T020 的分派点在 `Executor.run` 而非 `run_single`**：`case_info` 是在 `run()` 里取的，`run_single` 只负责分发到 `run_with_test_data` → `run`。按契约「拿到 case_info 之后、HTTP 请求之前」分派，落在 `run()` 里，批量与单条调试共用同一条路径。
@@ -28,6 +28,13 @@
 > 8. **dockerfile 额外拷了浏览器二进制**：契约写「最终 stage 只拷贝 venv」，但 chromium 的二进制不在 venv 里（`PLAYWRIGHT_BROWSERS_PATH=/ms-playwright`），只拷 venv 浏览器跑不起来；系统库也要在最终镜像里再装一次（`playwright install-deps chromium`）—— builder 阶段 `--with-deps` 装的那份留在 builder 的文件系统里，不会跟过来。
 > 9. **T007 / T008 的录制导入只有前端封装**：后端端点 `/ui/record/import` 属于 Phase 4（T034），本轮没实现。前端 service / model 已备好调用封装，等 T034 落地即可用。
 > 10. **前端页面目录名是 `src/pages/uiTest/`（小写 t）**：仓库里早就有一个 `src/pages/uiTest/`（旧的 JS 页面），macOS 大小写不敏感 → 新建 `src/pages/UiTest/` 会**落到同一个目录**里，TypeScript 随即报 TS1261（同一个文件两种大小写各被收进 program 一次）。**所有路径引用必须用磁盘上的真实大小写 `uiTest`**：`config/routes.ts` 写 `'./uiTest/Element'`，样式文件是 `UiTest.less`（名字与目录不同大小写没关系，导入路径要与文件名一致）。Linux CI 是大小写敏感的，写错就构建失败。
+>
+> **Phase 4（US2 录制导入）落地时补的 4 条**：
+> 11. **导入请求多两个可选字段 `directory_id` / `name`**：契约里没写，但用例总要挂在某个目录下 —— 不传就落到顶级(None)，前端会引导用户去选目录 / 建目录(U3)。`name` 不传时取「录制导入-<首个页面名>」，同名自动加序号。
+> 12. **`base_url` 取脚本里第一个 `page.goto` 的地址** —— 录制脚本就是从那儿开始的，比留空有用。
+> 13. **存进库的步骤是「纯 DSL」，校验期注入的内部字段(`_element_id` / `_strategy` / `_locator` / `_name_attr`)被剥掉**（`ui_executor.strip_internal`）。`contracts/steps.md` §1 说步骤 DSL 同时是存储格式、编辑格式与执行格式，内部字段是中间产物不该落库。**执行器改为在执行期重新解析元素引用** —— 用例建好之后元素可能被停用，那一步要判失败（`contracts/steps.md` §4.1 第 3 条）；原来靠落库的 `_strategy` 继续用，元素停用了也不会报错，是错的。
+> 14. **逐行兜底解析时必须记下失败的行号**：整段 `ast.parse` 失败后退化成逐行解析，坏行原本被**静默丢弃**，违反 FR-017「跳过并在导入结果中说明」。现在会记下行号并在 `warnings` 里说明。
+> 15. **`base_url` 的域名在保存时也校验**（白名单非空时）：白名单为空时**不在保存时拦** —— 用户可能先把用例写好再配白名单，执行时会被拦并给出 U1 的就地指引。
 
 ---
 
@@ -93,7 +100,7 @@
 - [x] T029 [P] [US1] 实现 `frontend/src/pages/UiTest/Element/ElementModal.tsx`：新建/编辑元素弹窗，定位策略下拉 8 种；`role` 策略时额外显示可访问名称字段；**优先用语义定位的提示文案**
 - [x] T030 [US1] 实现 `frontend/src/pages/UiTest/CaseManage/index.tsx`：用例列表（复用既有目录树），列含编号/名称/所属模块/优先级/类型/状态/更新时间；**目录选择器旁提供「新建目录」入口**（U3，项目下无目录时就地建完即选中）
 - [x] T031 [US1] 实现 `frontend/src/pages/UiTest/CaseManage/CaseEditor.tsx`：步骤编排（增删改步骤、从元素库选目标）、元素引用失效的高亮与跳转处理、**调试执行按钮**、base_url 旁就地指引（U1/U2/U4）；**检测到全内联定位时提示建议纳入元素库**（FR-010）；**用例名超长时提示长度限制并给出建议的截断结果**（FR-035）
-- [ ] T032 [US1] 在 `backend/scripts/ui_e2e.py` 实现 US1 端到端：页面/元素 CRUD → 元素去重与停用 → 用例创建（引用元素）→ 执行 → `pity_test_result` 回写 → 失败截图落 OSS → 元素停用后执行失败且信息指明元素与定位策略
+- [x] T032 [US1] 在 `backend/scripts/ui_e2e.py` 实现 US1 端到端：页面/元素 CRUD → 元素去重与停用 → 用例创建（引用元素）→ 执行 → `pity_test_result` 回写 → 失败截图落 OSS → 元素停用后执行失败且信息指明元素与定位策略
 
 **Checkpoint**: US1 完整可用 —— 最小闭环跑通（MVP）
 
@@ -107,13 +114,13 @@
 
 ### Tests for User Story 2 ⚠️
 
-- [ ] T033 [P] [US2] 在 `backend/scripts/ui_selftest.py` 实现 codegen 脚本解析的测试用例：sync 与 async 两种目标、8 种 locator 写法、`expect(...).to_be_visible()` 断言写法、**无法解析的行被跳过且不中断整段**、**含自由代码的行被跳过**
+- [x] T033 [P] [US2] 在 `backend/scripts/ui_selftest.py` 实现 codegen 脚本解析的测试用例：sync 与 async 两种目标、8 种 locator 写法、`expect(...).to_be_visible()` 断言写法、**无法解析的行被跳过且不中断整段**、**含自由代码的行被跳过**
 
 ### Implementation for User Story 2
 
-- [ ] T034 [US2] 实现 `backend/app/routers/ui/record.py` 的 `POST /record/import`：调用 T014/T015 的解析与建页面/元素逻辑、产出 UI 用例（**状态为「调试中」= 草稿态**，用户核对后改为「正常运行」即视为采纳）、写 `pity_ui_import_log`（含 parsed_lines / skipped_lines / pages_created / elements_created / elements_reused）、把跳过行的原因放进 `warnings` 返回
-- [ ] T035 [P] [US2] 实现 `frontend/src/pages/UiTest/Record/index.tsx`：脚本粘贴区、解析结果预览（建了几个页面/元素、跳过了几行及原因）、跳转到用例编辑页；未粘贴脚本时就地提示（U5）
-- [ ] T036 [US2] 在 `backend/scripts/ui_e2e.py` 实现 US2 端到端：导入 → 自动建页面/元素 → 产出「调试中」状态的用例 → 重复导入不产生重复元素 → 自由代码未被执行 → 无法解析的行被跳过
+- [x] T034 [US2] 实现 `backend/app/routers/ui/record.py` 的 `POST /record/import`：调用 T014/T015 的解析与建页面/元素逻辑、产出 UI 用例（**状态为「调试中」= 草稿态**，用户核对后改为「正常运行」即视为采纳）、写 `pity_ui_import_log`（含 parsed_lines / skipped_lines / pages_created / elements_created / elements_reused）、把跳过行的原因放进 `warnings` 返回
+- [x] T035 [P] [US2] 实现 `frontend/src/pages/UiTest/Record/index.tsx`：脚本粘贴区、解析结果预览（建了几个页面/元素、跳过了几行及原因）、跳转到用例编辑页；未粘贴脚本时就地提示（U5）
+- [x] T036 [US2] 在 `backend/scripts/ui_e2e.py` 实现 US2 端到端：导入 → 自动建页面/元素 → 产出「调试中」状态的用例 → 重复导入不产生重复元素 → 自由代码未被执行 → 无法解析的行被跳过
 
 **Checkpoint**: US1 与 US2 均独立可用
 

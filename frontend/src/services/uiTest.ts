@@ -312,6 +312,8 @@ export async function importUiRecord(data: {
   project_id: number;
   source: string;
   script: string;
+  directory_id?: number;
+  name?: string;
 }) {
   return request<PityResponse>(`${CONFIG.URL}/ui/record/import`, {
     method: 'POST',

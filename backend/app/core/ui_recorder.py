@@ -196,10 +196,13 @@ def parse_codegen(script: str) -> Tuple[List[ParsedAction], List[str]]:
     warnings: List[str] = []
     if not script or not script.strip():
         return actions, warnings
-    tree = _parse_tree(script)
+    tree, failed_lines = _parse_tree(script)
     if tree is None:
         warnings.append("脚本语法无法解析, 已整体跳过")
         return actions, warnings
+    # 兜底逐行解析时坏掉的行 —— 必须说明, 不能静默丢弃(FR-017)
+    for line in failed_lines:
+        warnings.append(f"第 {line} 行无法解析，已跳过")
     consumed = set()
     calls = [node for node in ast.walk(tree) if isinstance(node, ast.Call)]
     # 外层调用在前(BFS 顺序), 保证链式调用不会被拆开处理
@@ -210,26 +213,32 @@ def parse_codegen(script: str) -> Tuple[List[ParsedAction], List[str]]:
     return actions, warnings
 
 
-def _parse_tree(script: str) -> Optional[ast.AST]:
-    """整段解析 —— 失败则退化成逐行解析, 尽量 salvage 出可用的行"""
+def _parse_tree(script: str) -> Tuple[Optional[ast.AST], List[int]]:
+    """
+    整段解析 —— 失败则退化成逐行解析, 尽量 salvage 出可用的行。
+
+    :return: (语法树, 解析失败的行号)
+    """
     try:
-        return ast.parse(script)
+        return ast.parse(script), []
     except SyntaxError:
         pass
     lines = script.splitlines()
     tree = ast.Module(body=[], type_ignores=[])
+    failed: List[int] = []
     ok = False
-    for line in lines:
+    for index, line in enumerate(lines, start=1):
         stripped = line.strip()
         if not stripped or stripped.startswith("#"):
             continue
         try:
             sub = ast.parse(stripped)
         except SyntaxError:
+            failed.append(index)
             continue
         tree.body.extend(sub.body)
         ok = True
-    return tree if ok else None
+    return (tree if ok else None), failed
 
 
 def _handle_call(call: ast.Call, actions: List[ParsedAction], warnings: List[str], consumed: set):
@@ -306,6 +315,10 @@ def _handle_call(call: ast.Call, actions: List[ParsedAction], warnings: List[str
             return
         if method == "reload":
             actions.append(ParsedAction("action", line=line, action="reload"))
+            return
+        if method == "screenshot":
+            # page.screenshot(path="x.png") —— 路径是本地的, 平台用不上, 只记动作
+            actions.append(ParsedAction("action", line=line, action="screenshot"))
             return
         if method in READ_METHODS:
             warnings.append(f"第 {line} 行已跳过: {method}(...) 是读取操作，不产生步骤")

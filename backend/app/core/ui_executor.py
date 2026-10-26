@@ -131,6 +131,16 @@ class UIExecutionError(Exception):
 # ============================================================================
 
 
+def strip_internal(steps: List[dict]) -> List[dict]:
+    """
+    去掉校验阶段注入的内部字段(`_element_id` / `_strategy` / `_locator` / `_name_attr`)。
+
+    **存进库的必须是纯 DSL** —— `contracts/steps.md` §1 说步骤 DSL 同时是存储格式、
+    编辑格式与执行格式。内部字段是校验/执行期的中间产物, 不该落库。
+    """
+    return [{k: v for k, v in step.items() if not k.startswith("_")} for step in steps]
+
+
 async def validate_steps(project_id: int, steps, resolver=None) -> Tuple[List[dict], List[str]]:
     """
     校验步骤 DSL。
@@ -436,6 +446,15 @@ class UIExecutor(object):
             }
             start = time.perf_counter()
             try:
+                # 元素引用在**执行期**重新解析 —— 用例建好之后元素可能被停用,
+                # 那时这一步要判失败(contracts/steps.md §4.1 第 3 条)
+                strategy, locator, name_attr = await self._resolve_target(step)
+                record["strategy"] = strategy
+                record["locator"] = locator
+                record["name_attr"] = name_attr
+                step["_strategy"] = strategy
+                step["_locator"] = locator
+                step["_name_attr"] = name_attr
                 await self._dispatch(page, step, base_url)
             except UINavigationBlocked as e:
                 record["status"] = "failed"
@@ -487,6 +506,24 @@ class UIExecutor(object):
         locator = step.get("_locator")
         name_attr = step.get("_name_attr")
         return build_locator(page, strategy, locator, name_attr)
+
+    async def _resolve_target(self, step: dict):
+        """
+        解析步骤的目标 → (策略, 定位值, 可访问名称)。
+
+        元素引用**在执行期重新查库** —— 用例建好之后元素可能已被停用,
+        这时该步骤判失败并说明是哪个元素失效(contracts/steps.md §4.1)。
+        """
+        if step.get("element"):
+            from app.crud.ui.UIElementDao import UIElementDao
+            from app.core.ui_locator import UILocatorError
+            element, err = await UIElementDao.resolve_reference(self.project_id, step["element"])
+            if element is None:
+                raise UILocatorError(err or f"引用的元素「{step['element']}」已停用或不存在",
+                                     REASON_ELEMENT_NOT_FOUND)
+            return element.strategy, element.locator, element.name_attr
+        # 内联定位 —— 定位值就是 value
+        return step.get("by"), step.get("value"), step.get("name")
 
     async def _unique(self, page, step: dict):
         """

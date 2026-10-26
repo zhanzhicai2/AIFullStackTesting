@@ -227,7 +227,13 @@ export default () => {
 
   // 录制导入 —— 后端只做静态解析, 平台不执行录制脚本里的任何内容
   const importRecord = useCallback(
-    async (payload: { project_id: number; source: string; script: string }) => {
+    async (payload: {
+      project_id: number;
+      source: string;
+      script: string;
+      directory_id?: number;
+      name?: string;
+    }) => {
       setSaving(true);
       try {
         const res = await importUiRecord(payload);

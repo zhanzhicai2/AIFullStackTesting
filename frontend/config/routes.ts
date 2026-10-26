@@ -83,6 +83,11 @@ export default [
         name: '用例管理',
         component: './uiTest/CaseManage',
       },
+      {
+        path: '/uiTest/record',
+        name: '录制导入',
+        component: './uiTest/Record',
+      },
     ],
   },
   {

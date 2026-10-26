@@ -164,10 +164,17 @@ class UIRunForm(BaseModel):
 
 
 class UIImportForm(BaseModel):
-    """录制脚本导入"""
+    """
+    录制脚本导入
+
+    `directory_id` 与 `name` 是可选的 —— 契约里没写, 但用例总要挂在某个目录下,
+    不传就落到顶级(None), 前端会引导用户去选目录 / 建目录(U3)。
+    """
     project_id: int
     source: str = "codegen"
     script: str
+    directory_id: int = None
+    name: str = None
 
     @validator("project_id", "script")
     def import_not_empty(cls, v):

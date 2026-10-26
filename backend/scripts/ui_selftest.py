@@ -23,7 +23,8 @@ from types import SimpleNamespace
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from app.core import ui_executor  # noqa: E402
-from app.core.ui_executor import ACTIONS, ASSERT_TYPE_MAPPING, STRATEGIES, UIExecutor, validate_steps  # noqa: E402
+from app.core.ui_executor import (ACTIONS, ASSERT_TYPE_MAPPING, STRATEGIES, UIExecutor,  # noqa: E402
+                                 strip_internal, validate_steps)
 from app.core.ui_locator import UILocatorError, resolve_unique  # noqa: E402
 from app.utils.ui_security import UINavigationBlocked, check_url, domain_allowed, is_blocked_ip, resolve_step_url  # noqa: E402
 
@@ -176,6 +177,11 @@ async def test_dsl_element_reference():
     check("元素引用解析出定位策略", valid and valid[0].get("_strategy") == "role", str(valid))
     check("元素引用解析出定位值", valid and valid[0].get("_locator") == "button", str(valid))
     check("元素引用解析出可访问名称", valid and valid[0].get("_name_attr") == "登录", str(valid))
+    # 存进库的必须是纯 DSL —— 内部字段不能落库
+    clean = strip_internal(valid)
+    check("内部字段被剥掉", clean and not any(k.startswith("_") for k in clean[0]), str(clean))
+    check("业务字段保留", clean and clean[0].get("element") == "登录页.登录按钮", str(clean))
+    check("动作保留", clean and clean[0].get("action") == "click", str(clean))
 
     valid, warnings = await validate_steps(1, [{"action": "click", "element": "登录页.没有"}],
                                             resolver=fake_resolver_missing)
@@ -430,6 +436,120 @@ def test_executor_contract():
     check("ACTIONS 恰好 26 种", len(ACTIONS) == 26, str(len(ACTIONS)))
 
 
+def test_codegen_parser():
+    """T033 —— codegen 脚本的静态解析"""
+    print("== codegen 脚本静态解析 ==")
+    from app.core.ui_recorder import element_name_of, normalize_page, parse_codegen
+
+    # ---- sync 目标 ----
+    sync = '''from playwright.sync_api import Playwright, sync_playwright
+
+def run(playwright: Playwright) -> None:
+    browser = playwright.chromium.launch(headless=False)
+    context = browser.new_context(viewport={"width": 1280, "height": 720})
+    page = context.new_page()
+    page.goto("https://example.com/login")
+    page.get_by_label("用户名").fill("admin")
+    page.get_by_role("button", name="登录").click()
+    page.get_by_placeholder("验证码").fill("1234")
+    page.get_by_test_id("submit").click()
+    page.get_by_text("提交").click()
+    page.locator("#captcha").click()
+    page.locator("div.form").click()
+    page.locator("xpath=//div[@id='x']").click()
+    page.get_by_text("错误提示").wait_for()
+    page.wait_for_timeout(500)
+    page.set_viewport_size({"width": 1280, "height": 720})
+    browser.close()
+'''
+    actions, warnings = parse_codegen(sync)
+    check("sync 脚本解析出动作", len(actions) == 12, f"实际 {len(actions)}: {[a.action for a in actions]}")
+    check("sync 脚本无告警", warnings == [], str(warnings))
+    kinds = [a.action for a in actions]
+    check("goto 被识别", actions[0].kind == "goto" and actions[0].params.get("url") == "https://example.com/login",
+          str(actions[0].params))
+    check("fill 被识别", "fill" in kinds, str(kinds))
+    check("click 被识别", "click" in kinds, str(kinds))
+    check("wait_for 被识别", "wait_for" in kinds, str(kinds))
+    check("wait_timeout 被识别", "wait_timeout" in kinds, str(kinds))
+    check("set_viewport 被识别", "set_viewport" in kinds, str(kinds))
+    strategies = {a.strategy for a in actions if a.strategy}
+    for strategy in ["label", "role", "placeholder", "testid", "text", "css", "xpath", "id"]:
+        check(f"sync 识别出策略 {strategy}", strategy in strategies, str(strategies))
+    role = [a for a in actions if a.strategy == "role"]
+    check("role 的 accessible name 被解析", role and role[0].name_attr == "登录",
+          str([(a.name_attr) for a in role]))
+    id_ = [a for a in actions if a.strategy == "id"]
+    check("#id 选择器归到 id 策略", id_ and id_[0].locator == "captcha",
+          str([(a.locator) for a in id_]))
+    xpath = [a for a in actions if a.strategy == "xpath"]
+    check("xpath= 前缀被解析", xpath and xpath[0].locator == "//div[@id='x']",
+          str([(a.locator) for a in xpath]))
+
+    # ---- async 目标 ----
+    async_script = '''async def run(playwright: AsyncPlaywright) -> None:
+    browser = await playwright.chromium.launch(headless=False)
+    page = await browser.new_page()
+    await page.goto("https://example.com/login")
+    await page.get_by_label("用户名").fill("admin")
+    await expect(page.get_by_text("登录成功")).to_be_visible()
+    await expect(page.get_by_text("标题")).to_have_text("Pity")
+    await browser.close()
+'''
+    actions, warnings = parse_codegen(async_script)
+    check("async 脚本解析出动作", len(actions) == 4, f"实际 {len(actions)}")
+    check("async 脚本无告警", warnings == [], str(warnings))
+    kinds = [a.action for a in actions]
+    check("async 的 expect 断言被识别", "expect_visible" in kinds and "expect_text" in kinds, str(kinds))
+    expect_text = [a for a in actions if a.action == "expect_text"]
+    check("expect(...).to_have_text 的期望值被解析",
+          expect_text and expect_text[0].params.get("value") == "Pity", str(expect_text))
+
+    # ---- 无法解析的行被跳过且不中断整段 ----
+    mixed = '''page.goto("https://example.com/login")
+page.get_by_label("用户名").fill("admin")
+this is not python at all !!!
+page.get_by_role("button", name="登录").click()
+'''
+    actions, warnings = parse_codegen(mixed)
+    check("坏行不中断整段解析", len(actions) == 3, f"实际 {len(actions)}")
+    check("坏行有告警", len(warnings) >= 1, str(warnings))
+
+    # ---- 含自由代码的行被跳过(第二个安全面) ----
+    free_code = '''page.goto("https://example.com/login")
+page.evaluate("() => { document.cookie }")
+page.add_script_tag(content="alert(1)")
+page.get_by_label("用户名").fill("admin")
+'''
+    actions, warnings = parse_codegen(free_code)
+    check("自由代码的行被跳过", len(actions) == 2, f"实际 {len(actions)}: {[a.action for a in actions]}")
+    check("自由代码有告警", len(warnings) == 2, str(warnings))
+    check("告警说明了是执行代码的动作",
+          all("执行代码" in w for w in warnings), str(warnings))
+    # 解析器源码里不能有 eval / exec
+    recorder_path = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))),
+                                 "app", "core", "ui_recorder.py")
+    recorder_src = open(recorder_path, encoding="utf-8").read()
+    called = set()
+    for node in ast.walk(ast.parse(recorder_src)):
+        if isinstance(node, ast.Call) and isinstance(node.func, ast.Name):
+            called.add(node.func.id)
+    check("解析器没有调用 eval", "eval" not in called, str(called))
+    check("解析器没有调用 exec", "exec" not in called, str(called))
+    check("解析器没有 import importlib", "importlib" not in recorder_src)
+
+    # ---- 页面归一与元素命名 ----
+    name, url = normalize_page("https://example.com/login")
+    check("页面按 origin+path 归一", url == "https://example.com/login" and name == "login",
+          f"{name} {url}")
+    name, url = normalize_page("https://example.com/")
+    check("根路径用主机名做页面名", name == "example.com", f"{name} {url}")
+    check("role 元素名取可访问名称", element_name_of("role", "button", "登录") == "登录")
+    check("label 元素名取定位值", element_name_of("label", "用户名", None) == "用户名")
+    check("css 元素名去掉特殊字符", element_name_of("css", "#login-btn", None) == "login-btn",
+          element_name_of("css", "#login-btn", None))
+
+
 def main():
     asyncio.run(test_dsl_positive())
     asyncio.run(test_dsl_required_fields())
@@ -449,6 +569,7 @@ def main():
     asyncio.run(test_multi_element_failure())
     test_assert_summary()
     test_executor_contract()
+    test_codegen_parser()
     print("")
     if FAILED:
         print(f"FAILED {len(FAILED)} 项: {FAILED}")

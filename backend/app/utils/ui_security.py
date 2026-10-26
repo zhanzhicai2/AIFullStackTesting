@@ -163,6 +163,14 @@ def check_url(url: str, allowed_domains: Iterable[str], allow_empty_list: bool =
     return url
 
 
+def url_host(url: str) -> str:
+    """取 URL 的主机名(小写) —— 解析不出来返回空串"""
+    try:
+        return (urlparse(url or "").hostname or "").lower()
+    except Exception:
+        return ""
+
+
 def resolve_step_url(base_url: str, target: str, allowed_domains: Iterable[str]) -> str:
     """
     检查点 6: 步骤里的 URL。
