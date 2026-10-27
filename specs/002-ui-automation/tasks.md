@@ -16,7 +16,7 @@
 > - T017 补 D1 的显式角色说明
 > - 任务编号在 T016 之后统一 +1（原 T016~T049 → T017~T050）
 
-> **实现记录（Phase 1 ~ Phase 6 落地时）** —— T001~T050 已完成，实现与契约有 22 处偏差/补齐，逐条记在这里：
+> **实现记录（Phase 1 ~ Phase 6 落地时）** —— T001~T050 已完成，实现与契约有 26 处偏差/补齐，逐条记在这里：
 >
 > 1. **T004 多落地 1 个 DAO**：任务列了 5 个 DAO，但 6 张表里的 `pity_ui_allowed_domain` 同样需要 DAO —— 补 `backend/app/crud/ui/UIAllowedDomainDao.py`（共 6 个）。
 > 2. **T020 的分派点在 `Executor.run` 而非 `run_single`**：`case_info` 是在 `run()` 里取的，`run_single` 只负责分发到 `run_with_test_data` → `run`。按契约「拿到 case_info 之后、HTTP 请求之前」分派，落在 `run()` 里，批量与单条调试共用同一条路径。
@@ -49,8 +49,17 @@
 >
 > **验收的诚实边界**（T045~T048）：
 > - ✅ **能自动验的都验了**：SSRF 场景 D 全表（D1~D7）进了 `ui_selftest.py`；跨 feature 契约核对（T049）也进了 selftest —— 001 的规则 11–14 指向 002 为准 + 两端常量无漂移；前端 `tsc --noEmit` 0 错误、eslint 0 告警；后端 selftest 293 项断言全绿。
-> - ⚠️ **要浏览器才能验的没验**：浏览器实际执行、失败截图落 OSS、并发上下文隔离、SC-004 的执行成功率、SC-005 的截图覆盖率 —— 本机装不了 chromium（`pip install` / `playwright install` 被环境拦了）。`ui_e2e.py` 已写好，在装了 chromium 的环境里跑一次即可。
+> - ✅ **浏览器路径也验了**（装了 playwright 1.64.1 + chromium-1248 之后）：用例通过、逐步骤结果带定位策略(FR-023)、断言汇总是接口用例同构格式、**元素停用后判失败并指明元素与分类**、**断言不通过判失败并留下截图**、**白名单外的域名被拦（navigation_blocked）**、`/ui/case/run` 的结果落 `pity_test_result` 且 `result_id` 对得上。
+> - ⚠️ **要起后端服务才能验的没验**：`ui_e2e.py` 的 HTTP 层（分类器不让起后台常驻进程）—— 同一批断言已用「直接调路由函数」的等价方式验过。
 > - ⚠️ **要起前端才能验的没验**：U1~U6 的界面呈现（提示文案、入口位置、禁用态）是按契约实现的，`tsc`/eslint 过了，但没在浏览器里点过。
+>
+> **浏览器路径验证时发现并修掉的 2 个真 bug**：
+> 23. **断言不通过时没有截图**：`_capture` 只在「步骤失败」和「导航被拦」时调用，而断言失败不抛异常（只是把 status 改成 1），所以**断言失败的用例从来没有截图** —— 违反契约「失败时自动截图」。现在断言失败也会补拍并重新组装结果。
+> 24. **`/ui/case/run` 的 `result_id` 一直是 `None`**：`TestResultDao.insert_report` 不返回新建行的 id，契约 §3.2 却要求回传 `result_id`。现在 `insert_report` 返回 id（既有调用方忽略返回值，向后兼容）。
+>
+> **浏览器路径验证时补的两处**：
+> 25. **`pity_ui_case` 加了 `locale` 列（默认 `en-US`）**：同一个 URL 在不同 `Accept-Language` 下返回的内容不同（实测 example.com 会按浏览器语言返回中/英/俄等多语言版本）—— **不钉死 locale 就谈不上「同样的输入产出完全一致的结果」**（constitution 原则 I）。前端用例编辑器里可改。
+> 26. **chromium 启动有回退**：默认用 headless shell，失败则回退到完整 chromium 构建（`channel="chromium"`）。有些环境只装了完整构建（如 `playwright install chromium --no-shell`），回退让它照样跑得起来。回退顺序固定，不含随机。
 
 ---
 

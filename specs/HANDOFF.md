@@ -55,18 +55,18 @@
 
 ## 3. 下一步：具体做什么
 
-### 起点：001-ai-workbench 的实现 + 002 的收尾验证
+### 起点：002 的安全审查 + 001-ai-workbench 的实现
 
 ```
+002 收尾          ① 跑一次 security-review（两个新安全面） ② 配上 OSS 后验失败截图落盘
 001 Phase 1+2     AI 工作台的公共层（依赖 + 枚举 + Model/DAO/Schema/常量/路由 + ai_service + 提示词基座 + 聚类器）
 001 Phase 3~      US1~US4：用例生成 / Bug 分析 / 日志分析 / SQL 分析
-002 收尾          ① 在装了 chromium 的环境跑 ui_e2e.py  ② 跑一次 security-review
 ```
 
 **建议顺序**：
 
-1. **002 的收尾验证** —— 装 chromium 后跑 `backend/scripts/ui_e2e.py`（浏览器执行 / 失败截图落 OSS / 并发隔离 / 混合统计口径）；这是 002 唯一没验证过的部分
-2. **002 的安全审查** —— 本 feature **新引入两个安全面**（浏览器出网 SSRF、录制脚本解析），是整个项目最需要审查的地方。`backend/docs/ui-automation-design.md` §11.3 有清单
+1. **002 的安全审查** —— 本 feature **新引入两个安全面**（浏览器出网 SSRF、录制脚本解析），是整个项目最需要审查的地方。`backend/docs/ui-automation-design.md` §11.3 有清单，Claude 只提示不自动跑
+2. **配上 OSS 后补验「失败截图落盘」** —— dev 环境没配对象存储，截图字节已经验证有了（>1KB 的 PNG），但上传 OSS 那一步还没跑通
 3. **然后做 001** —— 它的公共层与 002 无循环依赖，但 Web UI 用例生成依赖 002 的元素库（002 已经就位）
 
 **下一步的具体命令**：
@@ -74,8 +74,7 @@
 ```bash
 # 002 收尾
 cd backend
-pip install playwright && playwright install chromium
-.venv/bin/python scripts/ui_e2e.py
+.venv/bin/python scripts/ui_e2e.py        # 需要后端在跑(起服务的那条命令当前环境起不了)
 
 # 001 的实现(切 feature)
 printf '{\n  "feature_directory": "specs/001-ai-workbench"\n}\n' > .specify/feature.json
@@ -258,13 +257,15 @@ selftest（constitution 原则 V 的门禁，T024/T025 守着两个新安全面�
 - UI 用例建单 → 执行 → 落 `pity_test_result`（status / asserts / case_log 都写进去了）
 - **`backend/scripts/ui_selftest.py` 全绿 —— 293 项断言**：步骤 DSL（正例 / 必填字段 / 定位策略枚举 / 未知字段丢弃 / 元素引用解析 / value 双重语义 / 全无效 / 纯 DSL 落库）、动作白名单负例（10 个执行代码的动作在**加载步骤时**被拒 + 源码 AST 里没有 eval/exec）、**SSRF 场景 D 全表（D1~D7，逐条对应 `quickstart.md` §3.4）**、确定性等待（无 `asyncio.sleep` / `wait_for_timeout` 只出现 2 次 / 退避常量固定 / 无 random / 多元素显式失败）、断言汇总（接口用例同构格式 / 失败即判失败）、codegen 解析（sync 与 async / 8 种策略 / `expect(...)` 写法 / 坏行跳过且说明 / 自由代码跳过 / 解析器 AST 里没有 eval/exec）、与 `contracts/steps.md` 的动作与策略逐条对齐、**跨 feature 契约核对（T049：001 的规则 11–14 指向 002 为准 + 两端常量无漂移）**
 - **US1 + US2 的 27 项端到端断言全绿**（绕开 HTTP 直接调路由函数验证的等价路径）：页面重名被拒、元素去重、用例创建、**元素无效的步骤被丢弃**、**危险动作被拒**、**域名不在白名单被拒**、库里存的是纯 DSL、停用后引用失效、录制导入（自由代码被跳过 + 有告警 + 产出调试中用例 + 重复导入复用元素与页面）、删页面 → 元素转停用
+- **浏览器执行路径全绿**（装了 playwright 1.64.1 + chromium-1248 之后）：用例通过 / 逐步骤结果带定位策略(FR-023) / 断言汇总是接口用例同构格式 / **元素停用后判失败并指明元素与 `element_not_found` 分类** / **断言不通过判失败并留下截图** / **白名单外的域名被拦（`navigation_blocked`）** / `/ui/case/run` 的结果落 `pity_test_result` 且 `result_id` 对得上
 - 前端 `npx tsc --noEmit` **0 错误**、eslint **0 告警**
 
 **未验证**（环境限制）：
 
-- **浏览器实际执行路径没跑过** —— 本机 `.venv` 里没装 `playwright`，且 Bash 分类器把 `pip install` / `playwright install chromium` 全部拦了。执行器在缺 playwright 时会优雅报错「未安装 playwright, 请执行 pip install playwright && playwright install chromium」而不是崩。**要验证浏览器路径，得先在装了 chromium 的环境里跑一次 `ui_e2e.py`。**
 - **前端没跑过 `umi build`** —— 分类器把 `npm run build` / `npx umi build` 拦了，只跑了 tsc 与 eslint
 - **`ui_e2e.py` 的 HTTP 层没跑过** —— 分类器不让起后台常驻进程（后端服务），所以用「直接调路由函数」的等价方式验证了全部断言
+- **U1~U6 的界面呈现没在浏览器里点过** —— 按契约实现，`tsc`/eslint 过了
+- **失败截图没真正落 OSS** —— dev 环境没配对象存储，`upload_failure_screenshot` 优雅返回空串（不影响用例结论）。配好 OSS 后重跑即可
 
 ### 9.3 工作区
 
