@@ -81,6 +81,15 @@ async def lifespan(app: FastAPI):
             f"database and tables  created failed.        ❌\nerror: {e}")
         raise
 
+    # 4. 注册内置 UI 执行节点 —— 用户无需额外配置就能执行 UI 用例(spec FR-019)
+    try:
+        from app.crud.ui.UINodeDao import UINodeDao
+        await UINodeDao.ensure_local_node()
+        logger.bind(name=None).success("ui local node registered.        ✔")
+    except Exception as e:
+        # 节点注册失败不该拖垮整个服务 —— UI 用例执行时会自己再注册
+        logger.bind(name=None).warning(f"注册内置 UI 执行节点失败: {e}")
+
     yield
     # shutdown 阶段:原 stop_test 是 pass,目前不需要额外清理
     # APScheduler / Redis 连接由各自实现负责关闭

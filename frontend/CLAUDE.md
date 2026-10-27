@@ -220,9 +220,10 @@ export default function useNewFeature() {
 `src/consts/uiTest.ts` 里的 `UI_ACTIONS`（动作白名单）与 `UI_STRATEGIES`（8 种定位策略）是**后端 `backend/app/core/ui_executor.py` 的 `ACTIONS` / `STRATEGIES` 的镜像** —— **改一处必须同时改另一处**。契约文档：`../specs/002-ui-automation/contracts/steps.md`。
 
 - 后端是最终裁决者（不合规的步骤被丢弃）；前端只做**提前提示**，不在前端做最终判定 —— 前端放行、后端丢弃会造成「改了还是被丢弃」的困惑
-- `src/services/uiTest.ts` + `src/models/uiTest.ts`（hooks 风格）封装 `/ui/*` 的 22 个端点
-- 页面在 `src/pages/uiTest/`（**小写 t**）：`Element/`（元素库）、`CaseManage/`（用例列表 + 用例编辑器）、`Record/`（录制导入）
+- `src/services/uiTest.ts` + `src/models/uiTest.ts`（hooks 风格）封装 `/ui/*` 的 27 个端点
+- 页面在 `src/pages/uiTest/`（**小写 t**）：`Element/`（元素库）、`CaseManage/`（用例列表 + 用例编辑器）、`Record/`（录制导入）、`Execution/`（执行中心）、`Node/`（执行节点）
   - ⚠️ 目录名是 `uiTest` 不是 `UiTest` —— 仓库里早就有个同名的旧 JS 页面目录，macOS 大小写不敏感，写错大小写会让 TypeScript 报 TS1261、Linux CI 直接构建失败。**路径一律用磁盘上的真实大小写**
+- 报告页 `src/pages/BuildHistory/ReportDetail.jsx` 扩了「附件」tab，展示 UI 用例的失败截图（数据来自 `/ui/execution/attachments`）
 - **白名单为空 = 不可执行**（不是「允许全部」）：前端要提示「本项目尚未配置允许访问的域名，去配置」
 
 ## 重要规则

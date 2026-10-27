@@ -316,6 +316,73 @@ res = c.request("/ui/domain/list", params={"project_id": PROJECT_ID})
 domains = res.get("data") or []
 check("白名单里有 example.com", any(d["domain"] == "example.com" for d in domains), str(domains)[:200])
 
+# ---------- 11. 执行中心与报告(US3) ----------
+print("== 执行中心与报告(US3) ==")
+from app.crud.test_case.TestCaseDao import TestCaseDao  # noqa: E402
+from app.crud.test_case.TestReport import TestReportDao  # noqa: E402
+from app.crud.test_case.TestResult import TestResultDao  # noqa: E402
+from datetime import datetime as _dt  # noqa: E402
+
+all_cases = asyncio.run(TestCaseDao.list_test_case(directory_id=1))
+ui_cases = [c for c in all_cases if c.request_type == 4]
+api_cases = [c for c in all_cases if c.request_type != 4]
+check("有 UI 用例", len(ui_cases) > 0, f"{len(ui_cases)}")
+
+if ui_cases and api_cases:
+    ui_case_id = ui_cases[0].id
+    api_case_id = api_cases[0].id
+    # 造一份「UI 用例 + 接口用例」的混合报告
+    mixed_report = asyncio.run(TestReportDao.start(0, env_id, mode=0))
+    asyncio.run(TestResultDao.insert_report(
+        mixed_report, ui_case_id, "混合里的UI用例", 0, "日志", _dt.now(), _dt.now(),
+        "https://example.com", "", "", "", "0.3s", "{}", "", "", None, "", 0, "", "", None))
+    asyncio.run(TestResultDao.insert_report(
+        mixed_report, api_case_id, "混合里的接口用例", 1, "日志", _dt.now(), _dt.now(),
+        "https://example.com/api", "", "", "", "0.2s", "{}", "", "", None, "", 0, "", "", None))
+    asyncio.run(TestReportDao.end(mixed_report, 1, 1, 0, 0, 3, "0.5"))
+
+    # 报告整体口径: 两类用例一起算
+    res = c.request("/testcase/report", params={"id": mixed_report})
+    report = (res.get("data") or {}).get("report") or {}
+    total_all = report.get("success_count", 0) + report.get("failed_count", 0) + report.get("error_count", 0)
+    percent_all = round(report.get("success_count", 0) * 100 / total_all, 2) if total_all else 0
+    check("报告总通过率含两类用例", percent_all == 50.0, f"{percent_all} (总 {total_all})")
+
+    # 执行中心: UI 统计只算 UI 用例
+    res = c.request("/ui/execution/list", params={"page": 1, "size": 50})
+    rows = res.get("data") or []
+    row = [r for r in rows if r["id"] == mixed_report]
+    check("执行中心能查到这份报告", len(row) == 1, str(res)[:200])
+    if row:
+        row = row[0]
+        check("UI 用例数只算 UI 的", row.get("ui_total") == 1, str(row)[:200])
+        check("UI 通过数只算 UI 的", row.get("ui_success") == 1, str(row)[:200])
+        check("UI 通过率与整体口径分开算", row.get("ui_percent") == 100.0, str(row)[:200])
+
+    # 重新执行 -> 新的报告, 原记录不被覆盖
+    res = c.request("/ui/execution/rerun", "POST", {"env": env_id, "case_id": [ui_case_id]})
+    new_report = (res.get("data") or {}).get("report_id")
+    check("重新执行产生新记录", res.get("code") == 0 and new_report and new_report != mixed_report,
+          str(res)[:200])
+    res = c.request("/ui/execution/list", params={"page": 1, "size": 50})
+    ids = [r["id"] for r in (res.get("data") or [])]
+    check("原记录还在", mixed_report in ids, str(ids)[:200])
+    check("新记录也在", new_report in ids, str(ids)[:200])
+
+    # 删除 -> 进回收站
+    res = c.request("/ui/execution/delete", params={"report_id": mixed_report})
+    check("删除执行记录", res.get("code") == 0, str(res)[:200])
+    res = c.request("/ui/execution/list", params={"page": 1, "size": 50})
+    ids = [r["id"] for r in (res.get("data") or [])]
+    check("删除后不在历史里", mixed_report not in ids, str(ids)[:200])
+    res = c.request("/ui/execution/list", params={"page": 1, "size": 50, "deleted": True})
+    ids = [r["id"] for r in (res.get("data") or [])]
+    check("删除后进回收站", mixed_report in ids, str(ids)[:200])
+
+    # 附件: 没有截图时返回空列表(截图要真跑一次浏览器才会产生)
+    res = c.request("/ui/execution/attachments", params={"report_id": mixed_report})
+    check("附件接口可用", res.get("code") == 0, str(res)[:200])
+
 print("")
 if FAILED:
     print(f"FAILED {len(FAILED)} 项: {FAILED}")

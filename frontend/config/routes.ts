@@ -88,6 +88,16 @@ export default [
         name: '录制导入',
         component: './uiTest/Record',
       },
+      {
+        path: '/uiTest/execution',
+        name: '执行中心',
+        component: './uiTest/Execution',
+      },
+      {
+        path: '/uiTest/node',
+        name: '执行节点',
+        component: './uiTest/Node',
+      },
     ],
   },
   {

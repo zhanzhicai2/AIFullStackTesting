@@ -3,6 +3,7 @@ import {Badge, Card, Col, Descriptions, Divider, Input, Row, Spin, Statistic, Ta
 import {PageContainer} from "@ant-design/pro-components";
 import React, {useEffect, useState} from "react";
 import {queryReport} from "@/services/report";
+import {listUiAttachments} from "@/services/uiTest";
 import auth from "@/utils/auth";
 import styles from './ReportDetail.less';
 import './ReportDetail.less';
@@ -36,6 +37,8 @@ const ReportDetail = ({dispatch, loading, user, gconfig}) => {
   const [caseName, setCaseName] = useState('');
   const [caseList, setCaseList] = useState([]);
   const [currentCaseList, setCurrentCaseList] = useState([]);
+  // UI 用例的失败截图 —— 「附件」tab
+  const [attachments, setAttachments] = useState([]);
   const {envMap, envList} = gconfig;
   const {userMap, userNameMap} = user;
 
@@ -132,6 +135,14 @@ const ReportDetail = ({dispatch, loading, user, gconfig}) => {
       setCurrentCaseList(res.data.case_list);
       setReportDetail(res.data.report);
       setPlanName(res.data.plan_name);
+      // UI 用例的失败截图(附件 tab) —— 复用 /ui 的执行中心接口, 不另建一套
+      listUiAttachments(reportId)
+        .then(att => {
+          if (att?.code === 0) {
+            setAttachments(att.data || []);
+          }
+        })
+        .catch(() => undefined);
     }
   }
 
@@ -300,21 +311,46 @@ const ReportDetail = ({dispatch, loading, user, gconfig}) => {
             </Col>
           </Row>
         </Card>
-        <Card className={styles.bottomCard} title="用例列表">
-          <Row gutter={[8, 8]}>
-            <Col span={18}/>
-            <Col span={6}>
-              <Input prefix={<SearchOutlined/>} placeholder="请输入场景名称" className="borderSearch"
-                     onPressEnter={onSearchCase}/>
-            </Col>
-          </Row>
-          <Row gutter={[8, 8]}>
-            <Col span={24}>
-              <Table columns={columns} dataSource={currentCaseList}
-                     locale={{emptyText: <NoRecord height={200}/>}}/>
-            </Col>
-          </Row>
-        </Card>
+        <Tabs defaultActiveKey="cases">
+          <TabPane tab="用例列表" key="cases">
+            <Card className={styles.bottomCard}>
+              <Row gutter={[8, 8]}>
+                <Col span={18}/>
+                <Col span={6}>
+                  <Input prefix={<SearchOutlined/>} placeholder="请输入场景名称" className="borderSearch"
+                         onPressEnter={onSearchCase}/>
+                </Col>
+              </Row>
+              <Row gutter={[8, 8]}>
+                <Col span={24}>
+                  <Table columns={columns} dataSource={currentCaseList}
+                         locale={{emptyText: <NoRecord height={200}/>}}/>
+                </Col>
+              </Row>
+            </Card>
+          </TabPane>
+          <TabPane tab={`附件 (${attachments.length})`} key="attachments">
+            <Card className={styles.bottomCard}>
+              {attachments.length === 0 ? (
+                <NoRecord height={200}/>
+              ) : (
+                <Row gutter={[8, 8]}>
+                  {attachments.map(att => (
+                    <Col span={8} key={att.file_path}>
+                      <Card size="small" hoverable
+                            cover={<img src={att.url} alt={att.name}
+                                        style={{width: '100%', height: 180, objectFit: 'cover'}}/>}>
+                        <a href={att.url} target="_blank" rel="noreferrer">
+                          用例 #{att.case_id} · {att.name}
+                        </a>
+                      </Card>
+                    </Col>
+                  ))}
+                </Row>
+              )}
+            </Card>
+          </TabPane>
+        </Tabs>
       </Spin>
 
 

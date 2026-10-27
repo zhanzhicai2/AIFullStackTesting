@@ -306,6 +306,85 @@ export async function runUiCase(data: { case_id: number; env?: number; node_id?:
   });
 }
 
+// ---------- 执行中心 ----------
+
+export interface UiExecution {
+  id: number;
+  executor: number;
+  env: number;
+  plan_id?: number;
+  plan_name?: string;
+  status: number;
+  mode: number;
+  cost?: string;
+  start_at?: string;
+  finished_at?: string;
+  success_count: number;
+  failed_count: number;
+  error_count: number;
+  skipped_count: number;
+  /** 该报告里 UI 用例的数量与通过数 —— 与接口用例同一套口径 */
+  ui_total: number;
+  ui_success: number;
+  ui_failed: number;
+  ui_error: number;
+  ui_percent: number;
+}
+
+export interface UiAttachment {
+  case_id: number;
+  name: string;
+  url: string;
+  file_path: string;
+  file_size?: string;
+}
+
+export async function listUiExecutions(params: {
+  page?: number;
+  size?: number;
+  start_time?: string;
+  end_time?: string;
+  executor?: string;
+  deleted?: boolean;
+}) {
+  return request<PityResponse>(`${CONFIG.URL}/ui/execution/list`, {
+    method: 'GET',
+    params,
+    headers: auth.headers(),
+  });
+}
+
+export async function listUiRunningExecutions() {
+  return request<PityResponse>(`${CONFIG.URL}/ui/execution/running`, {
+    method: 'GET',
+    headers: auth.headers(),
+  });
+}
+
+export async function listUiAttachments(reportId: number) {
+  return request<PityResponse>(`${CONFIG.URL}/ui/execution/attachments`, {
+    method: 'GET',
+    params: { report_id: reportId },
+    headers: auth.headers(),
+  });
+}
+
+export async function rerunUiExecutions(payload: { env: number; case_id: number[] }) {
+  return request<PityResponse>(`${CONFIG.URL}/ui/execution/rerun`, {
+    method: 'POST',
+    data: payload,
+    headers: auth.headers(),
+  });
+}
+
+export async function deleteUiExecution(reportId: number) {
+  return request<PityResponse>(`${CONFIG.URL}/ui/execution/delete`, {
+    method: 'GET',
+    params: { report_id: reportId },
+    headers: auth.headers(),
+  });
+}
+
 // ---------- 录制导入 ----------
 
 export async function importUiRecord(data: {

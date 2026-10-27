@@ -81,3 +81,25 @@ class UINodeDao(Mapper):
                 await session.flush()
                 session.expunge(data)
                 return True
+
+    @classmethod
+    async def ensure_local_node(cls):
+        """
+        注册内置的本地执行节点(v1 只有本地节点)。
+
+        平台启动时调用一次 —— 用户无需额外配置就能执行 UI 用例(spec FR-019)。
+        重复调用只会刷新状态, 不会产生第二条。
+        """
+        from app.models import async_session
+        from app.models.user import User
+        from sqlalchemy import select
+        async with async_session() as session:
+            sql = select(User.id).where(User.deleted_at == 0).order_by(User.id.asc()).limit(1)
+            result = await session.execute(sql)
+            user_id = result.scalars().first()
+        if not user_id:
+            # 库里还没有用户 —— 先落 0, 用户注册后由心跳接口刷新
+            user_id = 0
+        return await cls.register_node(name="内置本地节点", user_id=user_id, node_type="local",
+                                       browser="chromium", headless=True, max_concurrency=2,
+                                       version="1.0.0")

@@ -155,9 +155,10 @@ Playwright 驱动的 UI 自动化。核心约定：
 | `app/core/ui_locator.py` | 8 种策略 → Playwright Locator；**多元素显式失败** |
 | `app/core/ui_recorder.py` | codegen 脚本**静态解析**（`ast`，不 eval/exec）+ 自动建页面/元素 |
 | `app/utils/ui_security.py` | SSRF 六道拦截 |
-| `app/routers/ui/` | 22 个端点，前缀 `/ui`（page 4 / element 5 / domain 3 / node 3 / case 6 / record 1） |
+| `app/routers/ui/` | 27 个端点，前缀 `/ui`（page 4 / element 5 / domain 3 / node 3 / case 6 / record 1 / execution 5） |
+| `app/crud/ui/UIExecutionDao.py` | 执行中心：复用 `pity_report` / `pity_test_result`，只做 UI 用例的筛选与汇总 |
 | `scripts/ui_selftest.py` | 267 项自测断言，**不依赖数据库** |
-| `scripts/ui_e2e.py` | US1 + US2 的 HTTP 端到端（需要 chromium） |
+| `scripts/ui_e2e.py` | US1 + US2 + US3 的 HTTP 端到端（需要 chromium） |
 
 **跑 UI 用例前必须装浏览器**：`pip install playwright && playwright install chromium`（只装 Python 包不装二进制会在执行时报「未安装 playwright」）。镜像里由 `INSTALL_PLAYWRIGHT=1` build arg 控制（见 `scripts/build-images.sh`）。
 
@@ -167,6 +168,8 @@ Playwright 驱动的 UI 自动化。核心约定：
 - **`timeout` 单位**：`wait_timeout` 是毫秒，其余动作是秒
 - **存进库的步骤是「纯 DSL」** —— 校验期注入的内部字段（`_element_id` / `_strategy` / `_locator` / `_name_attr`）要用 `strip_internal()` 剥掉再存。**执行器在执行期重新解析元素引用** —— 用例建好之后元素可能被停用，那一步要判失败
 - **UI 断言写进 `pity_test_result.asserts` 用的是接口用例同构格式**（`{key: {status, msg}}`），报告页的 `getSource()` 只认这个结构；富明细走 API 响应的 `assertions[]`
+- **执行中心不新建表** —— 报告与结果都在既有的 `pity_report` / `pity_test_result` 里；UI 统计只是多算一列，**口径与接口用例一致**
+- **内置本地节点在平台启动时自动注册**（`app/__init__.py` 的 lifespan 第 4 步），注册失败不拖垮服务
 - **执行结果不可重放** —— 步骤定义确定，但页面内容与断言成败取决于被测系统，代码与文档里都要显式标注
 
 ### 配置（`config.py`）
