@@ -194,23 +194,31 @@ npm run lint:js
 复制这段给新会话：
 
 ```
-继续 AIFullStackTesting 的 UI 自动化子系统实现。交接文档在 specs/HANDOFF.md，先读它。
+继续 AIFullStackTesting 的开发。交接文档在 specs/HANDOFF.md，先读它。
 
 当前状态：
-- 002-ui-automation 的 Phase 1 + Phase 2（T001~T022）已落地并跑过验证 ——
-  元素库、Playwright 底座、SSRF 边界、录制静态解析、21 个 /ui/* 端点、前端三件套。
-- US1~US3（前端页面与三个用户故事）还没做。
-- 001-ai-workbench 仍是纯设计。
+- 002-ui-automation **全部 50 个任务已完成并验证**：元素库、Playwright 底座、SSRF 边界、
+  录制静态解析、27 个 /ui/* 端点、前端六个页面、304 项自测断言、浏览器路径实测通过。
+  细节看 specs/002-ui-automation/tasks.md 顶部的「实现记录」与「安全审查」两张表。
+- 001-ai-workbench（AI 工作台：用例生成 / Bug 分析 / 日志分析 / SQL 分析）**仍是纯设计，一行代码没写**。
 
-下一步：按 specs/002-ui-automation/tasks.md 的 Phase 3 开始 —— 先补 T023~T026 的
-selftest（constitution 原则 V 的门禁，T024/T025 守着两个新安全面），再做 T028~T031 的前端页面，
-最后 T032 的 e2e。
+下一步：做 001-ai-workbench 的 Phase 1（骨架，T001~T010）+ Phase 2（公共层，T011~T020）。
+  - Phase 1：依赖(pypdf/python-docx)、ai_prompts 包、backend/app/enums/AIWorkbenchEnum.py
+    （断言类型白名单的权威定义）、前端 consts/services/models、四个占位页面、路由
+  - Phase 2：app/core/ai_service.py（resolve_model / invoke / extract_json）、
+    app/core/ai_prompts/base.py（外部文本标签包裹 + 头尾截断）、
+    app/models/ai_draft.py 四个 Model、app/crud/ai/ 四个 DAO、app/schema/ai_workbench.py、
+    app/utils/document_parser.py、app/core/ai_prompts/clustering.py（纯 Python 日志聚类）
+  - T019 会改到既有代码：app/routers/datafactory/dataset.py 与 app/routers/ai/chat.py
+    里重复的厂商/模型解析改成调 ai_service.resolve_model()；T013 会把
+    app/core/data_factory/ai_parser.py 的 _extract_json 抽到公共实现
+  - 001 的 Web UI 用例生成依赖 002 的元素库（002 已就位）
 
-注意 specs/HANDOFF.md §4 的硬约束（宪法门禁、安全边界、契约单一出处）、§5 的坑，
-以及 specs/002-ui-automation/tasks.md 顶部「实现记录」的 9 条偏差。
+注意 specs/HANDOFF.md §4 的硬约束（宪法门禁、安全边界、契约单一出处）与 §5 的坑，
+以及 specs/001-ai-workbench/contracts/dsl.md 的 14 条校验规则（断言 actually 引用的 ${变量}
+必须在 out_parameters 里，否则是**静默失败**）。
 
-动手前先装浏览器：pip install playwright && playwright install chromium
-每完成一个任务就更新 tasks.md 的勾选状态。
+每完成一个任务就更新 specs/001-ai-workbench/tasks.md 的勾选状态。
 ```
 
 ---
