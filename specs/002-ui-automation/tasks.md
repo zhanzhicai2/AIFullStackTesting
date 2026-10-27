@@ -16,7 +16,7 @@
 > - T017 补 D1 的显式角色说明
 > - 任务编号在 T016 之后统一 +1（原 T016~T049 → T017~T050）
 
-> **实现记录（Phase 1 ~ Phase 4 落地时）** —— T001~T036 已完成，实现与契约有 15 处偏差/补齐，逐条记在这里：
+> **实现记录（Phase 1 ~ Phase 5 落地时）** —— T001~T041 已完成，实现与契约有 19 处偏差/补齐，逐条记在这里：
 >
 > 1. **T004 多落地 1 个 DAO**：任务列了 5 个 DAO，但 6 张表里的 `pity_ui_allowed_domain` 同样需要 DAO —— 补 `backend/app/crud/ui/UIAllowedDomainDao.py`（共 6 个）。
 > 2. **T020 的分派点在 `Executor.run` 而非 `run_single`**：`case_info` 是在 `run()` 里取的，`run_single` 只负责分发到 `run_with_test_data` → `run`。按契约「拿到 case_info 之后、HTTP 请求之前」分派，落在 `run()` 里，批量与单条调试共用同一条路径。
@@ -35,6 +35,12 @@
 > 13. **存进库的步骤是「纯 DSL」，校验期注入的内部字段(`_element_id` / `_strategy` / `_locator` / `_name_attr`)被剥掉**（`ui_executor.strip_internal`）。`contracts/steps.md` §1 说步骤 DSL 同时是存储格式、编辑格式与执行格式，内部字段是中间产物不该落库。**执行器改为在执行期重新解析元素引用** —— 用例建好之后元素可能被停用，那一步要判失败（`contracts/steps.md` §4.1 第 3 条）；原来靠落库的 `_strategy` 继续用，元素停用了也不会报错，是错的。
 > 14. **逐行兜底解析时必须记下失败的行号**：整段 `ast.parse` 失败后退化成逐行解析，坏行原本被**静默丢弃**，违反 FR-017「跳过并在导入结果中说明」。现在会记下行号并在 `warnings` 里说明。
 > 15. **`base_url` 的域名在保存时也校验**（白名单非空时）：白名单为空时**不在保存时拦** —— 用户可能先把用例写好再配白名单，执行时会被拦并给出 U1 的就地指引。
+>
+> **Phase 5（US3 执行中心与报告）落地时补的 4 条**：
+> 16. **执行中心没有直接复用 `GET /testcase/report/list`，而是新增了 `/ui/execution/list`**：既有接口拿不到「这个报告里有多少 UI 用例、UI 通过率多少」，而执行中心的表格列要的正是这个。底层仍是同一张 `pity_report` 表与同一套统计口径（FR-034），**没有新建表**。
+> 17. **「附件」从 `pity_oss_file` 反查**（路径 `ui/<case_id>/<name>`），不去解析 `case_log` 文本：契约说截图 URL 写进 case_log，但报告页要展示附件列表，从 oss 表反查更可靠 —— 日志文本是人读的，附件列表是机器读的。
+> 18. **内置本地节点在平台启动时自动注册**（`app/__init__.py` 的 lifespan 第 4 步）：spec FR-019 要求「用户无需额外配置即可执行 UI 用例」，而 `/ui/node/heartbeat` 要用户手动调一次。启动时注册 + 心跳接口兜底，两条路都通。注册失败不拖垮服务（UI 用例执行时会再注册）。
+> 19. **删除执行记录要软删 `pity_report` + 它的 `pity_test_result`**：`pity_report` 不继承 `PityBase`（没有 `update_user` / `updated_at` 列），只能自己设 `deleted_at`。删除后进回收站，重新执行产生**新**报告，原记录不被覆盖。
 
 ---
 
@@ -134,14 +140,14 @@
 
 ### Tests for User Story 3 ⚠️
 
-- [ ] T037 [P] [US3] 在 `backend/scripts/ui_e2e.py` 实现 US3 端到端：UI 用例与接口用例混合执行 → 报告通过率合并计算且口径一致 → 重新执行产生新记录且原记录不被覆盖 → 删除历史记录生效 → 报告附件能取到失败截图
+- [x] T037 [P] [US3] 在 `backend/scripts/ui_e2e.py` 实现 US3 端到端：UI 用例与接口用例混合执行 → 报告通过率合并计算且口径一致 → 重新执行产生新记录且原记录不被覆盖 → 删除历史记录生效 → 报告附件能取到失败截图
 
 ### Implementation for User Story 3
 
-- [ ] T038 [US3] 实现 `backend/app/routers/ui/` 下的执行中心端点：**复用既有的 `pity_report` / `pity_test_result`**，只做 UI 用例的筛选与汇总；支持重新执行与删除历史记录（复用既有接口语义，不新建表）
-- [ ] T039 [US3] 修改 `frontend/src/pages/BuildHistory/ReportDetail.jsx`：扩"附件" tab，展示 UI 用例的失败截图；确保 UI 与接口用例的统计口径一致（spec FR-034）
-- [ ] T040 [P] [US3] 实现 `frontend/src/pages/UiTest/Execution/index.tsx`：执行中心（正在执行 / 执行历史 / 回收站三个视图），表格列为执行时间、任务名称、环境、执行结果、用例数、通过率、执行人；提供重新执行与删除
-- [ ] T041 [P] [US3] 实现 `frontend/src/pages/UiTest/Node/index.tsx`：执行节点列表（在线/离线状态、浏览器、并发上限）；无可用节点时就地提示（U6）
+- [x] T038 [US3] 实现 `backend/app/routers/ui/` 下的执行中心端点：**复用既有的 `pity_report` / `pity_test_result`**，只做 UI 用例的筛选与汇总；支持重新执行与删除历史记录（复用既有接口语义，不新建表）
+- [x] T039 [US3] 修改 `frontend/src/pages/BuildHistory/ReportDetail.jsx`：扩"附件" tab，展示 UI 用例的失败截图；确保 UI 与接口用例的统计口径一致（spec FR-034）
+- [x] T040 [P] [US3] 实现 `frontend/src/pages/UiTest/Execution/index.tsx`：执行中心（正在执行 / 执行历史 / 回收站三个视图），表格列为执行时间、任务名称、环境、执行结果、用例数、通过率、执行人；提供重新执行与删除
+- [x] T041 [P] [US3] 实现 `frontend/src/pages/UiTest/Node/index.tsx`：执行节点列表（在线/离线状态、浏览器、并发上限）；无可用节点时就地提示（U6）
 
 **Checkpoint**: 三个故事全部独立可用
 

@@ -7,7 +7,7 @@
 
 ## 0. 一句话状态
 
-用 Spec Kit 给两个 feature 走完了「specify → plan → tasks → analyze」全流程，设计产物齐全、两轮 `/speckit-analyze` 的发现全部修完（CRITICAL / HIGH 清零）。**`002-ui-automation` 的 Phase 1 ~ Phase 4 已落地**（T001~T036）—— 元素库地基、Playwright 底座、SSRF 边界、录制解析、22 个 `/ui/*` 端点、267 项自测断言、前端元素库/用例编辑器/录制导入三个页面全部写完并跑过验证；**只剩 US3（执行中心与报告）与 Polish 没做**。
+用 Spec Kit 给两个 feature 走完了「specify → plan → tasks → analyze」全流程，设计产物齐全、两轮 `/speckit-analyze` 的发现全部修完（CRITICAL / HIGH 清零）。**`002-ui-automation` 的 Phase 1 ~ Phase 5 已落地**（T001~T041）—— 元素库地基、Playwright 底座、SSRF 边界、录制解析、27 个 `/ui/*` 端点、267 项自测断言、前端六个页面（元素库 / 用例编辑器 / 录制导入 / 执行中心 / 执行节点 / 报告附件 tab）全部写完并跑过验证；**只剩 Polish 阶段（T042~T050）没做**。
 
 ---
 
@@ -55,21 +55,23 @@
 
 ## 3. 下一步：具体做什么
 
-### 起点：002 的 US3（执行中心与报告）
+### 起点：002 的 Polish 阶段（T042~T050）
 
 ```
-002 Phase 5       US3：执行中心与报告（T037~T041）
-002 Phase 6       Polish：文档、指引点验收、SSRF 场景验收、安全审查提示（T042~T050）
+002 Phase 6       Polish：文档同步、U1~U6 指引点验收、SSRF 场景 D 全表通过、
+                   跨 feature 契约核对、主动提示跑 security-review
 001 Phase 1+2     AI 工作台的公共层（与 002 无循环依赖，可并行）
 ```
 
 **建议顺序**：
 
-1. **US3（T037~T041）** —— 复用既有的 `pity_report` / `pity_test_result`，只扩报告页的「附件」tab（展示 UI 用例的失败截图）。前端三个页面：执行中心、执行节点列表。
-2. **Polish（T042~T050）** —— 文档同步、U1~U6 指引点逐条验收、§3.4 的 SSRF 场景 D 全表通过、跨 feature 契约核对（T049）、**主动提示用户跑 `security-review`**（T050 —— 本 feature 新引入两个安全面，是最需要审查的部分）
-3. 之后做 001 的公共层
+1. **T045 / T046 验收** —— 按 `quickstart.md` §3 与 §6 逐条核对 SC-001 ~ SC-012；**§3.4 的 SSRF 场景 D 必须全表通过**
+2. **T042 / T043 / T044 文档** —— 允许域名查询端点、backend/CLAUDE.md 与 `backend/docs/ui-automation-design.md` 同步
+3. **T049 跨 feature 契约核对** —— 确认 `001-ai-workbench/contracts/dsl.md` 规则 11–14 引用的动作白名单与本 feature 一致，两端常量无漂移
+4. **T050 主动提示跑 `security-review`** —— 本 feature **新引入两个安全面**（浏览器出网 SSRF、录制脚本解析），是本次最需要审查的部分；**由用户决定是否执行，不自动跑**
+5. 之后做 001 的公共层
 
-**第一个可演示增量**：US1 与 US2 的后端与前端页面都已就位，**只差在装了 chromium 的环境里跑一次 `ui_e2e.py` 把整条链路验证掉**。
+**第一个可演示增量**：US1~US3 的后端与前端都已就位，**只差在装了 chromium 的环境里跑一次 `ui_e2e.py` 把整条链路验证掉**。
 
 > ⚠️ **动手前先装浏览器**：`pip install playwright && playwright install chromium`。
 > 只装 Python 包不装二进制，执行时会报「未安装 playwright」。
