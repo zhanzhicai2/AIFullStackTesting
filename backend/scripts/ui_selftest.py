@@ -257,6 +257,54 @@ async def test_action_whitelist_negative():
 # ============================================================================
 
 
+def test_ssrf_scenario_d():
+    """
+    quickstart §3.4 场景 D 的**全表** —— SSRF 边界逐项走。
+
+    D1 域名不在白名单 / D2 白名单里加了解析到 127.0.0.1 的域名 /
+    D3 白名单里加了 169.254.169.254 / D4 重定向跳内网 /
+    D5 清空白名单 / D6 非 http 协议 / D7 页面子资源
+    """
+    print("== SSRF 场景 D 全表(quickstart §3.4) ==")
+    allow = ["example.com", "127.0.0.1", "10.0.0.1", "192.168.1.1", "169.254.169.254",
+             "::1", "fd00::1", "fe80::1", "::ffff:127.0.0.1", "0.0.0.0", "100.64.0.1",
+             "172.16.0.1", "93.184.216.34"]
+
+    # D1 域名不在白名单
+    blocked("D1 域名不在白名单被拒",
+            lambda: check_url("https://example.org/", allow), "不在本项目允许列表内")
+
+    # D2 解析到 127.0.0.1
+    blocked("D2 解析到 127.0.0.1 被拒",
+            lambda: check_url("http://127.0.0.1/", allow), "内网地址")
+
+    # D3 云元数据地址
+    blocked("D3 解析到 169.254.169.254 被拒",
+            lambda: check_url("http://169.254.169.254/latest/meta-data/", allow), "内网地址")
+
+    # D4 重定向跳内网 —— 重定向的每一跳都走浏览器层的同一个判定函数
+    executor = UIExecutor(SimpleNamespace(case_id=1, screenshot=True), 1, allow)
+    check("D4 重定向跳内网那一跳被拦", not executor._host_allowed("169.254.169.254"))
+    check("D4 重定向跳环回那一跳被拦", not executor._host_allowed("127.0.0.1"))
+    check("D4 重定向跳私网那一跳被拦", not executor._host_allowed("192.168.1.1"))
+
+    # D5 清空白名单 —— 不可执行, 不是默认放行
+    blocked("D5 白名单为空即拒绝",
+            lambda: check_url("https://example.com/", []), "尚未配置允许访问的域名")
+
+    # D6 非 http/https 协议
+    for url in ["file:///etc/passwd", "ftp://example.com/x", "data:text/html,x",
+                "javascript:alert(1)"]:
+        blocked(f"D6 协议 {url.split(':')[0]} 被拒",
+                lambda u=url: check_url(u, allow), "仅支持 http / https 协议")
+
+    # D7 页面子资源 —— 与 D4 走同一个浏览器层判定
+    check("D7 子资源指向内网被拦", not executor._host_allowed("169.254.169.254"))
+    check("D7 子资源指向环回被拦", not executor._host_allowed("127.0.0.1"))
+    check("D7 白名单内的公网子资源放行", executor._host_allowed("93.184.216.34"))
+    check("D7 白名单外的公网子资源被拦", not executor._host_allowed("example.org"))
+
+
 def test_ssrf_protocol():
     print("== SSRF(协议白名单) ==")
     allow = ["example.com", "127.0.0.1", "10.0.0.1", "192.168.1.1", "169.254.169.254",
@@ -550,6 +598,50 @@ page.get_by_label("用户名").fill("admin")
           element_name_of("css", "#login-btn", None))
 
 
+def test_cross_feature_contract():
+    """
+    T049 —— 跨 feature 契约核对。
+
+    1. 001 的 DSL 规则 11–14 引用的动作白名单, 权威出处必须是 002 的契约
+    2. 后端 `ACTIONS` / `STRATEGIES` 与前端镜像**无漂移**
+    """
+    print("== 跨 feature 契约核对(T049) ==")
+    root = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+    dsl_path = os.path.join(root, "specs", "001-ai-workbench", "contracts", "dsl.md")
+    steps_path = os.path.join(root, "specs", "002-ui-automation", "contracts", "steps.md")
+    frontend_path = os.path.join(root, "frontend", "src", "consts", "uiTest.ts")
+    for p in (dsl_path, steps_path, frontend_path):
+        if not os.path.exists(p):
+            print(f"    (跳过: 找不到 {p})")
+            return
+    dsl = open(dsl_path, encoding="utf-8").read()
+    steps = open(steps_path, encoding="utf-8").read()
+    frontend = open(frontend_path, encoding="utf-8").read()
+
+    # 1. 001 的规则 11–14 必须把动作白名单的权威出处指向 002
+    for rule in ["规则 11", "规则 12", "规则 13", "规则 14"]:
+        check(f"001 的契约里有 {rule}", rule in dsl)
+    check("001 的规则 11 指向 002 的契约为准",
+          "002" in dsl and "为准" in dsl)
+    check("002 的契约是动作集合的权威出处",
+          "封闭集合" in steps and "ACTIONS" in steps)
+
+    # 2. 后端与前端常量无漂移
+    block = frontend.split('export const UI_ACTIONS')[1].split('export const UI_ACTION_MAP')[0]
+    frontend_actions = set(re.findall(r"name: '([a-z_]+)'", block))
+    check("前端镜像的动作数与后端一致", len(frontend_actions) == len(ACTIONS),
+          f"前端 {len(frontend_actions)} 后端 {len(ACTIONS)}")
+    missing = set(ACTIONS) - frontend_actions
+    extra = frontend_actions - set(ACTIONS)
+    check("前端没有多出后端没有的动作", not extra, str(extra))
+    check("前端没有漏掉后端有的动作", not missing, str(missing))
+    frontend_strategies = set(re.findall(r"^  ([a-z]+): \{ label:", frontend, re.M))
+    check("前端镜像的定位策略与后端一致", frontend_strategies == set(STRATEGIES),
+          f"前端 {frontend_strategies} 后端 {set(STRATEGIES)}")
+    # 前端文件头必须指认后端的权威出处(constitution 原则 III)
+    check("前端文件头指认了后端权威出处", "backend/app/core/ui_executor.py" in frontend)
+
+
 def main():
     asyncio.run(test_dsl_positive())
     asyncio.run(test_dsl_required_fields())
@@ -559,6 +651,7 @@ def main():
     asyncio.run(test_dsl_value_semantics())
     asyncio.run(test_dsl_all_invalid())
     asyncio.run(test_action_whitelist_negative())
+    test_ssrf_scenario_d()
     test_ssrf_protocol()
     test_ssrf_domain_whitelist()
     test_ssrf_private_ip()
@@ -570,6 +663,7 @@ def main():
     test_assert_summary()
     test_executor_contract()
     test_codegen_parser()
+    test_cross_feature_contract()
     print("")
     if FAILED:
         print(f"FAILED {len(FAILED)} 项: {FAILED}")

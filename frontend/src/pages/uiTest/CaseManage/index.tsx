@@ -315,6 +315,9 @@ const UiCaseManage: React.FC = () => {
           onSaved={() => {
             if (projectId) fetchCases({ project_id: projectId, directory_id: directoryId });
           }}
+          onDirectoriesChanged={() => {
+            if (projectId) loadDirectories(projectId);
+          }}
         />
       ) : null}
     </div>

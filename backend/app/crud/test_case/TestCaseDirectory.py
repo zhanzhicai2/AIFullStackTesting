@@ -52,7 +52,11 @@ class PityTestcaseDirectoryDao(Mapper):
                     result = await session.execute(sql)
                     if result.scalars().first() is not None:
                         raise Exception("目录已存在")
-                    session.add(PityTestcaseDirectory(form, user))
+                    directory = PityTestcaseDirectory(form, user)
+                    session.add(directory)
+                    # 把新建的目录 id 返回去 —— UI 用例编辑器要「就地建完即选中」(U3)
+                    await session.flush()
+                    return directory.id
         except Exception as e:
             PityTestcaseDirectoryDao.log.error(f"创建目录失败, error: {e}")
             raise Exception(f"创建目录失败: {e}")

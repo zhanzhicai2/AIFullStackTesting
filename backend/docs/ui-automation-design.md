@@ -693,3 +693,90 @@ cd backend
 另有**动作白名单**这一封闭边界：不允许 `evaluate` / `exec` / 任意脚本 —— 仓库已有两个 `exec()` 执行面，UI 用例不再开第三个。
 
 按 `backend/CLAUDE.md` 的约定：Claude 在功能边界**主动提示**，但**不自动执行**——跑不跑、什么时候跑由用户决定。
+
+---
+
+## 12. constitution 五条原则对本设计的影响
+
+> constitution「文档分层」要求：每次功能落地 SHOULD 在 `backend/docs/<feature>-design.md` 中
+> 记录**哪些原则影响了设计决策**。本节就是这份记录。
+
+### I. 确定性优先（NON-NEGONIABLE）
+
+**影响最大的原则** —— UI 场景天生与它冲突，必须**划清边界**而不是假装满足：
+
+| 范围 | 是否可重放 | 落地位置 |
+|---|---|---|
+| 步骤定义（`pity_ui_case.steps`） | ✅ 完全确定 | 同一份 steps 永远产生同一串浏览器操作序列 |
+| 平台自身的行为 | ✅ 确定 | 无隐式 sleep、无随机退避、无随机挑选元素（§3.10） |
+| **执行结果**（页面内容、断言成败） | ❌ **不可重放** | 取决于被测系统当时的状态，不在平台可控范围 |
+
+**"不可重放"的显式标注**（constitution 要求"在代码注释与设计文档中显式标注"）落在三处：
+`app/models/ui_case.py` 的模块 docstring 与 `PityUICase` 类 docstring、
+`app/core/ui_executor.py` 的模块 docstring、本文的 §3.10 与 §3.11。
+
+**派生值在最终值上判定**（原则 I 的第三条）：元素去重按
+`(project_id, page_id, strategy, locator, name_attr)` 这个**最终定位**判定，
+而不是按"用户当时填了什么"判定 —— 同一个定位换了个名字仍然是同一个元素。
+
+### II. 复用平台既有机制
+
+**不新建平行用例体系**是本设计的出发点：
+
+| 复用的既有机制 | 位置 | 怎么复用 |
+|---|---|---|
+| `pity_testcase` | `app/models/test_case.py` | UI 用例加 `request_type = 4`，主体、目录树、优先级全用同一套 |
+| `pity_test_result` / `pity_report` | `app/models/result.py` / `report.py` | 结果照写，报告统计口径与接口用例一致（FR-034） |
+| `Executor.run_single` | `app/core/executor.py` | 在拿到 `case_info` 之后按 `request_type` 分派，不另起执行入口 |
+| `Render` | `app/core/render.py` | `base_url` 与步骤里的字符串字段走既有 `${}` 渲染 |
+| `CaseLog` | `app/utils/case_logger.py` | 逐步骤日志复用既有格式 |
+| `pity_oss_file` | `app/models/oss_file.py` | 失败截图上传 OSS 后登记在这里，报告页从它反查附件 |
+| `pity_constructor`（前后置构造器） | `app/models/constructor.py` | UI 用例也能配前置/后置，不另起一套 |
+| `PityResponse` / `Permission()` / `Config.ADMIN` | `app/handler/` / `app/routers/__init__.py` | 响应信封与鉴权语义完全一致 |
+
+**调研结论**（原则 II 要求"新增机制前 MUST 先调研平台是否已有同类能力"）：
+既有的 `pity_constructor` / `pity_testcase_asserts` / `pity_test_result` 都能直接用，
+所以 v1 **没有**任何"UI 专用"的执行骨架 —— 只有浏览器这一层是新的。
+
+### III. 跨端契约单一出处
+
+`ACTIONS`（26 个动作）与 `STRATEGIES`（8 种定位策略）**只在
+`backend/app/core/ui_executor.py` 定义一次**，前端 `frontend/src/consts/uiTest.ts` 是镜像，
+文件头注释指认后端路径，`backend/CLAUDE.md` 声明"改一处必须同时改另一处"。
+
+**跨 feature 复用同一份契约**：`001-ai-workbench/contracts/dsl.md` 的规则 11–14
+直接引用 `002-ui-automation/contracts/steps.md` —— 不复制第二份动作集定义，
+避免两份会漂移的白名单。
+
+**后端是最终裁决者**：不合规的步骤被丢弃；前端只用同一份常量做**提前提示**，
+不在前端做最终判定 —— 前端放行、后端丢弃会造成"改了还是被丢弃"的困惑。
+
+### IV. 交互自成闭环
+
+六个就地指引点（U1–U6）都给了**当前界面内的可操作入口**，而不是只报一句错误码：
+
+| 编号 | 前置缺失 | 界面内的出口 |
+|---|---|---|
+| U1 | 未配置允许域名 | 用例编辑器里就地打开白名单配置弹窗 |
+| U2 | 全局变量 `ui_base_url` 未配 | 跳全局变量页 |
+| U3 | 项目下无目录 | 目录选择器旁的「新建目录」，建完即选中 |
+| U4 | 元素库为空 | 元素选择处的「去元素库」 |
+| U5 | 未粘贴录制脚本 | 导入区的「手工新建」 |
+| U6 | 无可用执行节点 | 「去节点页」 |
+
+**前置状态自动带入**：录制导入产出的用例 `base_url` 取脚本里第一个 `page.goto` 的地址；
+用例编辑器的目录默认带出当前选中的目录。
+
+### V. 落地前必须过回归
+
+| 脚本 | 断言数 | 覆盖 |
+|---|---|---|
+| `backend/scripts/ui_selftest.py` | 267 | 步骤 DSL 校验、**动作白名单负例**、**SSRF 拦截**、确定性等待（静态断言）、断言汇总、codegen 静态解析、与契约逐条对齐 |
+| `backend/scripts/ui_e2e.py` | US1~US3 | 页面/元素 CRUD、元素去重与停用、录制导入、UI 用例执行、结果回写、失败截图落 OSS、混合执行的统计口径 |
+
+**两个最关键的测试是 T024（动作白名单负例）与 T025（SSRF）** —— 它们守着本模块
+新引入的两个安全面。回归脚本 MUST 覆盖核心链路的端到端路径，不只是单元边界：
+`ui_e2e.py` 走的是真实 HTTP 接口。
+
+> `ui_selftest.py` **不依赖数据库**（元素引用解析器做成可注入的），
+> 可以在没有 MySQL 的环境里当快速门禁跑。

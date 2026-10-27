@@ -21,15 +21,15 @@ import {
   message,
 } from 'antd';
 import {
-  ArrowRightOutlined,
   DeleteOutlined,
   PlayCircleOutlined,
   PlusOutlined,
   SettingOutlined,
 } from '@ant-design/icons';
-import { useModel } from '@umijs/max';
+import { history, useModel } from '@umijs/max';
 import { listEnvironment } from '@/services/configure';
 import { listGConfig } from '@/services/configure';
+import { insertTestcaseDirectory } from '@/services/testcase';
 import { UiStep, UiStepResult } from '@/services/uiTest';
 import {
   UI_ACTION_GROUPS,
@@ -55,6 +55,8 @@ interface CaseEditorProps {
   saving?: boolean;
   onCancel: () => void;
   onSaved?: () => void;
+  /** 新建目录后通知父级刷新目录树 */
+  onDirectoriesChanged?: () => void;
 }
 
 // pity_testcase.name 是 String(32) —— 超长按既有列长度截断并回显告警(FR-035)
@@ -81,8 +83,8 @@ const emptyStep = (): UiStep => ({
  * 前端只做**提前提示**, 最终判定在后端。
  */
 const CaseEditor: React.FC<CaseEditorProps> = (props) => {
-  const { open, caseId, projectId, directoryId, directoryOptions, saving, onCancel, onSaved } = props;
-  const { loadCase, saveCase, executeCase, pages, elements, fetchPages, fetchElements, fetchDomains, domains, running } =
+  const { open, caseId, projectId, directoryId, directoryOptions, saving, onCancel, onSaved, onDirectoriesChanged } = props;
+  const { loadCase, saveCase, executeCase, pages, elements, fetchPages, fetchElements, fetchDomains, domains, fetchNodes, running } =
     useModel('uiTest');
 
   const [form] = Form.useForm();
@@ -97,6 +99,9 @@ const CaseEditor: React.FC<CaseEditorProps> = (props) => {
   const [domainOpen, setDomainOpen] = useState(false);
   const [globalVarMissing, setGlobalVarMissing] = useState(false);
   const [savedCaseId, setSavedCaseId] = useState<number | undefined>(caseId);
+  const [nodeCount, setNodeCount] = useState(0);
+  const [dirModalOpen, setDirModalOpen] = useState(false);
+  const [dirForm] = Form.useForm();
 
   useEffect(() => {
     listEnvironment({ page: 1, size: 100 })
@@ -117,6 +122,12 @@ const CaseEditor: React.FC<CaseEditorProps> = (props) => {
     fetchElements({ project_id: projectId });
     fetchDomains(projectId, env);
   }, [open, projectId, env, fetchPages, fetchElements, fetchDomains]);
+
+  // U6: 执行节点 —— 没有在线节点时不能执行
+  useEffect(() => {
+    if (!open) return;
+    fetchNodes().then((list) => setNodeCount((list || []).filter((n) => n.status === 1).length));
+  }, [open, fetchNodes]);
 
   // 编辑态: 载入已有用例
   useEffect(() => {
@@ -193,6 +204,8 @@ const CaseEditor: React.FC<CaseEditorProps> = (props) => {
 
   // U1: 白名单为空 —— 该项目的 UI 用例不可执行
   const whitelistEmpty = domains.length === 0;
+  // U6: 没有在线的执行节点 —— 同样不可执行
+  const noNode = nodeCount === 0;
 
   // FR-010: 全部用内联定位 —— 提示建议纳入元素库
   const targetSteps = steps.filter((s) => UI_ACTION_MAP[s.action]?.target);
@@ -258,6 +271,27 @@ const CaseEditor: React.FC<CaseEditorProps> = (props) => {
     const res = await executeCase({ case_id: savedCaseId as number, env });
     if (res) setRunResult(res);
     setRunOpen(true);
+  };
+
+  const onCreateDirectory = async (values: any) => {
+    const res = await insertTestcaseDirectory({
+      name: values.name,
+      project_id: projectId,
+      parent: values.parent || null,
+    });
+    if (res?.code === 0) {
+      message.success('目录创建成功');
+      setDirModalOpen(false);
+      dirForm.resetFields();
+      // 建完即选中(U3)
+      const created = (res.data || {}) as any;
+      if (created?.id) {
+        form.setFieldValue('directory_id', created.id);
+      }
+      onDirectoriesChanged?.();
+    } else {
+      message.error(res?.msg || '目录创建失败');
+    }
   };
 
   const renderStepFields = (step: UiStep, index: number) => {
@@ -522,7 +556,13 @@ const CaseEditor: React.FC<CaseEditorProps> = (props) => {
       extra={
         <Space>
           <Button onClick={onCancel}>取消</Button>
-          <Button onClick={onDebug} loading={running} icon={<PlayCircleOutlined />}>
+          {/* U1 / U6: 白名单为空或没有可用节点时不可执行 —— 按钮禁用, 旁边有就地指引 */}
+          <Button
+            onClick={onDebug}
+            loading={running}
+            disabled={whitelistEmpty || noNode}
+            icon={<PlayCircleOutlined />}
+          >
             保存并调试
           </Button>
           <Button type="primary" onClick={() => form.submit()} loading={saving}>
@@ -556,14 +596,19 @@ const CaseEditor: React.FC<CaseEditorProps> = (props) => {
               name="directory_id"
               label="所属目录"
               rules={[{ required: true, message: '请选择目录' }]}
+              extra={
+                // U3: 项目下没目录时, 目录选择器旁就地给「新建目录」入口, 建完即选中
+                <a onClick={() => setDirModalOpen(true)}>
+                  <PlusOutlined /> 新建目录
+                </a>
+              }
             >
               <Select
                 placeholder="选择目录"
                 options={directoryOptions.map((o) => ({ label: o.label, value: o.value }))}
                 notFoundContent={
                   <span>
-                    项目下还没有目录, 请先到「用例管理」左侧新建目录
-                    <ArrowRightOutlined />
+                    项目下还没有目录, 点上面的「新建目录」就地建一个
                   </span>
                 }
               />
@@ -614,8 +659,20 @@ const CaseEditor: React.FC<CaseEditorProps> = (props) => {
                   showIcon
                   message="站点地址未配置, 可在环境全局变量里配 ui_base_url"
                   action={
-                    <Button size="small" onClick={() => message.info('请到「配置管理 → 全局变量」里配置')}>
+                    <Button size="small" onClick={() => history.push('/config/gconfig')}>
                       去配置
+                    </Button>
+                  }
+                />
+              ) : null}
+              {noNode ? (
+                <Alert
+                  type="warning"
+                  showIcon
+                  message="没有可用的执行节点"
+                  action={
+                    <Button size="small" onClick={() => history.push('/uiTest/node')}>
+                      去节点页
                     </Button>
                   }
                 />
@@ -652,6 +709,12 @@ const CaseEditor: React.FC<CaseEditorProps> = (props) => {
           style={{ marginBottom: 12 }}
           message="元素库为空, 先沉淀页面与元素"
           description="步骤引用的是元素库里的元素(「页面名.元素名」), 现在只能写内联定位"
+          action={
+            // U4: 元素选择处要给跳转元素库的入口
+            <Button size="small" onClick={() => history.push('/uiTest/element')}>
+              去元素库
+            </Button>
+          }
         />
       ) : null}
 
@@ -712,6 +775,28 @@ const CaseEditor: React.FC<CaseEditorProps> = (props) => {
         onCancel={() => setDomainOpen(false)}
         onChanged={() => projectId && fetchDomains(projectId, env)}
       />
+
+      {/* U3: 就地新建目录, 建完即选中 */}
+      <Modal
+        open={dirModalOpen}
+        title="新建目录"
+        onCancel={() => setDirModalOpen(false)}
+        onOk={() => dirForm.submit()}
+        destroyOnClose
+      >
+        <Form form={dirForm} layout="vertical" onFinish={onCreateDirectory} preserve={false}>
+          <Form.Item name="name" label="目录名" rules={[{ required: true, message: '请输入目录名' }]}>
+            <Input placeholder="例如 登录流程" maxLength={18} />
+          </Form.Item>
+          <Form.Item name="parent" label="上级目录">
+            <Select
+              allowClear
+              placeholder="不选就是顶级目录"
+              options={directoryOptions.map((o) => ({ label: o.label, value: o.value }))}
+            />
+          </Form.Item>
+        </Form>
+      </Modal>
     </Drawer>
   );
 };

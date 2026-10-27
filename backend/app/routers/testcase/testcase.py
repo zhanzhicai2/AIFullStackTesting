@@ -229,8 +229,9 @@ async def query_testcase_directory(directory_id: int, user_info=Depends(Permissi
 @router.post("/directory/insert")
 async def insert_testcase_directory(form: PityTestcaseDirectoryForm, user_info=Depends(Permission())):
     try:
-        await PityTestcaseDirectoryDao.insert_directory(form, user_info['id'])
-        return PityResponse.success()
+        directory_id = await PityTestcaseDirectoryDao.insert_directory(form, user_info['id'])
+        # 返回新建目录的 id —— 调用方要能「建完即选中」(UI 用例编辑器的 U3 指引点)
+        return PityResponse.success(dict(id=directory_id))
     except Exception as e:
         return PityResponse.failed(e)
 
