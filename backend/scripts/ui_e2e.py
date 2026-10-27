@@ -173,8 +173,8 @@ check("页面树里能看到", res.get("code") == 0 and node, str(res)[:200])
 # ---------- 4. 元素 CRUD + 去重 ----------
 print("== 元素 CRUD + 去重 ==")
 res = c.request("/ui/element/insert", "POST", {
-    "project_id": PROJECT_ID, "page_id": page_id, "name": "标题",
-    "strategy": "css", "locator": "h1", "name_attr": None, "description": "",
+    "project_id": PROJECT_ID, "page_id": page_id, "name": "链接",
+    "strategy": "css", "locator": "a", "name_attr": None, "description": "",
 })
 element = res.get("data") or {}
 element_id = element.get("id")
@@ -182,8 +182,8 @@ check("新建元素", res.get("code") == 0 and element_id, str(res)[:200])
 check("首次不是重复", element.get("duplicated") is False, str(res)[:200])
 
 res = c.request("/ui/element/insert", "POST", {
-    "project_id": PROJECT_ID, "page_id": page_id, "name": "标题2",
-    "strategy": "css", "locator": "h1", "name_attr": None,
+    "project_id": PROJECT_ID, "page_id": page_id, "name": "链接2",
+    "strategy": "css", "locator": "a", "name_attr": None,
 })
 dup = res.get("data") or {}
 check("同定位值被去重", dup.get("duplicated") is True and dup.get("id") == element_id, str(res)[:200])
@@ -193,9 +193,12 @@ check("元素列表", res.get("code") == 0, str(res)[:200])
 
 # ---------- 5. 用例创建(引用元素) ----------
 print("== 用例创建 ==")
+# 断言用 locale 无关的定位: example.com 现在按浏览器语言本地化,
+# 内容会变, 但「页面上恰好有一个链接」不变。locale 由用例钉死(en-US)。
 steps = [
     {"action": "goto", "url": "/"},
-    {"action": "expect_text", "element": f"{page_name}.标题", "value": "Example Domain"},
+    {"action": "expect_count", "element": f"{page_name}.链接", "value": "1"},
+    {"action": "expect_text", "element": f"{page_name}.链接", "value": "Learn more"},
 ]
 case_name = f"e2e用例{random.randint(1000, 9999)}"
 res = c.request("/ui/case/insert", "POST", {

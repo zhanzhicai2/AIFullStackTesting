@@ -103,6 +103,9 @@ class PityUICase(PityBase):
     case_id = Column(INT, index=True, nullable=False, comment="关联 pity_testcase.id")
     base_url = Column(String(256), nullable=False, comment="起始地址, 支持 ${变量}")
     viewport = Column(String(16), default="1280x720", comment="视口, 形如 1280x720")
+    # 浏览器区域设置 —— 必须钉死: 同一个 URL 在不同 Accept-Language 下返回的内容不同,
+    # 不固定 locale 就谈不上「同样的输入产出完全一致的结果」(constitution 原则 I)
+    locale = Column(String(16), default="en-US", comment="浏览器区域设置, 如 en-US / zh-CN")
     browser = Column(String(16), default="chromium", comment="浏览器类型")
     timeout = Column(INT, default=30, comment="单步超时(秒)")
     steps = Column(TEXT, nullable=False, comment="步骤 DSL JSON, 见 contracts/steps.md")
@@ -119,11 +122,12 @@ class PityUICase(PityBase):
                      timeout="单步超时", screenshot="失败截图", case_id="用例id")
 
     def __init__(self, case_id, base_url, steps, user, viewport="1280x720", browser="chromium",
-                 timeout=30, screenshot=True, id=None):
+                 timeout=30, screenshot=True, locale="en-US", id=None):
         super().__init__(user, id)
         self.case_id = case_id
         self.base_url = base_url
         self.viewport = viewport
+        self.locale = locale
         self.browser = browser
         self.timeout = timeout
         self.steps = steps

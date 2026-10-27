@@ -98,8 +98,8 @@ async def case_detail(id: int, user_info=Depends(Permission())):
         return PityResponse.success(dict(
             id=case.id, name=case.name, directory_id=case.directory_id, priority=case.priority,
             status=case.status, base_url=ui_case.base_url, viewport=ui_case.viewport,
-            timeout=ui_case.timeout, browser=ui_case.browser, screenshot=ui_case.screenshot,
-            steps=steps))
+            locale=ui_case.locale, timeout=ui_case.timeout, browser=ui_case.browser,
+            screenshot=ui_case.screenshot, steps=steps))
     except Exception as e:
         return PityResponse.failed(e)
 
@@ -125,7 +125,7 @@ async def insert_case(form: UICaseForm, user_info=Depends(Permission())):
         await UICaseDao.insert_ui_case(case_id=model.id, base_url=form.base_url,
                                        steps=json.dumps(strip_internal(steps), ensure_ascii=False),
                                        user_id=user_info['id'], viewport=form.viewport,
-                                       timeout=form.timeout)
+                                       timeout=form.timeout, locale=form.locale)
         return PityResponse.success(dict(case_id=model.id, warnings=warnings), msg="创建成功")
     except Exception as e:
         return PityResponse.failed(e)
@@ -158,7 +158,8 @@ async def update_case(form: UICaseForm, user_info=Depends(Permission())):
         await UICaseDao.update_ui_case(case_id=form.id, user_id=user_info['id'],
                                        base_url=form.base_url,
                                        steps=json.dumps(strip_internal(steps), ensure_ascii=False),
-                                       viewport=form.viewport, timeout=form.timeout)
+                                       viewport=form.viewport, timeout=form.timeout,
+                                       locale=form.locale)
         return PityResponse.success(dict(case_id=form.id, warnings=warnings), msg="更新成功")
     except Exception as e:
         return PityResponse.failed(e)
@@ -194,13 +195,13 @@ async def run_case(form: UIRunForm, user_info=Depends(Permission())):
             if screenshot_url:
                 logger.append(f"失败截图: {screenshot_url}")
         # 结果写入既有的 pity_test_result
-        await TestResultDao.insert_report(
+        result_id = await TestResultDao.insert_report(
             None, form.case_id, result.get("case_name") or "", status,
             logger.join(), start_at, finished_at, result.get("url"), "",
             "", "", f"{cost}s", result.get("asserts") or "{}", "", "",
             None, "", 0, "", "", None)
         return PityResponse.success(dict(
-            result_id=None, status=status, status_label=STATUS_LABEL.get(status, "出错"),
+            result_id=result_id, status=status, status_label=STATUS_LABEL.get(status, "出错"),
             cost=cost, steps=result.get("steps") or [], assertions=result.get("assertions") or [],
             asserts=result.get("asserts") or "{}", screenshot_url=screenshot_url,
             error=result.get("error"), error_reason=result.get("error_reason")),

@@ -77,6 +77,7 @@ export interface UiCaseDetail {
   status: number;
   base_url: string;
   viewport: string;
+  locale: string;
   timeout: number;
   browser: string;
   screenshot: boolean;

@@ -166,6 +166,7 @@ Playwright 驱动的 UI 自动化。核心约定：
 - **`ACTIONS` / `STRATEGIES` 只在 `app/core/ui_executor.py` 定义一次**，前端 `src/consts/uiTest.ts` 是镜像 —— 改一处必须同时改另一处
 - **`value` 字段有双重语义**：有 `element` 时是动作自己的值（期望值 / 选项值），没有 `element` 时只有 `value` 语义为 `locator` 的动作才允许内联定位
 - **`timeout` 单位**：`wait_timeout` 是毫秒，其余动作是秒
+- **`locale` 必须钉死**：同一个 URL 在不同 `Accept-Language` 下内容不同（实测 example.com 会按语言返回多语言版本）—— 不固定 locale 就谈不上「同样的输入产出完全一致的结果」。默认 `en-US`
 - **存进库的步骤是「纯 DSL」** —— 校验期注入的内部字段（`_element_id` / `_strategy` / `_locator` / `_name_attr`）要用 `strip_internal()` 剥掉再存。**执行器在执行期重新解析元素引用** —— 用例建好之后元素可能被停用，那一步要判失败
 - **UI 断言写进 `pity_test_result.asserts` 用的是接口用例同构格式**（`{key: {status, msg}}`），报告页的 `getSource()` 只认这个结构；富明细走 API 响应的 `assertions[]`
 - **执行中心不新建表** —— 报告与结果都在既有的 `pity_report` / `pity_test_result` 里；UI 统计只是多算一列，**口径与接口用例一致**

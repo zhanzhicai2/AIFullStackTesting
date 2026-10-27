@@ -21,7 +21,12 @@ class TestResultDao(Mapper):
                             asserts: str, response_headers: str, response: str,
                             status_code: int, cookies: str, retry: int = None,
                             request_params: str = '', data_name: str = '', data_id: int = None,
-                            ) -> None:
+                            ) -> int:
+        """
+        新增一条执行结果。
+
+        :return: 新建的执行记录 id —— UI 单条调试(不属于任何报告)要把它回给调用方
+        """
         try:
             async with async_session() as session:
                 async with session.begin():
@@ -32,6 +37,7 @@ class TestResultDao(Mapper):
                                             cookies, retry, request_params, data_name, data_id)
                     session.add(result)
                     await session.flush()
+                    return result.id
         except Exception as e:
             TestResultDao.log.error(f"新增测试结果失败, error: {e}")
             raise Exception("新增测试结果失败")

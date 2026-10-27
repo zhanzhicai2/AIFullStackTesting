@@ -27,18 +27,21 @@ class UICaseDao(Mapper):
     @classmethod
     async def insert_ui_case(cls, case_id: int, base_url: str, steps: str, user_id: int,
                              viewport: str = "1280x720", browser: str = "chromium",
-                             timeout: int = 30, screenshot: bool = True) -> PityUICase:
+                             timeout: int = 30, screenshot: bool = True,
+                             locale: str = "en-US") -> PityUICase:
         exist = await cls.query_ui_case(case_id)
         if exist is not None:
             raise Exception("该用例已存在 UI 配置")
         model = PityUICase(case_id=case_id, base_url=base_url, steps=steps, user=user_id,
-                           viewport=viewport, browser=browser, timeout=timeout, screenshot=screenshot)
+                           viewport=viewport, browser=browser, timeout=timeout,
+                           screenshot=screenshot, locale=locale)
         return await cls.insert(model=model, log=True)
 
     @classmethod
     async def update_ui_case(cls, case_id: int, user_id: int, base_url: str = None,
                              steps: str = None, viewport: str = None, browser: str = None,
-                             timeout: int = None, screenshot: bool = None) -> PityUICase:
+                             timeout: int = None, screenshot: bool = None,
+                             locale: str = None) -> PityUICase:
         async with async_session() as session:
             async with session.begin():
                 sql = select(PityUICase).where(PityUICase.case_id == case_id, PityUICase.deleted_at == 0)
@@ -52,6 +55,8 @@ class UICaseDao(Mapper):
                     data.steps = steps
                 if viewport is not None:
                     data.viewport = viewport
+                if locale is not None:
+                    data.locale = locale
                 if browser is not None:
                     data.browser = browser
                 if timeout is not None:

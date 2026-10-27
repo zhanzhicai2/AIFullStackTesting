@@ -113,6 +113,8 @@ class UICaseForm(BaseModel):
     priority: str = "P1"
     base_url: str
     viewport: str = "1280x720"
+    # 浏览器区域设置 —— 钉死它才能保证同样的页面内容(constitution 原则 I)
+    locale: str = "en-US"
     timeout: int = 30
     steps: List[Dict[str, Any]] = []
 

@@ -25,7 +25,10 @@ import json
 import time
 from typing import Dict, List, Optional, Tuple
 
+from app.utils.logger import Log
 from app.utils.ui_security import UINavigationBlocked, check_url, resolve_step_url
+
+log = Log("UIExecutor")
 
 # ============================================================================
 # 权威常量 —— 前端镜像在 frontend/src/consts/uiTest.ts
@@ -243,7 +246,13 @@ class BrowserManager(object):
 
     @classmethod
     async def get_browser(cls, headless: bool = True, browser_type: str = "chromium"):
-        """取浏览器实例 —— 第一次调用时启动, 之后复用"""
+        """
+        取浏览器实例 —— 第一次调用时启动, 之后复用。
+
+        启动策略(固定顺序, 不含随机): 先用默认的 headless shell, 失败则回退到
+        完整 chromium 构建(`channel="chromium"`)。有些环境只装了完整构建
+        (比如用 `playwright install chromium --no-shell` 装的), 回退能让它照样跑起来。
+        """
         if cls._browser is not None:
             return cls._browser
         if cls._lock is None:
@@ -262,7 +271,14 @@ class BrowserManager(object):
                 launcher = getattr(cls._playwright, browser_type, None)
                 if launcher is None:
                     raise UIExecutionError(f"不支持的浏览器类型: {browser_type}", REASON_BROWSER_ERROR)
-                cls._browser = await launcher.launch(headless=headless)
+                try:
+                    cls._browser = await launcher.launch(headless=headless)
+                except Exception as e:
+                    # 回退到完整 chromium 构建
+                    if browser_type != "chromium":
+                        raise
+                    log.warning(f"默认 chromium 启动失败, 回退到完整构建: {e}")
+                    cls._browser = await launcher.launch(headless=headless, channel="chromium")
             except UIExecutionError:
                 await cls._cleanup()
                 raise
@@ -378,7 +394,11 @@ class UIExecutor(object):
             except UIExecutionError as e:
                 return self._result(status=2, error=e.message, error_reason=e.reason)
             try:
-                context = await browser.new_context(viewport={"width": viewport[0], "height": viewport[1]})
+                context = await browser.new_context(
+                    viewport={"width": viewport[0], "height": viewport[1]},
+                    # locale 钉死 —— 同一个 URL 在不同 Accept-Language 下内容不同,
+                    # 不固定 locale 就谈不上「同样的输入产出完全一致的结果」
+                    locale=self.ui_case.locale or "en-US")
             except Exception as e:
                 return self._result(status=2, error=f"创建浏览器上下文失败: {e}", error_reason=REASON_BROWSER_ERROR)
             try:
@@ -398,7 +418,12 @@ class UIExecutor(object):
                     await self._capture(page)
                     return self._result(status=1, error=failed.get("error"),
                                         error_reason=failed.get("reason") or REASON_BROWSER_ERROR)
-                return self._result()
+                # 步骤都过了, 但断言可能没过 —— **断言失败同样要留截图**
+                result = self._result()
+                if result["status"] != 0:
+                    await self._capture(page)
+                    result = self._result()
+                return result
             finally:
                 try:
                     await context.close()

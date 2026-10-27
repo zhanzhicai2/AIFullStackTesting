@@ -140,6 +140,7 @@ const CaseEditor: React.FC<CaseEditorProps> = (props) => {
         priority: detail.priority,
         base_url: detail.base_url,
         viewport: detail.viewport,
+        locale: detail.locale || 'en-US',
         timeout: detail.timeout,
       });
       setSteps((detail.steps || []).map((s) => ({ ...emptyStep(), ...s })));
@@ -156,6 +157,7 @@ const CaseEditor: React.FC<CaseEditorProps> = (props) => {
       priority: 'P1',
       base_url: '',
       viewport: '1280x720',
+      locale: 'en-US',
       timeout: 30,
     });
     setSteps([emptyStep()]);
@@ -228,6 +230,7 @@ const CaseEditor: React.FC<CaseEditorProps> = (props) => {
     priority: values.priority || 'P1',
     base_url: values.base_url,
     viewport: values.viewport || '1280x720',
+    locale: values.locale || 'en-US',
     timeout: values.timeout || 30,
     steps: steps.map((s) => {
       const out: any = { action: s.action };
@@ -690,6 +693,15 @@ const CaseEditor: React.FC<CaseEditorProps> = (props) => {
           <Col span={8}>
             <Form.Item name="viewport" label="视口">
               <Input placeholder="1280x720" />
+            </Form.Item>
+          </Col>
+          <Col span={8}>
+            <Form.Item
+              name="locale"
+              label="浏览器区域"
+              extra="同一个地址在不同语言下内容不同, 固定区域才能保证结果可复现"
+            >
+              <Input placeholder="en-US / zh-CN" />
             </Form.Item>
           </Col>
           <Col span={8}>
