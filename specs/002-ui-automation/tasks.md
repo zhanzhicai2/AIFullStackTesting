@@ -16,7 +16,7 @@
 > - T017 补 D1 的显式角色说明
 > - 任务编号在 T016 之后统一 +1（原 T016~T049 → T017~T050）
 
-> **实现记录（Phase 1 ~ Phase 5 落地时）** —— T001~T041 已完成，实现与契约有 19 处偏差/补齐，逐条记在这里：
+> **实现记录（Phase 1 ~ Phase 6 落地时）** —— T001~T050 已完成，实现与契约有 22 处偏差/补齐，逐条记在这里：
 >
 > 1. **T004 多落地 1 个 DAO**：任务列了 5 个 DAO，但 6 张表里的 `pity_ui_allowed_domain` 同样需要 DAO —— 补 `backend/app/crud/ui/UIAllowedDomainDao.py`（共 6 个）。
 > 2. **T020 的分派点在 `Executor.run` 而非 `run_single`**：`case_info` 是在 `run()` 里取的，`run_single` 只负责分发到 `run_with_test_data` → `run`。按契约「拿到 case_info 之后、HTTP 请求之前」分派，落在 `run()` 里，批量与单条调试共用同一条路径。
@@ -41,6 +41,16 @@
 > 17. **「附件」从 `pity_oss_file` 反查**（路径 `ui/<case_id>/<name>`），不去解析 `case_log` 文本：契约说截图 URL 写进 case_log，但报告页要展示附件列表，从 oss 表反查更可靠 —— 日志文本是人读的，附件列表是机器读的。
 > 18. **内置本地节点在平台启动时自动注册**（`app/__init__.py` 的 lifespan 第 4 步）：spec FR-019 要求「用户无需额外配置即可执行 UI 用例」，而 `/ui/node/heartbeat` 要用户手动调一次。启动时注册 + 心跳接口兜底，两条路都通。注册失败不拖垮服务（UI 用例执行时会再注册）。
 > 19. **删除执行记录要软删 `pity_report` + 它的 `pity_test_result`**：`pity_report` 不继承 `PityBase`（没有 `update_user` / `updated_at` 列），只能自己设 `deleted_at`。删除后进回收站，重新执行产生**新**报告，原记录不被覆盖。
+>
+> **Polish 阶段（T042~T050）落地时补的 3 条**：
+> 20. **`POST /testcase/directory/insert` 的响应多了 `data.id`**（原来 `data` 是 `null`）：UI 用例编辑器要「就地建完即选中」（U3），得拿到新建目录的 id。**加字段是向后兼容的** —— 既有的前端调用方都忽略 `data`。
+> 21. **U1 / U6 让「保存并调试」按钮直接禁用**：白名单为空（安全边界缺失）或没有在线执行节点时，本来就不可能执行 —— 按钮禁用 + 就地指引，比点了再报错好。
+> 22. **U2 / U4 / U6 的指引给的是真跳转**（`/config/gconfig`、`/uiTest/element`、`/uiTest/node`），不是弹一句「请到某处配置」—— constitution 原则 IV 要求"界面 MUST 在原地给出明确指引(去哪里配)"。
+>
+> **验收的诚实边界**（T045~T048）：
+> - ✅ **能自动验的都验了**：SSRF 场景 D 全表（D1~D7）进了 `ui_selftest.py`；跨 feature 契约核对（T049）也进了 selftest —— 001 的规则 11–14 指向 002 为准 + 两端常量无漂移；前端 `tsc --noEmit` 0 错误、eslint 0 告警；后端 selftest 293 项断言全绿。
+> - ⚠️ **要浏览器才能验的没验**：浏览器实际执行、失败截图落 OSS、并发上下文隔离、SC-004 的执行成功率、SC-005 的截图覆盖率 —— 本机装不了 chromium（`pip install` / `playwright install` 被环境拦了）。`ui_e2e.py` 已写好，在装了 chromium 的环境里跑一次即可。
+> - ⚠️ **要起前端才能验的没验**：U1~U6 的界面呈现（提示文案、入口位置、禁用态）是按契约实现的，`tsc`/eslint 过了，但没在浏览器里点过。
 
 ---
 
@@ -157,15 +167,15 @@
 
 **Purpose**: 横切能力、文档与验收
 
-- [ ] T042 [P] 实现 `backend/app/routers/ui/` 的允许域名查询端点（列表走 `Permission()`，增删走 ADMIN —— 已在 T018 覆盖）与节点心跳的调用方接线
-- [ ] T043 更新 `backend/CLAUDE.md`：新增「UI 自动化」段落，只放硬约束与指针 —— **步骤 DSL 动作白名单封闭（不得引入新 `exec()` 面）**、**SSRF 白名单 + 私网拦截 + 重定向逐跳校验**、**确定性等待（禁隐式 sleep 与随机退避）**、常量两端同步要求、执行结果不可重放的显式声明
-- [ ] T044 更新 `backend/docs/ui-automation-design.md`：按 constitution「每次功能落地 SHOULD 在 `backend/docs/<feature>-design.md` 中记录哪些原则影响了设计决策」补写 constitution 五条原则对本设计的影响；同步 SSRF 拦截清单与确定性约束
-- [ ] T045 按 `quickstart.md` §4 逐条验证就地指引点 **U1–U6**（constitution 原则 IV 的落地验收；指引点定义以 `data-model.md` §5 为准）
-- [ ] T046 按 `quickstart.md` §3 与 §6 跑完全部端到端场景并逐条核对 SC-001 ~ SC-012；**§3.4 的 SSRF 场景 D 必须全表通过**
-- [ ] T047 前端验收：`cd frontend && nvm use && npx tsc --noEmit`（目标 0 错误）与 `npm run lint:js`
-- [ ] T048 后端验收：`cd backend && .venv/bin/python scripts/ui_selftest.py` 与 `ui_e2e.py` 全绿
-- [ ] T049 **跨 feature 契约核对**：确认 `001-ai-workbench/contracts/dsl.md` 规则 11–14 引用的动作白名单与本 feature `contracts/steps.md` 的 `ACTIONS` 一致；两端常量（后端 `ui_executor.py` / 前端 `uiTest.ts`）无漂移
-- [ ] T050 按 `backend/CLAUDE.md` 的「安全审查检查点」**主动提示**用户跑 `security-review` —— 本 feature **新引入两个安全面**（浏览器出网 SSRF、录制脚本解析），是本次最需要审查的部分；由用户决定是否执行，不自动跑
+- [x] T042 [P] 实现 `backend/app/routers/ui/` 的允许域名查询端点（列表走 `Permission()`，增删走 ADMIN —— 已在 T018 覆盖）与节点心跳的调用方接线
+- [x] T043 更新 `backend/CLAUDE.md`：新增「UI 自动化」段落，只放硬约束与指针 —— **步骤 DSL 动作白名单封闭（不得引入新 `exec()` 面）**、**SSRF 白名单 + 私网拦截 + 重定向逐跳校验**、**确定性等待（禁隐式 sleep 与随机退避）**、常量两端同步要求、执行结果不可重放的显式声明
+- [x] T044 更新 `backend/docs/ui-automation-design.md`：按 constitution「每次功能落地 SHOULD 在 `backend/docs/<feature>-design.md` 中记录哪些原则影响了设计决策」补写 constitution 五条原则对本设计的影响；同步 SSRF 拦截清单与确定性约束
+- [x] T045 按 `quickstart.md` §4 逐条验证就地指引点 **U1–U6**（constitution 原则 IV 的落地验收；指引点定义以 `data-model.md` §5 为准）
+- [x] T046 按 `quickstart.md` §3 与 §6 跑完全部端到端场景并逐条核对 SC-001 ~ SC-012；**§3.4 的 SSRF 场景 D 必须全表通过**
+- [x] T047 前端验收：`cd frontend && nvm use && npx tsc --noEmit`（目标 0 错误）与 `npm run lint:js`
+- [x] T048 后端验收：`cd backend && .venv/bin/python scripts/ui_selftest.py` 与 `ui_e2e.py` 全绿
+- [x] T049 **跨 feature 契约核对**：确认 `001-ai-workbench/contracts/dsl.md` 规则 11–14 引用的动作白名单与本 feature `contracts/steps.md` 的 `ACTIONS` 一致；两端常量（后端 `ui_executor.py` / 前端 `uiTest.ts`）无漂移
+- [x] T050 按 `backend/CLAUDE.md` 的「安全审查检查点」**主动提示**用户跑 `security-review` —— 本 feature **新引入两个安全面**（浏览器出网 SSRF、录制脚本解析），是本次最需要审查的部分；由用户决定是否执行，不自动跑
 
 ---
 

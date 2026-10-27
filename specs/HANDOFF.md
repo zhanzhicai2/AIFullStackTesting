@@ -7,7 +7,7 @@
 
 ## 0. 一句话状态
 
-用 Spec Kit 给两个 feature 走完了「specify → plan → tasks → analyze」全流程，设计产物齐全、两轮 `/speckit-analyze` 的发现全部修完（CRITICAL / HIGH 清零）。**`002-ui-automation` 的 Phase 1 ~ Phase 5 已落地**（T001~T041）—— 元素库地基、Playwright 底座、SSRF 边界、录制解析、27 个 `/ui/*` 端点、267 项自测断言、前端六个页面（元素库 / 用例编辑器 / 录制导入 / 执行中心 / 执行节点 / 报告附件 tab）全部写完并跑过验证；**只剩 Polish 阶段（T042~T050）没做**。
+用 Spec Kit 给两个 feature 走完了「specify → plan → tasks → analyze」全流程，设计产物齐全、两轮 `/speckit-analyze` 的发现全部修完（CRITICAL / HIGH 清零）。**`002-ui-automation` 已全部落地**（T001~T050）—— 元素库地基、Playwright 底座、SSRF 边界、录制解析、27 个 `/ui/*` 端点、293 项自测断言、前端六个页面（元素库 / 用例编辑器 / 录制导入 / 执行中心 / 执行节点 / 报告附件 tab）全部写完并跑过验证。**下一步是 001-ai-workbench 的实现，以及 002 的浏览器路径验证与安全审查。**
 
 ---
 
@@ -55,26 +55,31 @@
 
 ## 3. 下一步：具体做什么
 
-### 起点：002 的 Polish 阶段（T042~T050）
+### 起点：001-ai-workbench 的实现 + 002 的收尾验证
 
 ```
-002 Phase 6       Polish：文档同步、U1~U6 指引点验收、SSRF 场景 D 全表通过、
-                   跨 feature 契约核对、主动提示跑 security-review
-001 Phase 1+2     AI 工作台的公共层（与 002 无循环依赖，可并行）
+001 Phase 1+2     AI 工作台的公共层（依赖 + 枚举 + Model/DAO/Schema/常量/路由 + ai_service + 提示词基座 + 聚类器）
+001 Phase 3~      US1~US4：用例生成 / Bug 分析 / 日志分析 / SQL 分析
+002 收尾          ① 在装了 chromium 的环境跑 ui_e2e.py  ② 跑一次 security-review
 ```
 
 **建议顺序**：
 
-1. **T045 / T046 验收** —— 按 `quickstart.md` §3 与 §6 逐条核对 SC-001 ~ SC-012；**§3.4 的 SSRF 场景 D 必须全表通过**
-2. **T042 / T043 / T044 文档** —— 允许域名查询端点、backend/CLAUDE.md 与 `backend/docs/ui-automation-design.md` 同步
-3. **T049 跨 feature 契约核对** —— 确认 `001-ai-workbench/contracts/dsl.md` 规则 11–14 引用的动作白名单与本 feature 一致，两端常量无漂移
-4. **T050 主动提示跑 `security-review`** —— 本 feature **新引入两个安全面**（浏览器出网 SSRF、录制脚本解析），是本次最需要审查的部分；**由用户决定是否执行，不自动跑**
-5. 之后做 001 的公共层
+1. **002 的收尾验证** —— 装 chromium 后跑 `backend/scripts/ui_e2e.py`（浏览器执行 / 失败截图落 OSS / 并发隔离 / 混合统计口径）；这是 002 唯一没验证过的部分
+2. **002 的安全审查** —— 本 feature **新引入两个安全面**（浏览器出网 SSRF、录制脚本解析），是整个项目最需要审查的地方。`backend/docs/ui-automation-design.md` §11.3 有清单
+3. **然后做 001** —— 它的公共层与 002 无循环依赖，但 Web UI 用例生成依赖 002 的元素库（002 已经就位）
 
-**第一个可演示增量**：US1~US3 的后端与前端都已就位，**只差在装了 chromium 的环境里跑一次 `ui_e2e.py` 把整条链路验证掉**。
+**下一步的具体命令**：
 
-> ⚠️ **动手前先装浏览器**：`pip install playwright && playwright install chromium`。
-> 只装 Python 包不装二进制，执行时会报「未安装 playwright」。
+```bash
+# 002 收尾
+cd backend
+pip install playwright && playwright install chromium
+.venv/bin/python scripts/ui_e2e.py
+
+# 001 的实现(切 feature)
+printf '{\n  "feature_directory": "specs/001-ai-workbench"\n}\n' > .specify/feature.json
+```
 
 ### 用 speckit 继续推进
 
@@ -233,7 +238,7 @@ selftest（constitution 原则 V 的门禁，T024/T025 守着两个新安全面�
 | `frontend/src/models/uiTest.ts` | hooks 风格 model |
 | `frontend/src/pages/uiTest/Element/` | 元素库页面（页面树 + 元素列表 + 启停切换 + 空库就地指引 U4） |
 | `frontend/src/pages/uiTest/CaseManage/` | 用例列表（复用既有目录树 + 就地新建目录 U3）+ 用例编辑器（步骤编排 / 元素引用失效高亮 / 调试执行 / base_url 指引 U1·U2 / 全内联提示 FR-010 / 超长截断提示 FR-035）+ 允许域名就地配置 |
-| `backend/scripts/ui_selftest.py` | 267 项自测断言（步骤 DSL / 动作白名单负例 / SSRF / 确定性等待 / 断言汇总 / codegen 解析 / 与契约一致性），**不依赖数据库** |
+| `backend/scripts/ui_selftest.py` | 293 项自测断言（步骤 DSL / 动作白名单负例 / SSRF 全表 / 确定性等待 / 断言汇总 / codegen 解析 / 跨 feature 契约核对），**不依赖数据库** |
 | `backend/scripts/ui_e2e.py` | US1 + US2 的 HTTP 端到端（**需要 chromium**；没装时跳过浏览器相关断言，其余照跑） |
 | `backend/app/routers/ui/record.py` | 录制导入端点 |
 | `frontend/src/pages/uiTest/Record/` | 录制导入页（脚本粘贴区 + 解析结果预览 + U5 就地指引） |
@@ -251,7 +256,7 @@ selftest（constitution 原则 V 的门禁，T024/T025 守着两个新安全面�
 - SSRF：私网 / 环回 / 链路本地 / IPv6 私有与环回 / IPv4-mapped 全部拦下；`*.example.com` 子域通配命中、apex 不命中
 - codegen 解析：sync 与 async 两种输出、8 种定位写法、`expect(...)` 断言写法、**含自由代码的行被跳过且不中断整段**
 - UI 用例建单 → 执行 → 落 `pity_test_result`（status / asserts / case_log 都写进去了）
-- **`backend/scripts/ui_selftest.py` 全绿 —— 267 项断言**：步骤 DSL（正例 / 必填字段 / 定位策略枚举 / 未知字段丢弃 / 元素引用解析 / value 双重语义 / 全无效 / 纯 DSL 落库）、动作白名单负例（10 个执行代码的动作在**加载步骤时**被拒 + 源码 AST 里没有 eval/exec）、SSRF（协议 / 域名白名单 / 通配符 / 11 个私网网段 / 步骤内 URL / 子资源与重定向逐跳）、确定性等待（无 `asyncio.sleep` / `wait_for_timeout` 只出现 2 次 / 退避常量固定 / 无 random / 多元素显式失败）、断言汇总（接口用例同构格式 / 失败即判失败）、codegen 解析（sync 与 async / 8 种策略 / `expect(...)` 写法 / 坏行跳过且说明 / 自由代码跳过 / 解析器 AST 里没有 eval/exec）、与 `contracts/steps.md` 的动作与策略逐条对齐
+- **`backend/scripts/ui_selftest.py` 全绿 —— 293 项断言**：步骤 DSL（正例 / 必填字段 / 定位策略枚举 / 未知字段丢弃 / 元素引用解析 / value 双重语义 / 全无效 / 纯 DSL 落库）、动作白名单负例（10 个执行代码的动作在**加载步骤时**被拒 + 源码 AST 里没有 eval/exec）、**SSRF 场景 D 全表（D1~D7，逐条对应 `quickstart.md` §3.4）**、确定性等待（无 `asyncio.sleep` / `wait_for_timeout` 只出现 2 次 / 退避常量固定 / 无 random / 多元素显式失败）、断言汇总（接口用例同构格式 / 失败即判失败）、codegen 解析（sync 与 async / 8 种策略 / `expect(...)` 写法 / 坏行跳过且说明 / 自由代码跳过 / 解析器 AST 里没有 eval/exec）、与 `contracts/steps.md` 的动作与策略逐条对齐、**跨 feature 契约核对（T049：001 的规则 11–14 指向 002 为准 + 两端常量无漂移）**
 - **US1 + US2 的 27 项端到端断言全绿**（绕开 HTTP 直接调路由函数验证的等价路径）：页面重名被拒、元素去重、用例创建、**元素无效的步骤被丢弃**、**危险动作被拒**、**域名不在白名单被拒**、库里存的是纯 DSL、停用后引用失效、录制导入（自由代码被跳过 + 有告警 + 产出调试中用例 + 重复导入复用元素与页面）、删页面 → 元素转停用
 - 前端 `npx tsc --noEmit` **0 错误**、eslint **0 告警**
 
@@ -264,25 +269,18 @@ selftest（constitution 原则 V 的门禁，T024/T025 守着两个新安全面�
 ### 9.3 工作区
 
 ```
- M backend/app/core/ui_executor.py           元素引用在执行期重新解析 + strip_internal
- M backend/app/core/ui_recorder.py           逐行兜底解析要记下失败的行号
- M backend/app/routers/ui/case.py            存库前剥掉内部字段 + 校验 base_url 域名
- M backend/app/routers/ui/record.py          录制导入端点(新)
- M backend/app/routers/ui/__init__.py        注册 /ui/record
- M backend/app/schema/ui_case.py             导入表单加可选的 directory_id / name
- M backend/app/utils/ui_security.py          加 url_host
- M backend/scripts/ui_selftest.py            加 codegen 解析的测试
-?? backend/scripts/ui_e2e.py                 US1 + US2 的 HTTP 端到端
- M frontend/config/routes.ts                 注册 /uiTest/record
- M frontend/src/services/uiTest.ts           导入接口带 directory_id / name
- M frontend/src/models/uiTest.ts             同上
-?? frontend/src/pages/uiTest/Record/         录制导入页
- M specs/002-ui-automation/tasks.md          T023~T036 勾选 + 实现记录补到 15 条
- M specs/HANDOFF.md                          状态与下一步更新
+ M backend/app/crud/test_case/TestCaseDirectory.py   insert_directory 返回新建目录 id(U3 建完即选中)
+ M backend/app/routers/testcase/testcase.py          目录创建的响应带上 id(向后兼容)
+ M backend/scripts/ui_selftest.py                    加 SSRF 场景 D 全表 + 跨 feature 契约核对(T049)
+ M backend/docs/ui-automation-design.md              补 constitution 五条原则对本设计的影响(T044)
+ M frontend/src/pages/uiTest/CaseManage/CaseEditor.tsx  U1~U6 的就地指引补齐
+ M frontend/src/pages/uiTest/CaseManage/index.tsx     目录树刷新回调
+ M specs/002-ui-automation/tasks.md                  T042~T050 勾选 + 实现记录补到 22 条
+ M specs/HANDOFF.md                                  状态与下一步更新
 ```
 
 > `001-ai-workbench` 仍是纯设计，一行业务代码没写。
 
 **commit 建议**：commit message 走 Conventional Commits。建议**分两个 commit**：
-- `feat(ui-test): 新增录制导入与 US1/US2 端到端脚本` —— 后端端点 + 解析修复 + 前端页面 + e2e
-- `docs(spec): 更新 002-ui-automation 任务进度与交接文档` —— tasks.md + HANDOFF.md
+- `feat(ui-test): 补齐就地指引点 U1~U6 与验收脚本` —— 前端指引 + selftest 的 D 表与契约核对 + 目录接口 + 设计文档
+- `docs(spec): 002-ui-automation 全部任务完成` —— tasks.md + HANDOFF.md
