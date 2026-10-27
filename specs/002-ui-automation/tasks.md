@@ -16,7 +16,7 @@
 > - T017 补 D1 的显式角色说明
 > - 任务编号在 T016 之后统一 +1（原 T016~T049 → T017~T050）
 
-> **实现记录（Phase 1 ~ Phase 6 落地时）** —— T001~T050 已完成，实现与契约有 26 处偏差/补齐，逐条记在这里：
+> **实现记录（Phase 1 ~ Phase 6 落地时）** —— T001~T050 已完成，实现与契约有 26 处偏差/补齐 + **安全审查发现 8 项（已修 6 项）**，逐条记在这里：
 >
 > 1. **T004 多落地 1 个 DAO**：任务列了 5 个 DAO，但 6 张表里的 `pity_ui_allowed_domain` 同样需要 DAO —— 补 `backend/app/crud/ui/UIAllowedDomainDao.py`（共 6 个）。
 > 2. **T020 的分派点在 `Executor.run` 而非 `run_single`**：`case_info` 是在 `run()` 里取的，`run_single` 只负责分发到 `run_with_test_data` → `run`。按契约「拿到 case_info 之后、HTTP 请求之前」分派，落在 `run()` 里，批量与单条调试共用同一条路径。
@@ -60,6 +60,21 @@
 > **浏览器路径验证时补的两处**：
 > 25. **`pity_ui_case` 加了 `locale` 列（默认 `en-US`）**：同一个 URL 在不同 `Accept-Language` 下返回的内容不同（实测 example.com 会按浏览器语言返回中/英/俄等多语言版本）—— **不钉死 locale 就谈不上「同样的输入产出完全一致的结果」**（constitution 原则 I）。前端用例编辑器里可改。
 > 26. **chromium 启动有回退**：默认用 headless shell，失败则回退到完整 chromium 构建（`channel="chromium"`）。有些环境只装了完整构建（如 `playwright install chromium --no-shell`），回退让它照样跑得起来。回退顺序固定，不含随机。
+>
+> **安全审查（2026-10-27，发现 8 项，已修 6 项）** —— 逐条都做了**实测验证**，不是看代码猜的：
+>
+> | # | 严重性 | 问题 | 实测证据 | 处理 |
+> |---|---|---|---|---|
+> | 27 | **HIGH** | **`upload` 动作可读服务器任意文件**：`files` 是用户填的**本地路径**，`set_input_files` 会去读那个文件并 POST 给目标站点；目标站点若回显内容，用例的断言结果（`pity_test_result.asserts`）就把它**回显成了执行记录** → 任意文件读取 | 本地起服务 + `set_input_files(['/tmp/secret'])` → 服务端收到的 multipart 里**含有文件内容** | ✅ 已修：只接受**已登记到 `pity_oss_file`** 的文件（契约 §1.3 就是走既有 `/oss/upload`），从 OSS 下载到临时目录、用完即删 |
+> | 28 | **MEDIUM** | **Service Worker 的请求绕过 SSRF 拦截**：SW 脚本与它发起的 fetch **都不经过 `page.route`** | SW 注册 + reload 后，`/sw.js` 与 `/from-sw` 均**未出现在拦截器里，却到达了服务端** | ✅ 已修：`new_context(service_workers="block")` —— 实测 SW 脚本与它的请求都不再到达服务端 |
+> | 29 | **MEDIUM** | **WebSocket 握手绕过 SSRF 拦截**：`page.route` 不覆盖 WS 握手，被测页面能用 `ws://` 连内网服务 | 页面 `new WebSocket('ws://127.0.0.1/ws')` → 服务端**收到了 `/ws`**，而拦截器只看到 `/` | ✅ 已修：`page.route_web_socket("**/*", ...)` 按同一套白名单判定 —— 实测加上后服务端收不到握手 |
+> | 30 | **MEDIUM** | **UI 步骤字段走未沙箱的 Jinja2** → SSTI 拿服务器命令执行 | `${cycler.__init__.__globals__.os.popen('id').read()}` 经 `Render.render` **返回了真实的 uid/gid/groups** | ✅ 已修：新增 `Render.render_safe`（`SandboxedEnvironment`），UI 路径改用它；载荷现在**原样返回**。注意平台既有 `/online/script`（`Permission()`）本来就能 exec，所以这条**不是权限升级**，但它是一条更隐蔽的 RCE 路径 |
+> | 31 | LOW | **DNS rebinding 的 TOCTOU**：白名单校验时解析一次、浏览器发请求时再解析一次，中间可被换成内网 IP | 未实测（需要可配的 DNS） | ⚠️ 已知限制：route 拦截器对**每个**请求都重新解析，窗口已压到最小；要彻底解决得把解析结果 pin 到连接上（Playwright 不直接支持） |
+> | 32 | LOW | **导入脚本无大小限制** → 超大脚本被 `ast.parse` 吃掉内存 | 未实测 | ✅ 已修：`UIImportForm` 限制 1MB |
+> | 33 | LOW | **节点心跳任何登录用户可改内置节点**：能把并发上限调到很大号，或把它置为离线 | 代码路径确认 | ✅ 已修：心跳不能改内置节点的 browser/headless/max_concurrency，也不能把它置为离线（内置节点随平台存活，要下线用 ADMIN 的删除） |
+> | 34 | 观察 | **`/ui/*` 不校验项目成员身份**：任何登录用户能读写别的项目的页面/元素/用例 | 代码路径确认 | ⚠️ **与契约一致**（contracts/api.md §1.2 明确「登录即可用」）**也与平台既有模型一致**（`/testcase/*` 同样不校验项目归属）。但 UI 用例的 base_url 与步骤里可能含内部地址与凭据，**跨项目可见性值得后续单独评估** |
+>
+> 修完加了 11 条**回归断言**（`ui_selftest.py` 的 `test_security_boundaries()`），把四条安全约束钉死，防止以后改代码时无声退化。
 
 ---
 

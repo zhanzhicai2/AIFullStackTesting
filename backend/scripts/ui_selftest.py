@@ -642,6 +642,48 @@ def test_cross_feature_contract():
     check("前端文件头指认了后端权威出处", "backend/app/core/ui_executor.py" in frontend)
 
 
+def test_security_boundaries():
+    """
+    两个新安全面的边界断言 —— 防止以后改代码时无声退化。
+
+    ① SSRF: Service Worker 的请求与 WebSocket 握手**都绕过 page.route**(实测),
+       必须靠 service_workers="block" 与 route_web_socket 补上
+    ② 录制脚本/模板: 用户可控的文本不能进未沙箱的 Jinja2
+    """
+    print("== 安全边界回归 ==")
+    source = open(EXECUTOR_PATH, encoding="utf-8").read()
+
+    # ① SSRF 边界
+    check('上下文禁用了 Service Worker', 'service_workers="block"' in source)
+    check('注册了 WebSocket 握手拦截', 'route_web_socket' in source)
+    check('WebSocket 拦截用的是同一套域名白名单判定', '_host_allowed' in source)
+
+    # ② upload 动作不能把用户填的路径直接交给浏览器
+    upload_start = source.find('async def _do_upload')
+    upload_end = source.find('async def ', upload_start + 10)
+    upload_block = source[upload_start:upload_end] if upload_start > 0 else ''
+    check('upload 动作存在', bool(upload_block))
+    check('upload 动作只接受已登记到 OSS 的文件',
+          'PityOssDao.query_record' in upload_block, upload_block[:120])
+    check('upload 动作不把用户路径直接给 set_input_files',
+          'set_input_files(files' not in upload_block and 'set_input_files(paths' in upload_block,
+          upload_block[:200])
+
+    # ③ 沙箱渲染 —— 载荷必须原样返回而不是被执行
+    from app.core.render import Render
+    payload = "${cycler.__init__.__globals__.os.popen('id').read()}"
+    unsafe = str(Render.render({}, payload))
+    check('未沙箱渲染确实能取到系统信息(说明载荷有效)', 'uid=' in unsafe, unsafe[:60])
+    safe = str(Render.render_safe({}, payload))
+    check('沙箱渲染挡住了载荷', 'uid=' not in safe and 'popen' in safe, safe[:80])
+    check('沙箱渲染正常变量仍可用', Render.render_safe({'name': 'admin'}, '${name}') == 'admin')
+    check('沙箱渲染全局函数仍可用', Render.render_safe({}, '${random_int(1,1)}') == '1')
+    # UI 执行器必须走沙箱
+    from app.core.ui_executor import UIExecutor
+    executor = UIExecutor(SimpleNamespace(case_id=1, screenshot=True), 1, [])
+    check('UI 执行器走沙箱渲染', 'popen' in str(executor.render(payload)))
+
+
 def main():
     asyncio.run(test_dsl_positive())
     asyncio.run(test_dsl_required_fields())
@@ -664,6 +706,7 @@ def main():
     test_executor_contract()
     test_codegen_parser()
     test_cross_feature_contract()
+    test_security_boundaries()
     print("")
     if FAILED:
         print(f"FAILED {len(FAILED)} 项: {FAILED}")

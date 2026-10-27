@@ -22,6 +22,7 @@ UI 执行引擎
 """
 import asyncio
 import json
+import os
 import time
 from typing import Dict, List, Optional, Tuple
 
@@ -360,11 +361,17 @@ class UIExecutor(object):
     # ---------- 变量渲染 ----------
 
     def render(self, value):
-        """用平台既有的 Render 渲染字符串字段(FR-013)"""
+        """
+        用平台既有的 Render 渲染字符串字段(FR-013)。
+
+        **走沙箱环境** —— 步骤里的 text/value/url 是用户可控的文本, 而未沙箱的
+        Jinja2 能通过 dunder 属性拿到 Python 内部对象
+        (`${cycler.__init__.__globals__.os.popen('id').read()}` 会在服务器上执行命令)。
+        """
         if not isinstance(value, str) or "${" not in value:
             return value
         from app.core.render import Render
-        return Render.render(self.params, value)
+        return Render.render_safe(self.params, value)
 
     # ---------- 主流程 ----------
 
@@ -398,13 +405,19 @@ class UIExecutor(object):
                     viewport={"width": viewport[0], "height": viewport[1]},
                     # locale 钉死 —— 同一个 URL 在不同 Accept-Language 下内容不同,
                     # 不固定 locale 就谈不上「同样的输入产出完全一致的结果」
-                    locale=self.ui_case.locale or "en-US")
+                    locale=self.ui_case.locale or "en-US",
+                    # **禁用 Service Worker** —— SW 注册的脚本与它发起的请求**绕过
+                    # page.route**(实测), 等于给 SSRF 边界开了一个后门
+                    service_workers="block")
             except Exception as e:
                 return self._result(status=2, error=f"创建浏览器上下文失败: {e}", error_reason=REASON_BROWSER_ERROR)
             try:
                 page = await context.new_page()
                 # 页面内的子资源请求同样受 SSRF 约束(检查点 5)
                 await page.route("**/*", self._make_route_guard())
+                # **WebSocket 握手也绕过 page.route**(实测) —— 必须单独拦,
+                # 否则被测页面可以拿 ws:// 去连内网服务
+                await page.route_web_socket("**/*", self._make_ws_guard())
                 try:
                     await self._run_steps(page, steps, base_url)
                 except UINavigationBlocked as e:
@@ -628,11 +641,57 @@ class UIExecutor(object):
         await target.hover(timeout=timeout * 1000)
 
     async def _do_upload(self, page, step, base_url, timeout):
-        target = await self._unique(page, step)
+        """
+        上传文件。
+
+        **只允许引用已登记到 OSS 的文件** —— 绝不能把用户填的路径直接交给浏览器:
+        `set_input_files` 会去读**服务器本地**那个路径, 等于给平台开了一个
+        「读服务器任意文件并 POST 出去」的口子(目标站点若回显内容, 用例断言里
+        就把它回显成了执行记录)。
+        """
+        from app.crud.oss.PityOssDao import PityOssDao
+        from app.middleware.oss import OssClient
+
         files = step.get("files")
         if isinstance(files, str):
             files = [files]
-        await target.set_input_files(files, timeout=timeout * 1000)
+        if not files:
+            raise UIExecutionError("没有指定要上传的文件", REASON_BROWSER_ERROR)
+        paths = []
+        client = None
+        try:
+            for name in files:
+                # 只认 OSS 里已登记的文件 —— 本地路径一律不接受
+                record = await PityOssDao.query_record(file_path=name, deleted_at=0)
+                if record is None:
+                    raise UIExecutionError(
+                        f"文件「{name}」不在已上传文件列表里, 请先通过「文件上传」上传后再引用",
+                        REASON_BROWSER_ERROR)
+                if client is None:
+                    client = OssClient.get_oss_client()
+                path, _ = await client.download_file(name)
+                paths.append(path)
+        except UIExecutionError:
+            self._clean_temp_files(paths)
+            raise
+        except Exception as e:
+            self._clean_temp_files(paths)
+            raise UIExecutionError(f"准备上传文件失败: {e}", REASON_BROWSER_ERROR)
+        try:
+            target = await self._unique(page, step)
+            await target.set_input_files(paths, timeout=timeout * 1000)
+        finally:
+            self._clean_temp_files(paths)
+
+    @staticmethod
+    def _clean_temp_files(paths: List[str]):
+        """下载到本地的临时文件用完即删"""
+        for path in paths:
+            try:
+                if path and os.path.exists(path):
+                    os.remove(path)
+            except Exception:
+                pass
 
     async def _do_drag(self, page, step, base_url, timeout):
         source = await self._unique(page, step)
@@ -833,6 +892,28 @@ class UIExecutor(object):
                         break
         self._host_cache[host] = allowed
         return allowed
+
+    def _make_ws_guard(self):
+        """
+        WebSocket 握手拦截 —— **握手也绕过 page.route**(实测)。
+
+        被测页面可以用 `new WebSocket('ws://内网地址')` 连内部服务,
+        不拦就等于 SSRF 边界开了个后门。这里按同一套域名白名单判定, 不放行就断开。
+        """
+        async def handler(ws):
+            try:
+                host = (ws.url or "").split("://", 1)[-1].split("/", 1)[0].split(":", 1)[0].lower()
+                if not host or not self._host_allowed(host):
+                    await ws.close()
+                    return
+                await ws.connect_to_server()
+            except Exception:
+                try:
+                    await ws.close()
+                except Exception:
+                    pass
+
+        return handler
 
     def _result(self, status: int = 0, error: str = None, error_reason: str = None) -> dict:
         """

@@ -58,14 +58,14 @@
 ### 起点：002 的安全审查 + 001-ai-workbench 的实现
 
 ```
-002 收尾          ① 跑一次 security-review（两个新安全面） ② 配上 OSS 后验失败截图落盘
+002 收尾          ① 配上 OSS 后验失败截图落盘  ② 已知限制：DNS rebinding 的 TOCTOU / 跨项目可见性
 001 Phase 1+2     AI 工作台的公共层（依赖 + 枚举 + Model/DAO/Schema/常量/路由 + ai_service + 提示词基座 + 聚类器）
 001 Phase 3~      US1~US4：用例生成 / Bug 分析 / 日志分析 / SQL 分析
 ```
 
 **建议顺序**：
 
-1. **002 的安全审查** —— 本 feature **新引入两个安全面**（浏览器出网 SSRF、录制脚本解析），是整个项目最需要审查的地方。`backend/docs/ui-automation-design.md` §11.3 有清单，Claude 只提示不自动跑
+1. **002 的安全审查已做完**（2026-10-27）—— 发现 8 项、已修 6 项，其中 1 项 HIGH（`upload` 动作可读服务器任意文件）、3 项 MEDIUM（SW 绕过 / WebSocket 绕过 / SSTI）。细节见 `specs/002-ui-automation/tasks.md` 顶部的「安全审查」表与 `backend/docs/ui-automation-design.md` §11.4
 2. **配上 OSS 后补验「失败截图落盘」** —— dev 环境没配对象存储，截图字节已经验证有了（>1KB 的 PNG），但上传 OSS 那一步还没跑通
 3. **然后做 001** —— 它的公共层与 002 无循环依赖，但 Web UI 用例生成依赖 002 的元素库（002 已经就位）
 

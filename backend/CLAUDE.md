@@ -173,6 +173,17 @@ Playwright 驱动的 UI 自动化。核心约定：
 - **内置本地节点在平台启动时自动注册**（`app/__init__.py` 的 lifespan 第 4 步），注册失败不拖垮服务
 - **执行结果不可重放** —— 步骤定义确定，但页面内容与断言成败取决于被测系统，代码与文档里都要显式标注
 
+**四条不能动的安全约束**（安全审查时实测确认过，改代码时别把它们拆了）：
+
+| 约束 | 在哪 | 为什么 |
+|---|---|---|
+| **Service Worker 必须禁用** | `new_context(service_workers="block")` | SW 的脚本与它发起的请求**绕过 `page.route`**（实测），等于给 SSRF 边界开后门 |
+| **WebSocket 握手必须单独拦** | `page.route_web_socket("**/*", ...)` | 握手**也绕过 `page.route`**（实测），被测页面能用 `ws://` 连内网服务 |
+| **`upload` 动作只认已登记的 OSS 文件** | `_do_upload` 里查 `pity_oss_file` | `set_input_files` 会去读**服务器本地**那个路径 —— 用户填 `/etc/passwd` 就等于把服务器文件 POST 给目标站点 |
+| **用户可控的文本必须走沙箱渲染** | `Render.render_safe`（`SandboxedEnvironment`） | 未沙箱的 Jinja2 能通过 dunder 属性拿到 Python 内部对象，`${cycler.__init__.__globals__.os.popen('id').read()}` **会在服务器上执行命令** |
+
+> 这四条都有对应的回归断言在 `backend/scripts/ui_selftest.py` 的 `test_security_boundaries()` 里 —— 别删。
+
 ### 配置（`config.py`）
 
 `BaseConfig` 继承 pydantic `BaseSettings`，从 `.env` 文件加载。关键配置：

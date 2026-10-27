@@ -10,6 +10,9 @@ from pydantic import BaseModel, validator
 
 from app.schema.base import PityModel
 
+# 导入脚本的大小上限 —— 脚本会被 ast.parse, 不限大小等于给了一个内存放大器
+MAX_SCRIPT_LENGTH = 1024 * 1024
+
 # 与 app/core/ui_executor.py 的 STRATEGIES 一致(8 种)
 STRATEGIES = ("css", "xpath", "id", "text", "role", "placeholder", "label", "testid")
 
@@ -186,4 +189,12 @@ class UIImportForm(BaseModel):
     def source_valid(cls, v):
         if v not in ("codegen", "manual"):
             raise ValueError("导入来源只支持 codegen 或 manual")
+        return v
+
+    @validator("script")
+    def script_size(cls, v):
+        # 脚本是外部输入, 而且要被 ast.parse —— 不限大小的话一个超大脚本
+        # 就能把服务端的内存吃满
+        if len(v) > MAX_SCRIPT_LENGTH:
+            raise ValueError(f"脚本过长(超过 {MAX_SCRIPT_LENGTH} 字符), 请裁剪后重试")
         return v

@@ -12,6 +12,10 @@ from app.crud import Mapper, ModelWrapper
 from app.models import async_session
 from app.models.ui_case import PityUINode
 
+# 内置本地节点的固定名字与配置 —— 只认系统的
+BUILTIN_NODE_NAME = "内置本地节点"
+DEFAULT_MAX_CONCURRENCY = 2
+
 
 @ModelWrapper(PityUINode)
 class UINodeDao(Mapper):
@@ -43,8 +47,16 @@ class UINodeDao(Mapper):
     @classmethod
     async def register_node(cls, name: str, user_id: int, node_type: str = "local",
                             browser: str = "chromium", headless: bool = True,
-                            max_concurrency: int = 2, version: str = None) -> PityUINode:
-        """自注册 —— 已存在同名同类型的节点则复用并刷新状态"""
+                            max_concurrency: int = 2, version: str = None,
+                            builtin: bool = False) -> PityUINode:
+        """
+        自注册 —— 已存在同名同类型的节点则复用并刷新状态。
+
+        :param builtin: True 表示**平台启动时**的系统注册。
+                        False 表示外部心跳 —— 此时**不允许改内置节点的关键配置**
+                        (并发上限 / 浏览器 / 无头模式): 否则任何登录用户都能把平台的
+                        执行能力掐掉(置为离线), 或者把并发上限调到很大号拖垮机器。
+        """
         async with async_session() as session:
             async with session.begin():
                 sql = select(PityUINode).where(PityUINode.node_type == node_type,
@@ -59,10 +71,16 @@ class UINodeDao(Mapper):
                     session.add(data)
                 else:
                     data.status = 1
-                    data.browser = browser
-                    data.headless = headless
-                    data.max_concurrency = max_concurrency
                     data.version = version
+                    if builtin or name != BUILTIN_NODE_NAME:
+                        data.browser = browser
+                        data.headless = headless
+                        data.max_concurrency = max_concurrency
+                    else:
+                        # 内置节点的关键配置只认系统的
+                        data.browser = "chromium"
+                        data.headless = True
+                        data.max_concurrency = DEFAULT_MAX_CONCURRENCY
                     data.update_user = user_id
                 await session.flush()
                 session.expunge(data)
@@ -100,6 +118,7 @@ class UINodeDao(Mapper):
         if not user_id:
             # 库里还没有用户 —— 先落 0, 用户注册后由心跳接口刷新
             user_id = 0
-        return await cls.register_node(name="内置本地节点", user_id=user_id, node_type="local",
-                                       browser="chromium", headless=True, max_concurrency=2,
-                                       version="1.0.0")
+        return await cls.register_node(name=BUILTIN_NODE_NAME, user_id=user_id, node_type="local",
+                                       browser="chromium", headless=True,
+                                       max_concurrency=DEFAULT_MAX_CONCURRENCY,
+                                       version="1.0.0", builtin=True)

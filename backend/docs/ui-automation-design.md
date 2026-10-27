@@ -694,6 +694,30 @@ cd backend
 
 按 `backend/CLAUDE.md` 的约定：Claude 在功能边界**主动提示**，但**不自动执行**——跑不跑、什么时候跑由用户决定。
 
+### 11.4 安全审查（2026-10-27）
+
+对整个 feature 做了一次安全审查，**每条发现都做了实测验证**（不是看代码猜的）。结果记在
+[`specs/002-ui-automation/tasks.md`](../../specs/002-ui-automation/tasks.md) 顶部的「安全审查」表里。
+
+**已修的 4 条硬边界**：
+
+| 边界 | 实测证据 |
+|---|---|
+| `upload` 动作只认已登记的 OSS 文件 | `set_input_files` 会读**服务器本地**那个路径 —— 用户填 `/etc/passwd` 就等于把服务器文件 POST 给目标站点；目标站点若回显，断言结果把它**回显成执行记录** |
+| Service Worker 必须禁用（`service_workers="block"`） | SW 的脚本与它发起的 fetch **都不经过 `page.route`**，却到达了服务端 —— 等于给 SSRF 边界开后门 |
+| WebSocket 握手必须单独拦（`page.route_web_socket`） | 握手**也不经过 `page.route`** —— 被测页面能用 `ws://` 连内网服务 |
+| 用户可控的文本必须走沙箱渲染（`Render.render_safe`） | 未沙箱的 Jinja2 能通过 dunder 属性拿到 Python 内部对象，`${cycler.__init__.__globals__.os.popen('id').read()}` **在服务器上执行了命令**（返回了真实 uid/gid/groups） |
+
+> 关于最后一条：平台既有 `/online/script`（`Permission()`）本来就能执行任意 Python，
+> 所以 UI 的 SSTI **不是权限升级**，但它是一条**更隐蔽**的 RCE 路径（藏在「填入文本」这种
+> 无害操作里），必须堵。
+
+**已知未修的限制**：
+
+- **DNS rebinding 的 TOCTOU**：白名单校验时解析一次、浏览器发请求时再解析一次，中间可被换成内网 IP。route 拦截器对**每个**请求都重新解析，窗口已压到最小；彻底解决需要把解析结果 pin 到连接上（Playwright 不直接支持）。
+- **`/ui/*` 不校验项目成员身份**：与契约（`contracts/api.md` §1.2「登录即可用」）和平台既有模型（`/testcase/*` 同样不校验）一致，但 UI 用例的 `base_url` 与步骤里可能含内部地址与凭据，跨项目可见性值得后续单独评估。
+
+
 ---
 
 ## 12. constitution 五条原则对本设计的影响
