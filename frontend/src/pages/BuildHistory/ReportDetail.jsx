@@ -1,4 +1,4 @@
-import {connect, useParams} from "@umijs/max";
+import {connect, history, useParams} from "@umijs/max";
 import {Badge, Card, Col, Descriptions, Divider, Input, Row, Spin, Statistic, Table, Tabs, Tag} from "antd";
 import {PageContainer} from "@ant-design/pro-components";
 import React, {useEffect, useState} from "react";
@@ -224,6 +224,16 @@ const ReportDetail = ({dispatch, loading, user, gconfig}) => {
         <a onClick={async () => {
           await onHandleRetry(record)
         }}>重试</a>
+        {/* AI 失败分析: 只有失败/出错的用例才有分析价值(FR-016) */}
+        {record.status !== 0 && record.status !== 3 ? (
+          <>
+            <Divider type="vertical"/>
+            <a onClick={() => {
+              // 上下文由后端从执行记录自动组装, 这里只带 result_id
+              history.push(`/ai/bug?result_id=${record.id}`);
+            }}>AI 分析</a>
+          </>
+        ) : null}
       </>
     }
   ]

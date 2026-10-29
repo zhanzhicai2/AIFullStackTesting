@@ -233,6 +233,37 @@ export default [
         name: '聊天助手',
         component: './Chat/index',
       },
+      {
+        // AI 工作台: 四个场景共用一套公共能力(模型选择 / 调用流水 / 结论落库)
+        path: '/ai/workbench',
+        name: 'AI 工作台',
+        component: './Ai/Workbench/index',
+      },
+      {
+        path: '/ai/casegen',
+        name: '用例生成',
+        component: './Ai/Workbench/CaseGen/index',
+      },
+      {
+        path: '/ai/bug',
+        name: 'Bug 分析',
+        component: './Ai/Workbench/Bug/index',
+      },
+      {
+        path: '/ai/log',
+        name: '日志分析',
+        component: './Ai/Workbench/Log/index',
+      },
+      {
+        path: '/ai/sql',
+        name: 'SQL 分析',
+        component: './Ai/Workbench/Sql/index',
+      },
+      {
+        path: '/ai/invoke',
+        name: '调用流水',
+        component: './Ai/Workbench/InvokeLog/index',
+      },
     ],
   },
   {
