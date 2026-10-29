@@ -6,15 +6,12 @@
 - 自然语言 -> 字段规则(AI 只翻译规则, 不生成数据)
 - 目标库表结构查询(用于自动推导字段)
 """
-import json
-
 from fastapi import APIRouter, Depends
 
 from app.core.ai_client import ChatError, complete_chat
+from app.core import ai_service
 from app.core.data_factory import ai_parser, exporter, writer
 from app.core.data_factory.generator import DataFactoryError, DataGenerator
-from app.crud.ai.AIModelDao import AIModelDao
-from app.crud.ai.AIVendorDao import AIVendorDao
 from app.crud.data_factory.DataFactoryDao import DataFactoryDao
 from app.handler.fatcory import PityResponse
 from app.routers import Permission, get_session
@@ -183,28 +180,11 @@ async def bind_case(form: BindCaseForm, user_info=Depends(Permission())):
 @router.post("/ai/parse", description="自然语言转字段规则")
 async def ai_parse(form: AiParseForm, user_info=Depends(Permission())):
     try:
-        vendor = await AIVendorDao.query_vendor(form.vendor_id)
-        if vendor is None:
-            return PityResponse.failed("模型厂商不存在")
-        if not vendor.enable or not vendor.api_key:
-            return PityResponse.failed("该厂商未启用或未配置 API Key, 请联系管理员")
-        model_row = None
-        for m in await AIModelDao.list_model(form.vendor_id):
-            if m.id == form.model_id:
-                model_row = m
-                break
-        if model_row is None:
-            return PityResponse.failed("模型不存在")
-        if not model_row.enable or model_row.model_type != "chat":
-            return PityResponse.failed("该模型未启用或不是对话模型")
-        params = {}
-        if model_row.params:
-            try:
-                params = json.loads(model_row.params)
-            except Exception:
-                params = {}
-        content = await complete_chat(vendor.base_url, vendor.api_key, model_row.name,
-                                      ai_parser.build_messages(form.prompt), params)
+        # 厂商/模型的解析与校验统一走公共层(research.md §3.2)——
+        # 原本这段逻辑在 datafactory 与 ai/chat 两处各写了一份, 改一次要改两处
+        ref = await ai_service.resolve_model(form.vendor_id, form.model_id)
+        content = await complete_chat(ref.base_url, ref.api_key, ref.model_name,
+                                      ai_parser.build_messages(form.prompt), ref.params)
         rules, warnings = ai_parser.parse_rules(content)
         return PityResponse.success(dict(rules=rules, warnings=warnings))
     except ChatError as e:

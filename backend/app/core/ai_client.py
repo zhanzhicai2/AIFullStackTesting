@@ -238,6 +238,20 @@ async def complete_chat(base_url: str, api_key: str, model_name: str, messages: 
     :param params:    额外参数(temperature/max_tokens/top_p), 来自模型的齿轮设置
     :return: 模型返回的完整文本
     """
+    content, _ = await complete_chat_with_usage(base_url, api_key, model_name, messages, params)
+    return content
+
+
+async def complete_chat_with_usage(base_url: str, api_key: str, model_name: str, messages: list,
+                                   params: dict = None) -> tuple:
+    """
+    非流式对话, 额外返回厂商给的 usage(token 用量)。
+
+    与 `complete_chat` 的区别只有一个: 多返回 usage。厂商不一定给 usage
+    (部分厂商直接省掉), 拿不到时返回空 dict, 调用方按 0 记。
+
+    :return: (完整文本, usage dict)
+    """
     url = _build_chat_url(base_url)
     if not (api_key or "").strip():
         raise ChatError("该厂商未配置 API Key, 请联系管理员在模型设置里补充")
@@ -279,7 +293,8 @@ async def complete_chat(base_url: str, api_key: str, model_name: str, messages: 
                     content = message.get("reasoning_content") or ""
                 if not content:
                     raise ChatError("厂商返回了空内容")
-                return content
+                usage = obj.get("usage") or {}
+                return content, usage
     except ChatError:
         raise
     except asyncio.TimeoutError:

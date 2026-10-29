@@ -105,4 +105,6 @@ db_helper = DatabaseHelper()
 from app.models.data_factory import PityDataFactory  # noqa: E402,F401
 from app.models.ui_case import (PityUIAllowedDomain, PityUICase, PityUIElement,  # noqa: E402,F401
                                PityUIImportLog, PityUINode, PityUIPage)
+from app.models.ai_draft import (PityAIAnalysis, PityAICaseDraft,  # noqa: E402,F401
+                                 PityAIDraftBatch, PityAIInvokeLog)
 

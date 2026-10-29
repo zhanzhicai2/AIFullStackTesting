@@ -1,4 +1,5 @@
 import defaultSettings from '../../config/defaultSettings';
+import { AI_ASSERT_TYPES, AI_PRIORITIES } from '@/consts/aiWorkbench';
 
 // const isDev = () => {
 //   return window.location.href.indexOf("localhost") > -1 || window.location.href.indexOf("127.0.0.1") > -1;
@@ -93,23 +94,14 @@ const CONFIG = {
     0: '组员',
     // 2: "负责人"
   },
-  PRIORITY: ['P0', 'P1', 'P2', 'P3', 'P4'],
-  ASSERT_TYPE: {
-    equal: '等于',
-    not_equal: '不等于',
-    in: '包含于',
-    text_in: '文本包含于',
-    not_in: '不包含于',
-    text_not_in: '文本不包含于',
-    contain: '包含',
-    not_contain: '不包含',
-    length_eq: '长度等于',
-    length_lt: '长度小于',
-    length_gt: '长度大于',
-    length_le: '长度小于等于',
-    length_ge: '长度大于等于',
-    json_equal: 'JSON等于',
-  },
+  // 断言类型白名单(14 种)
+  // ⚠️ 权威定义在 `backend/app/enums/AIWorkbenchEnum.py` 的 `ASSERT_TYPES` ——
+  //    后端校验器要用这份白名单, 而后端读不了 TS 文件, 所以权威位置必须在后端
+  //    (research.md §3.1, 修正 constitution 原则 III 的既有违规)。
+  //    前端镜像在 `src/consts/aiWorkbench.ts`, **改一处必须同时改另一处**。
+  //    这里保留原导出名 ASSERT_TYPE, 以免影响既有引用面。
+  ASSERT_TYPE: AI_ASSERT_TYPES,
+  PRIORITY: AI_PRIORITIES,
   CASE_STATUS: {
     1: '调试中',
     2: '暂时关闭',

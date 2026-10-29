@@ -4,7 +4,8 @@ from fastapi import APIRouter, Depends
 from fastapi.responses import StreamingResponse
 
 from app import logger
-from app.core.ai_client import stream_chat
+from app.core import ai_service
+from app.core.ai_client import ChatError, stream_chat
 from app.crud.ai.AIChatDao import AIChatDao
 from app.crud.ai.AIModelDao import AIModelDao
 from app.crud.ai.AIVendorDao import AIVendorDao
@@ -125,28 +126,14 @@ async def chat_stream(form: ChatStreamForm, user_info=Depends(Permission())):
     if not vendor_id or not model_id:
         return PityResponse.failed("请先在右上角选择模型")
 
-    vendor = await AIVendorDao.query_vendor(vendor_id)
-    if vendor is None:
-        return PityResponse.failed("模型厂商不存在")
-    if not vendor.enable or not vendor.api_key:
-        return PityResponse.failed("该厂商未启用或未配置 API Key, 请联系管理员")
-
-    model_row = None
-    for m in await AIModelDao.list_model(vendor_id):
-        if m.id == model_id:
-            model_row = m
-            break
-    if model_row is None:
-        return PityResponse.failed("模型不存在")
-    if not model_row.enable or model_row.model_type != "chat":
-        return PityResponse.failed("该模型未启用或不是对话模型")
-    model_name = model_row.name
-    params = {}
-    if model_row.params:
-        try:
-            params = json.loads(model_row.params)
-        except Exception:
-            params = {}
+    # 厂商/模型的解析与校验统一走公共层(research.md §3.2)——
+    # 原本这段逻辑在 ai/chat 与 datafactory 两处各写了一份, 改一次要改两处
+    try:
+        ref = await ai_service.resolve_model(vendor_id, model_id)
+    except ChatError as e:
+        return PityResponse.failed(str(e))
+    model_name = ref.model_name
+    params = ref.params
 
     # 先落库用户消息, 拿到完整历史再组装上下文
     await AIChatDao.insert_message(form.session_id, "user", form.content, user_id)

@@ -1,7 +1,7 @@
 from datetime import datetime
 from typing import List
 
-from sqlalchemy import asc
+from sqlalchemy import asc, desc
 from sqlalchemy.future import select
 
 from app.crud import Mapper
@@ -60,3 +60,34 @@ class TestResultDao(Mapper):
         except Exception as e:
             TestResultDao.log.error(f"获取测试用例执行记录失败, error: {e}")
             raise Exception("获取测试用例执行记录失败")
+
+    @staticmethod
+    async def query_result(result_id: int) -> PityTestResult:
+        """按 id 取一条执行记录 —— AI 失败分析的入口"""
+        try:
+            async with async_session() as session:
+                sql = select(PityTestResult).where(PityTestResult.id == result_id,
+                                                   PityTestResult.deleted_at == 0)
+                data = await session.execute(sql)
+                return data.scalars().first()
+        except Exception as e:
+            TestResultDao.log.error(f"获取执行记录失败, error: {e}")
+            raise Exception("获取执行记录失败")
+
+    @staticmethod
+    async def list_recent_by_case(case_id: int, limit: int = 10) -> List[PityTestResult]:
+        """
+        某个用例最近 N 次执行(按时间倒序) —— AI 失败分析用来判定必现/偶发。
+
+        按 `id` 倒序而不是 `finished_at` —— 定时任务补跑的场景下 id 才是可靠的顺序。
+        """
+        try:
+            async with async_session() as session:
+                sql = select(PityTestResult).where(PityTestResult.case_id == case_id,
+                                                   PityTestResult.deleted_at == 0) \
+                    .order_by(desc(PityTestResult.id)).limit(limit)
+                data = await session.execute(sql)
+                return list(data.scalars().all())
+        except Exception as e:
+            TestResultDao.log.error(f"获取执行历史失败, error: {e}")
+            raise Exception("获取执行历史失败")

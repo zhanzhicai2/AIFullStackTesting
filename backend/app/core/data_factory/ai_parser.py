@@ -7,10 +7,9 @@ AI 在这里只做一件事: 把用户的口语描述翻译成结构化的字段
 模型输出的 JSON 会经过逐字段校验, 非法字段被丢弃并作为 warning 返回,
 不会因为一个字段写错就整批失败。
 """
-import json
-import re
 from typing import Any, Dict, List, Tuple
 
+from app.core import ai_service
 from app.core.data_factory.generator import (DATA_FACTORY_KINDS, FAKER_PROVIDERS,
                                              FIELD_NAME_PATTERN, DataFactoryError)
 
@@ -76,48 +75,18 @@ def build_messages(prompt: str) -> list:
 
 
 def _extract_json(text: str) -> Any:
-    """从模型输出里抠出 JSON, 容忍 markdown 代码块包裹和前后废话"""
-    if not text:
-        raise DataFactoryError("模型没有返回内容")
-    content = text.strip()
-    # 去掉 ```json ... ``` 包裹
-    if content.startswith("```"):
-        content = re.sub(r"^```[a-zA-Z]*\s*", "", content)
-        content = re.sub(r"\s*```\s*$", "", content)
+    """
+    从模型输出里抠出 JSON, 容忍 markdown 代码块包裹和前后废话。
+
+    **实现已抽到公共层** `app/core/ai_service.py` 的 `extract_json` ——
+    AI 工作台的四个场景也要用同一套逻辑, 留着两份实现必然漂移
+    (research.md §3.2)。这里只保留一层薄包装, 把 `AIJsonError` 翻译成
+    数据工厂自己的 `DataFactoryError`, 保持既有调用方不变。
+    """
     try:
-        return json.loads(content)
-    except Exception:
-        pass
-    # 退而求其次: 提取第一个完整的 {...} 块
-    start = content.find("{")
-    if start == -1:
-        raise DataFactoryError("模型返回的内容里没有 JSON")
-    depth = 0
-    in_string = False
-    escape = False
-    for index in range(start, len(content)):
-        char = content[index]
-        if escape:
-            escape = False
-            continue
-        if char == "\\":
-            escape = True
-            continue
-        if char == '"':
-            in_string = not in_string
-            continue
-        if in_string:
-            continue
-        if char == "{":
-            depth += 1
-        elif char == "}":
-            depth -= 1
-            if depth == 0:
-                try:
-                    return json.loads(content[start:index + 1])
-                except Exception:
-                    break
-    raise DataFactoryError("模型返回的 JSON 解析失败, 请重试")
+        return ai_service.extract_json(text)
+    except ai_service.AIJsonError as e:
+        raise DataFactoryError(str(e))
 
 
 def _validate_column(column: Any) -> Tuple[dict, str]:
