@@ -46,6 +46,7 @@ bash frontend/deploy.sh
 
 ```bash
 cd backend
+uv pip install xxx
 pip install -r requirements.txt
 python pity.py                           # 开发启动 (0.0.0.0:7777)
 uvicorn main:pity --reload                    # 热重载

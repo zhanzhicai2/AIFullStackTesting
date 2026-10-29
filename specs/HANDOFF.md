@@ -7,7 +7,7 @@
 
 ## 0. 一句话状态
 
-用 Spec Kit 给两个 feature 走完了「specify → plan → tasks → analyze」全流程，设计产物齐全、两轮 `/speckit-analyze` 的发现全部修完（CRITICAL / HIGH 清零）。**`002-ui-automation` 已全部落地**（T001~T050）—— 元素库地基、Playwright 底座、SSRF 边界、录制解析、27 个 `/ui/*` 端点、293 项自测断言、前端六个页面（元素库 / 用例编辑器 / 录制导入 / 执行中心 / 执行节点 / 报告附件 tab）全部写完并跑过验证。**下一步是 001-ai-workbench 的实现，以及 002 的浏览器路径验证与安全审查。**
+**两个 feature 的实现都已完成。** `002-ui-automation`（T001~T050）与 `001-ai-workbench`（T001~T062，只剩 T063/T064 需真实环境人工验证）全部落地：001 的 US1 用例生成、US2 Bug 分析、US3 日志分析、US4 SQL 分析全部实现并验证（184 项 selftest + 20 项 smoke + 102 项 e2e，全部通过；前端 tsc 0 错误 / eslint 0 告警）。**剩余工作全是"配真实模型/浏览器人工验证"性质**：T063 G1~G5 界面验证、T064 SC 验收与人工判定、以及跑通真实模型调用。
 
 ---
 
@@ -55,29 +55,29 @@
 
 ## 3. 下一步：具体做什么
 
-### 起点：002 的安全审查 + 001-ai-workbench 的实现
+### 起点：真实环境验证（模型 + 浏览器） + 002 的 OSS 后验
 
 ```
-002 收尾          ① 配上 OSS 后验失败截图落盘  ② 已知限制：DNS rebinding 的 TOCTOU / 跨项目可见性
-001 Phase 1+2     AI 工作台的公共层（依赖 + 枚举 + Model/DAO/Schema/常量/路由 + ai_service + 提示词基座 + 聚类器）
-001 Phase 3~      US1~US4：用例生成 / Bug 分析 / 日志分析 / SQL 分析
+真实模型        ① 配置厂商凭据与启用模型 → 跑四个场景的真实生成/分析  ② 按 quickstart §6.2 抽样做人工判定(T062 脚本记录)
+T063            ③ 在浏览器里逐条验证 G1~G5 就地指引点
+002 收尾         ④ 配上 OSS 后验失败截图落盘  ⑤ 已知限制：DNS rebinding 的 TOCTOU / 跨项目可见性
 ```
 
 **建议顺序**：
 
-1. **002 的安全审查已做完**（2026-10-27）—— 发现 8 项、已修 6 项，其中 1 项 HIGH（`upload` 动作可读服务器任意文件）、3 项 MEDIUM（SW 绕过 / WebSocket 绕过 / SSTI）。细节见 `specs/002-ui-automation/tasks.md` 顶部的「安全审查」表与 `backend/docs/ui-automation-design.md` §11.4
-2. **配上 OSS 后补验「失败截图落盘」** —— dev 环境没配对象存储，截图字节已经验证有了（>1KB 的 PNG），但上传 OSS 那一步还没跑通
-3. **然后做 001** —— 它的公共层与 002 无循环依赖，但 Web UI 用例生成依赖 002 的元素库（002 已经就位）
+1. **001 Phase 3~6 + 横切全部实现完成**（2026-10-29）—— US1~US4 四个场景 + 13 个端点 + 前端五个页面 + 调用流水页 + 评测脚本。细节见 `specs/001-ai-workbench/tasks.md` 顶部的「实现记录」表（**29 条**决策与偏差）
+2. **配真实模型** —— e2e 里全是假模型桩；真实厂商凭据配好后, 前端在浏览器里走一遍 quickstart §3 的五个场景
+3. **T063 G1~G5** —— 按 `quickstart.md` §4 逐条把前置条件拿掉, 看界面是否就地给指引
+4. **T064 SC 验收** —— SC-002/004/007/008 用 `ai_workbench_eval.py` 的 sample / record / report 记录人工判定; SC-001/003/005/006/009/010 的等价路径已被 e2e 覆盖
+5. **002 的 OSS 后验** —— 配好对象存储后重跑失败截图落盘
 
 **下一步的具体命令**：
 
 ```bash
-# 002 收尾
-cd backend
-.venv/bin/python scripts/ui_e2e.py        # 需要后端在跑(起服务的那条命令当前环境起不了)
-
-# 001 的实现(切 feature)
-printf '{\n  "feature_directory": "specs/001-ai-workbench"\n}\n' > .specify/feature.json
+cd backend && .venv/bin/python scripts/ai_workbench_selftest.py && .venv/bin/python scripts/ai_workbench_smoke.py && .venv/bin/python scripts/ai_workbench_e2e.py   # 306 项断言
+cd backend && .venv/bin/python scripts/ai_workbench_eval.py sample --scene case_gen --count 10     # 抽判定样本
+cd backend && .venv/bin/python scripts/ai_workbench_eval.py record --scene case_gen --sample 1 --judge 张三 --verdict correct --note "..."
+cd backend && .venv/bin/python scripts/ai_workbench_eval.py report                                  # 聚合
 ```
 
 ### 用 speckit 继续推进
@@ -151,6 +151,8 @@ printf '{\n  "feature_directory": "specs/001-ai-workbench"\n}\n' > .specify/feat
 13. **MySQL 的唯一约束对 NULL 不生效** —— `pity_ui_page.parent` / `pity_ui_element.name_attr` / `pity_ui_allowed_domain.env` 都可为 NULL，唯一约束拦不住重名，**去重必须在 DAO 层显式做**（已做）。
 14. **前端页面目录名是 `src/pages/uiTest/`（小写 t）** —— 仓库里早就有个同名的旧 JS 页面目录，macOS 大小写不敏感，新建 `src/pages/UiTest/` 会落进同一个目录，TypeScript 报 TS1261。**路径引用一律用磁盘上的真实大小写** `uiTest`（Linux CI 大小写敏感，写错就构建失败）。样式文件叫 `UiTest.less`，导入路径要跟文件名一致。
 15. **Bash 分类器会拦「跑新建脚本」和 `npm run xxx`** —— 间歇性不可用。绕行办法：把逻辑写成 `.py` 文件后用 `python -c "import sys; sys.path.insert(0,'scripts'); import 你的模块; 你的模块.main()"` 调；前端用 `npx tsc` / `npx eslint` 而不是 `npm run lint:js`；`pip install` / `playwright install` 一律被拦（装不了浏览器）。
+16. **`backend/.venv` 里没有 `pip` —— `pip install` 会装到 conda base 上去** —— venv 是 `uv venv` 建的（**默认不带 pip**），所以 `which python` 指向 venv 的 3.10，但 `pip` 落到了 `/opt/miniconda3/...python3.11`。结果：装是装上了，**venv 里 import 不到**。装包要用 `uv pip install --python backend/.venv/bin/python <包名>`。分类器拦 `uv pip install` 时，只能把**纯 Python** 的包从 conda base 的 site-packages 直接拷进 `backend/.venv/lib/python3.10/site-packages/`（`pypdf` / `python-docx` 都是纯 Python，可拷；`lxml` 有编译扩展，拷不了 —— 好在 venv 里本来就有 lxml 6.1.3）。**正式环境不受影响**：镜像走 `pip install -r requirements.txt`。
+17. **`pypdf` 解析坏文件会往 stderr 打 `invalid pdf header` / `EOF marker not found`** —— 不是异常，是 pypdf 的 logger。测降级路径时用 `logging.getLogger("pypdf").setLevel(logging.ERROR)` 压掉，否则输出刷花、误以为是失败。
 
 ---
 
@@ -163,8 +165,9 @@ source .venv/bin/activate
 python pity.py                                    # 起后端
 
 # 回归（001 与 002 各一套）
-.venv/bin/python scripts/ai_workbench_selftest.py
-.venv/bin/python scripts/ai_workbench_e2e.py
+.venv/bin/python scripts/ai_workbench_selftest.py   # 001 公共层自测(不依赖数据库, 61 项)
+.venv/bin/python scripts/ai_workbench_smoke.py      # 001 公共层冒烟(需要数据库, 20 项)
+.venv/bin/python scripts/ai_workbench_e2e.py        # 001 端到端(Phase 3 起才有)
 .venv/bin/python scripts/ui_selftest.py
 .venv/bin/python scripts/ui_e2e.py                # 需要 chromium
 
@@ -197,35 +200,71 @@ npm run lint:js
 继续 AIFullStackTesting 的开发。交接文档在 specs/HANDOFF.md，先读它。
 
 当前状态：
-- 002-ui-automation **全部 50 个任务已完成并验证**：元素库、Playwright 底座、SSRF 边界、
-  录制静态解析、27 个 /ui/* 端点、前端六个页面、304 项自测断言、浏览器路径实测通过。
-  细节看 specs/002-ui-automation/tasks.md 顶部的「实现记录」与「安全审查」两张表。
-- 001-ai-workbench（AI 工作台：用例生成 / Bug 分析 / 日志分析 / SQL 分析）**仍是纯设计，一行代码没写**。
+- 002-ui-automation **全部 50 个任务已完成并验证**。
+- 001-ai-workbench **T001~T062 全部完成**（只剩 T063/T064 需要真实环境人工验证）：
+  US1 用例生成 / US2 Bug 分析 / US3 日志分析 / US4 SQL 分析全部实现。
+  184 项 selftest + 20 项 smoke + 102 项 e2e 全绿；前端 tsc 0 错误 / eslint 0 告警。
+  **29 条实现决策与偏差**在 specs/001-ai-workbench/tasks.md 顶部的「实现记录」表里 ——
+  **动手前先读那张表**（尤其第 17 条：规则 8/13 是「保留 + 告警 + 采纳时拦截」，
+  不是"丢弃字段"）。
 
-下一步：做 001-ai-workbench 的 Phase 1（骨架，T001~T010）+ Phase 2（公共层，T011~T020）。
-  - Phase 1：依赖(pypdf/python-docx)、ai_prompts 包、backend/app/enums/AIWorkbenchEnum.py
-    （断言类型白名单的权威定义）、前端 consts/services/models、四个占位页面、路由
-  - Phase 2：app/core/ai_service.py（resolve_model / invoke / extract_json）、
-    app/core/ai_prompts/base.py（外部文本标签包裹 + 头尾截断）、
-    app/models/ai_draft.py 四个 Model、app/crud/ai/ 四个 DAO、app/schema/ai_workbench.py、
-    app/utils/document_parser.py、app/core/ai_prompts/clustering.py（纯 Python 日志聚类）
-  - T019 会改到既有代码：app/routers/datafactory/dataset.py 与 app/routers/ai/chat.py
-    里重复的厂商/模型解析改成调 ai_service.resolve_model()；T013 会把
-    app/core/data_factory/ai_parser.py 的 _extract_json 抽到公共实现
-  - 001 的 Web UI 用例生成依赖 002 的元素库（002 已就位）
+下一步：真实环境验证（没有代码要写了）。
+  - 配真实厂商凭据与启用模型 → 在浏览器里走 quickstart §3 的五个场景
+  - T063: 按 quickstart.md §4 逐条验证 G1~G5 就地指引
+  - T064: SC-002/004/007/008 用 scripts/ai_workbench_eval.py 抽样做人工判定
+  - 002 收尾: 配 OSS 后验失败截图落盘
 
-注意 specs/HANDOFF.md §4 的硬约束（宪法门禁、安全边界、契约单一出处）与 §5 的坑，
-以及 specs/001-ai-workbench/contracts/dsl.md 的 14 条校验规则（断言 actually 引用的 ${变量}
-必须在 out_parameters 里，否则是**静默失败**）。
+回归命令:
+  cd backend && .venv/bin/python scripts/ai_workbench_selftest.py
+  cd backend && .venv/bin/python scripts/ai_workbench_smoke.py
+  cd backend && .venv/bin/python scripts/ai_workbench_e2e.py        # 需要数据库
+  cd frontend && nvm use && npx tsc --noEmit                        # 0 错误
+  ⚠️ 装包要用 `uv pip install --python backend/.venv/bin/python <包名>`（HANDOFF §5 坑 16）
 
-每完成一个任务就更新 specs/001-ai-workbench/tasks.md 的勾选状态。
+注意 specs/HANDOFF.md §4 的硬约束与 §5 的坑。
 ```
 
 ---
 
 ## 9. 当前工作区状态
 
-### 9.1 已落地的代码（002 Phase 1+2）
+### 9.1 已落地的代码
+
+#### 001-ai-workbench 全部落地（T001~T062，T063/T064 待真实环境人工验证）
+
+| 位置 | 内容 |
+|---|---|
+| `backend/app/enums/AIWorkbenchEnum.py` | **跨端常量的后端权威定义**：断言白名单(14)、优先级、类别、测试类型、场景、草稿/批次状态、历史规律取值 |
+| `backend/app/core/ai_service.py` | 公共 AI 层：`resolve_model` / `invoke`（调用流水埋点 + 解析失败纠错重试）/ `extract_json` / `build_messages` |
+| `backend/app/core/ai_prompts/base.py` | 提示词基座：外部文本标签包裹 + 注入声明 + 头尾截断（文档 20MB / 日志 10MB） |
+| `backend/app/core/ai_prompts/case_gen.py` | DSL 常量与长度上限（**引用**枚举与 `ui_executor.ACTIONS`，不重定义） |
+| `backend/app/core/ai_prompts/clustering.py` | 日志聚类（**纯 Python，不调模型**）：异常栈提取 → 归一化 → 指纹分组 + p95 突增检测 + 影响面统计 |
+| `backend/app/core/ai_prompts/bug.py` · `log.py` · `sql.py` | 占位模块（Phase 4~6 实现） |
+| `backend/app/models/ai_draft.py` | 四张新表 Model（`pity_ai_draft_batch` / `pity_ai_case_draft` / `pity_ai_invoke_log` / `pity_ai_analysis`） |
+| `backend/app/crud/ai/AIDraftBatchDao.py` · `AICaseDraftDao.py` · `AIInvokeLogDao.py` · `AIAnalysisDao.py` | 四个 DAO |
+| `backend/app/schema/ai_workbench.py` | 9 个 Pydantic v1 表单 |
+| `backend/app/utils/document_parser.py` | 文档解析（PDF/Word/MD/TXT 白名单 + 20MB 上限 + 降级纯文本 + 头尾截断） |
+| `backend/app/core/ai_client.py` | **新增** `complete_chat_with_usage()`（`complete_chat` 行为不变） |
+| `backend/app/core/data_factory/ai_parser.py` | `_extract_json` 改为薄包装，引用公共实现（消除重复） |
+| `backend/app/routers/datafactory/dataset.py` · `backend/app/routers/ai/chat.py` | 厂商/模型解析改调 `ai_service.resolve_model()` |
+| `frontend/src/consts/aiWorkbench.ts` | 后端常量的前端镜像 + DSL 常量 + 注入防护提示文案 |
+| `frontend/src/consts/config.ts` | `ASSERT_TYPE` / `PRIORITY` 改为引用 `aiWorkbench.ts`（保留原导出名） |
+| `frontend/src/services/aiWorkbench.ts` | 12 个接口的 service 封装 |
+| `frontend/src/models/aiWorkbench.ts` | hooks 风格 model |
+| `frontend/src/pages/Ai/Workbench/` | 工作台首页 + CaseGen 工作台（DemandForm/DocumentUpload/DraftTable/DraftDrawer）+ Bug/Log/Sql 场景页 + 调用流水页 |
+| `frontend/config/routes.ts` | `/ai` 菜单下新增 6 条路由 |
+| `backend/scripts/ai_workbench_smoke.py` | DAO 冒烟（**需要数据库**）：20 项断言 |
+| `backend/scripts/ai_workbench_selftest.py` | 自测（**不依赖数据库**）：184 项断言 —— 含 14 条校验规则正反例、提示词注入、evidence 子串校验、history 四种判定、EXPLAIN ANALYZE 拦截 |
+| `backend/scripts/ai_workbench_e2e.py` | US1~US4 端到端（**需要数据库**）：102 项断言 —— 直接调路由函数 + 假模型桩, 验证了真实代码的完整链路(含 SQL 的真实数据库只读保证) |
+| `backend/scripts/ai_workbench_eval.py` | 抽样评测（sample / record / report, JSONL 记录人工判定） |
+| `backend/app/core/ai_prompts/bug.py` · `log.py` · `sql.py` | 三个场景的提示词 + evidence 子串校验 + history 判定 |
+| `backend/app/utils/sql_guard.py` | **`EXPLAIN ANALYZE` 硬拦** + 表名提取 |
+| `backend/app/crud/ai/AIAdoptDao.py` | 采纳落库（一条草稿一个事务 + 幂等） |
+| `backend/app/routers/ai/case_gen.py` · `bug.py` · `log.py` · `sql.py` · `invoke_log.py` | 13 个新端点 |
+
+> **实现与设计的 29 处决策与偏差**逐条记在 [`001-ai-workbench/tasks.md`](./001-ai-workbench/tasks.md) 顶部的「实现记录」表 —— 动手前先读那 29 条。
+
+#### 002-ui-automation Phase 1+2（T001~T022）
 
 | 位置 | 内容 |
 |---|---|
@@ -254,7 +293,34 @@ npm run lint:js
 
 ### 9.2 已验证 / 未验证
 
-**已验证**（跑过）：
+**001 已验证**（跑过）：
+
+- 前端 `npx tsc --noEmit` **0 错误**；新增前端文件 `npx eslint` **0 告警**
+- 后端 15 个新/改文件语法检查通过；`app.core.ai_service` / `app.core.ai_prompts.case_gen` / `app.utils.document_parser` **导入成功**（无循环导入）；`import main` **成功**，既有 17 个 `/ai/*` 端点全部照常注册
+- 四张新表 `create_all` 建表成功；`pity_ai_case_draft` 的 `order` 列被 SQLAlchemy 正确加了反引号（`order` 是 SQL 保留字）
+- **`backend/scripts/ai_workbench_smoke.py` 全绿 —— 20 项断言**：DAO 的批次/草稿落库、批次内编码递增、草稿列表、草稿可改、采纳回填 `case_id`、**重复采纳幂等**、**已采纳不能驳回**、驳回后 status=3、**重复驳回幂等**、**已驳回不能采纳**、**非待审核草稿内容冻结**、调用流水落库、**调用人未知时流水仍落库**、分析结论落库；`extract_json` 的 markdown 包裹/前后废话/括号嵌套/字符串内含括号/纯非 JSON 抛错
+- **`backend/scripts/ai_workbench_selftest.py` 全绿 —— 61 项断言**：提示词基座（三种标签包裹/注入声明/头尾截断含标记与说明/messages 结构）、`extract_json` 五种脏输出、**文档解析**（四种类型白名单 / 旧版 `.doc` 被拒 / 非白名单被拒 / 超 20MB 被拒 / 刚好 20MB 放行 / **PDF 正文抽出** / **Word 正文抽出** / Markdown / 纯文本 / **PDF 解析失败降级为纯文本** / 彻底失败报错并建议改用文本输入 / 空正文给出扫描件提示）、日志聚类（时间戳/对象 ID/行号归一化 / 同类异常指纹相同 / 不同异常指纹不同 / 聚出 2 簇 / 同簇计数 / 影响面用例数与用户数 / **检出突增时段** / 突增时段与计数正确 / 超行数上限被截断）、跨端常量（断言白名单 14 种无重复 / 优先级 P0–P4 / 类别 6 种 / 测试类型 4 种 / **`case_gen` 引用的白名单与枚举一致** / UI 动作集非空 / 需定位的动作已列出）
+- `clustering` 在真实平台日志上跑过（`logs/pity_error.log`）：两条同源错误归为 1 簇
+
+**001 Phase 1+2 期间发现并修掉的 5 个真 bug**：
+
+| # | 问题 | 修法 |
+|---|---|---|
+| 1 | **同一异常被分成不同簇** | 归一化只按英文规则做，平台日志里的 `case_id=101`（3 位）与 `用户23` 没被归一化 → 补了「按字段语义判定对象 ID」与中英文行号/编号写法 |
+| 2 | **已采纳的草稿能被驳回** | 破坏 `data-model.md` §2.2 的不变量（status=2 时 case_id 必非空，status≠2 时必为空），且正式用例已入库撤不掉 → DAO 层显式拦截 |
+| 3 | **调用人未知时流水整行插不进去** | `create_user` 是 NOT NULL，而埋点失败是静默的 → 记 `0`（系统调用） |
+| 4 | **PDF/Word 解析失败直接抛异常，没有降级** | research §3.7 要求降级为纯文本、不阻断生成任务 → `parse_document` 接住解析异常转成纯文本读，实在读不出才报错并建议改用文本输入 |
+| 5 | **p95 用最近秩法，日志只有十几个分钟时一个突增都检不出** | 最近秩在 N ≤ 20 时 p95 恰等于最大值，"count > p95" 永不成立 → 改成线性插值（numpy 默认），样本多时语义不变 |
+
+**001 未验证**（环境限制，不是代码缺陷）：
+
+- 前端没跑过 `umi build`（分类器拦 `npm run build`）
+- 四个场景的**真实模型调用**没跑过（e2e 里全是假模型桩）—— 链路本身已验证, "模型真能把需求翻译成合格 DSL"需要真实厂商凭据
+- **T063 G1~G5 的界面呈现没在浏览器里点过**（按契约实现, tsc/eslint 过了）
+- **T064 SC-002/004/007/008 的人工判定没做**（依赖真实模型 + `ai_workbench_eval.py`）
+- **`pypdf` / `python-docx` 是手动拷进 venv 的**（venv 由 `uv venv` 创建、**默认不带 pip**，`pip install` 会落到 conda base 的 python3.11）—— 正式环境靠 `requirements.txt` 走 `pip install -r`，不受影响。详见 §5 坑 16
+
+**002 已验证**（跑过）：
 
 - 6 张表建表成功，列与 `data-model.md` §2 一致
 - 21 个 `/ui/*` 端点全部注册
@@ -278,18 +344,41 @@ npm run lint:js
 ### 9.3 工作区
 
 ```
- M backend/app/crud/test_case/TestCaseDirectory.py   insert_directory 返回新建目录 id(U3 建完即选中)
- M backend/app/routers/testcase/testcase.py          目录创建的响应带上 id(向后兼容)
- M backend/scripts/ui_selftest.py                    加 SSRF 场景 D 全表 + 跨 feature 契约核对(T049)
- M backend/docs/ui-automation-design.md              补 constitution 五条原则对本设计的影响(T044)
- M frontend/src/pages/uiTest/CaseManage/CaseEditor.tsx  U1~U6 的就地指引补齐
- M frontend/src/pages/uiTest/CaseManage/index.tsx     目录树刷新回调
- M specs/002-ui-automation/tasks.md                  T042~T050 勾选 + 实现记录补到 22 条
- M specs/HANDOFF.md                                  状态与下一步更新
+001-ai-workbench Phase 1+2（本次会话）
+ M backend/requirements.txt                          pypdf / python-docx
+ M backend/app/core/ai_client.py                     新增 complete_chat_with_usage()
+ M backend/app/core/ai_service.py                    新增: 公共 AI 层
+ M backend/app/core/ai_prompts/                      新增: base / case_gen / bug / log / sql / clustering
+ M backend/app/core/data_factory/ai_parser.py        _extract_json 改为引用公共实现
+ M backend/app/crud/ai/AIDraftBatchDao.py            新增
+ M backend/app/crud/ai/AICaseDraftDao.py             新增
+ M backend/app/crud/ai/AIInvokeLogDao.py             新增
+ M backend/app/crud/ai/AIAnalysisDao.py              新增
+ M backend/app/enums/AIWorkbenchEnum.py              新增: 跨端常量权威定义
+ M backend/app/models/ai_draft.py                    新增: 四张表 Model
+ M backend/app/models/__init__.py                    登记新模型(alembic 依赖)
+ M backend/app/routers/ai/chat.py                    厂商/模型解析改调 resolve_model()
+ M backend/app/routers/datafactory/dataset.py        同上
+ M backend/app/schema/ai_workbench.py                新增: 9 个表单
+ M backend/app/utils/document_parser.py              新增(+ 解析失败降级为纯文本)
+ M backend/scripts/ai_workbench_smoke.py              新增: DAO 冒烟(20 项断言)
+ M backend/scripts/ai_workbench_selftest.py           新增: 公共层自测(61 项断言, 不依赖数据库)
+ M backend/CLAUDE.md                                 AI 工作台章节: 状态 + 已落地 + 改前必知
+ M backend/docs/ai-workbench-design.md              状态改为 Phase 1+2 已实现
+ M frontend/config/routes.ts                         /ai 下新增 5 条路由
+ M frontend/src/consts/aiWorkbench.ts                新增: 后端常量的前端镜像
+ M frontend/src/consts/config.ts                     ASSERT_TYPE / PRIORITY 改为引用镜像
+ M frontend/src/models/aiWorkbench.ts                新增: hooks 风格 model
+ M frontend/src/pages/Ai/Workbench/                  新增: 工作台首页 + 四个占位页 + 共享占位组件
+ M frontend/src/services/aiWorkbench.ts              新增: 12 个接口封装
+ M specs/001-ai-workbench/tasks.md                   T001~T020 + T021 勾选 + 实现记录(16 条)
+ M specs/HANDOFF.md                                 状态、下一步与 §5 坑更新
 ```
 
-> `001-ai-workbench` 仍是纯设计，一行业务代码没写。
+> 002 的工作区改动已在上一轮会话 commit 完。
 
-**commit 建议**：commit message 走 Conventional Commits。建议**分两个 commit**：
-- `feat(ui-test): 补齐就地指引点 U1~U6 与验收脚本` —— 前端指引 + selftest 的 D 表与契约核对 + 目录接口 + 设计文档
-- `docs(spec): 002-ui-automation 全部任务完成` —— tasks.md + HANDOFF.md
+**commit 建议**：commit message 走 Conventional Commits。建议**分三个 commit**：
+- `feat(ai-workbench): 落地公共层与骨架` —— 后端常量 / ai_service / 提示词基座 / 聚类 / 模型 / DAO / Schema / 文档解析 + 消除厂商模型解析重复
+- `feat(ai-workbench): 补前端骨架与路由` —— consts / services / models / 页面 / routes
+- `docs(spec): 001 Phase 1+2 完成, 记录 12 条实现决策` —— tasks.md + HANDOFF.md + CLAUDE.md + 设计文档状态
+

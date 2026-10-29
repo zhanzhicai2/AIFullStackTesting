@@ -115,18 +115,53 @@ Request → CORS Middleware → Error Middleware → Router → DAO (connect装�
 
 模块拆分、字段规则 JSON 规范（11 种 `rule.kind` 参数表）、设计取舍、回归脚本跑法、已知缺口 → 见 [`docs/data-factory-design.md`](docs/data-factory-design.md)。
 
-### AI 工作台（设计稿，未实现）
+### AI 工作台（Phase 1~6 已实现：US1~US4 全部落地）
 
 四个 AI 场景（用例生成 / Bug 分析 / 日志分析 / SQL 分析）共用一层公共能力。核心约定：
 
 - **AI 只做翻译与解读，落地由确定性内核做** —— 与数据工厂同源原则。AI 产物先进草稿态（`pity_ai_case_draft`），人工审核后才写业务表
 - **用例生成有 14 条硬校验**，其中最致命的两条：断言 `actually` 引用的 `${变量}` 必须在 `out_parameters` 里存在，否则断言取不到值、**静默失败**（`Executor.my_assert` 的取值只来自 `extract_out_parameters`）；Web UI 步骤引用的元素必须存在于元素库且启用，否则**采纳时被拦下**（草稿不进用例库）
+- **规则 8 / 13 的处置是「保留 + 告警 + 采纳时拦截」**，不是"丢弃字段" —— 契约表格写"丢弃"，但 spec FR-012 / FR-039 要求"采纳前拦下"，丢掉了就看不出草稿还有问题
 - **模型输出不可重放** —— 同一份输入两次生成结果不同。确定性的锚点是草稿**当前 content 版本**：重复采纳同一版本结果一致；重新生成产生新草稿，旧草稿保留
 - **断言类型白名单的权威定义在后端** `app/enums/AIWorkbenchEnum.py`（前端 `src/consts/config.ts` 镜像），DSL 常量在 `app/core/ai_prompts/case_gen.py` 与 `src/consts/aiWorkbench.ts` —— **改一处必须同时改另一处**
-- **日志分析先聚类再解读** —— 归一化 + fingerprint 分组是纯 Python，AI 只解读 Top-N 簇；突增检测完全不需要 AI
-- **SQL 分析禁用 `EXPLAIN ANALYZE`** —— MySQL 8.0.18+ 会真实执行查询，对 UPDATE/DELETE 直接改数据，只能用普通 `EXPLAIN`
+- **日志分析先聚类再解读** —— 归一化 + fingerprint 分组是纯 Python，AI 只解读 Top-N 簇；突增检测完全不需要 AI；**`/ai/log/cluster` 不产生任何模型调用记录**
+- **SQL 分析禁用 `EXPLAIN ANALYZE`** —— MySQL 8.0.18+ 会真实执行查询，对 UPDATE/DELETE 直接改数据，只能用普通 `EXPLAIN`；拦截在 **SQL 解析层**（`app/utils/sql_guard.py`），不依赖模型自觉
+- **UI 步骤动作白名单不在 001 里另写一份** —— 规则 11~13 直接复用 `app/core/ui_executor.py` 的 `validate_steps`（元素引用语义以 002 契约为准）
+- **不引入新的 `exec()` 执行面** —— 录制脚本是静态解析，改写 SQL 只做"基本合法"检查（不会拿它执行），`Render` 仍是既有的裸 `Environment()`
 
 公共层 `app/core/ai_service.py`（统一厂商/模型解析 + 调用埋点 + JSON 提取）、4 张新表、API 清单、前后端契约 → 见 [`docs/ai-workbench-design.md`](docs/ai-workbench-design.md)。
+
+**已落地（T001~T057 + 横切）**：
+
+| 位置 | 内容 |
+|---|---|
+| `app/enums/AIWorkbenchEnum.py` | **跨端常量的后端权威定义**（断言白名单 14 种 / 优先级 / 类别 / 测试类型 / 场景 / 草稿与批次状态） |
+| `app/core/ai_service.py` | `resolve_model` / `invoke`（调用流水埋点 + 解析失败纠错重试，parser 支持 async）/ `extract_json` |
+| `app/core/ai_prompts/base.py` | 外部文本标签包裹 + 注入声明 + 头尾截断（文档 20MB / 日志 10MB） |
+| `app/core/ai_prompts/case_gen.py` | **14 条校验规则的正反例都在 `scripts/ai_workbench_selftest.py` 里**；DSL → 四表映射 + 采纳前两道拦截 |
+| `app/core/ai_prompts/clustering.py` | 日志聚类（**纯 Python，不调模型**）：归一化 → 指纹分组 + p95 突增检测（线性插值） |
+| `app/core/ai_prompts/bug.py` · `log.py` · `sql.py` | 三个场景的提示词 + evidence 子串校验 + history 判定 |
+| `app/utils/sql_guard.py` | **`EXPLAIN ANALYZE` 硬拦** + 表名提取 |
+| `app/models/ai_draft.py` · `app/crud/ai/` 五个 DAO · `app/schema/ai_workbench.py` | 四张新表、DAO（含采纳落库）、表单 |
+| `app/utils/document_parser.py` | 文档解析（PDF/Word/MD/TXT 白名单 + 20MB 上限 + 降级纯文本） |
+| `app/routers/ai/case_gen.py` · `bug.py` · `log.py` · `sql.py` · `invoke_log.py` | **13 个新端点**（case/draft/generate/document/bug/log cluster/analyze/sql analyze/slow/invoke log） |
+| `scripts/ai_workbench_selftest.py` | 自测（**不依赖数据库**，184 项断言） |
+| `scripts/ai_workbench_smoke.py` | DAO 冒烟（**需要数据库**，20 项断言） |
+| `scripts/ai_workbench_e2e.py` | US1~US4 端到端（**需要数据库**，102 项断言，直接调路由函数 + 假模型桩） |
+| `app/core/ai_client.py` | 新增 `complete_chat_with_usage()`（`complete_chat` 行为不变） |
+| `app/routers/datafactory/dataset.py` · `app/routers/ai/chat.py` | 厂商/模型解析改调 `ai_service.resolve_model()`（消除两处重复） |
+
+**改这里前必须知道**：
+- **断言类型白名单的权威定义在 `app/enums/AIWorkbenchEnum.py`**，前端镜像 `src/consts/aiWorkbench.ts`（`src/consts/config.ts` 的 `ASSERT_TYPE` 引用它）—— **改一处必须同时改另一处**
+- **`invoke` 的埋点失败不能影响主流程** —— 写流水异常只记日志，不抛
+- **`error_msg` 不得含 API Key 或完整 prompt 正文** —— `ai_service._sanitize_error()` 负责脱敏 + 截断
+- **调用失败只对瞬时错误重试**（超时/连接失败/5xx），401/403/404/405/429 不重试
+- **日志归一化要覆盖中英文两种写法** —— 平台日志是中文的（`行数: 168`、`用户23登录失败`），只按英文规则归一化会把同一错误分成不同簇
+- **文档解析失败必须降级为纯文本，不能直接抛** —— research §3.7 要求"不阻断整个生成任务"；降级路径要有测试
+- **p95 用线性插值，不要用最近秩** —— 最近秩在样本 ≤ 20 时 p95 等于最大值，"count > p95" 永远不成立，突增一个都检不出
+- **草稿的非法状态流转要拦住** —— 已采纳不能驳回、已驳回不能采纳（`status` 与 `case_id` 有不变量）
+- **`/ai/log/cluster` 读平台自身日志要 ADMIN**（FR-041）—— 普通用户只能传文本或文件
+- **OSS 日志文件的下载是出网请求** —— 复用 `app/utils/ui_security.py` 的 `is_blocked_ip` / `resolve_host` 兜底，不许指向内网
 
 ### UI 自动化子系统（Phase 1+2 已实现，US1~US3 未做）
 

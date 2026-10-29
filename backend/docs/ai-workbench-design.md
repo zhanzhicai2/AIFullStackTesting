@@ -1,9 +1,10 @@
 # AI 工作台 · 技术设计
 
-> 状态：设计稿（未实现）
+> 状态：**Phase 1+2 已实现**（骨架 + 公共层，T001~T020）；四个场景(US1~US4)尚未实现
 > 目标平台：AIFullStackTesting backend（FastAPI + SQLAlchemy）
 > 前端：`frontend/src/pages/Ai/Workbench/`
 > 关联文档：[`backend/docs/ui-automation-design.md`](./ui-automation-design.md)（UI 自动化子系统）
+> **实现与本设计的偏差**逐条记在 [`specs/001-ai-workbench/tasks.md`](../specs/001-ai-workbench/tasks.md) 顶部的「实现记录」表里 —— **动手前先读那张表**
 
 ---
 
@@ -552,3 +553,80 @@ cd backend
 - AI 探索式生成（给定 URL 自动爬页面产出用例点）
 - 提示词规则库（参考产品的"提示词规则"tab）
 - 按 `pity_ai_invoke_log` 做模型效果评测
+
+---
+
+## 12. constitution 五条原则对本设计的影响
+
+> constitution「文档分层」要求：每次功能落地 SHOULD 在 `backend/docs/<feature>-design.md` 中
+> 记录**哪些原则影响了设计决策**。本节就是这份记录。
+
+### I. 确定性优先（NON-NEGONIABLE）
+
+**影响最大的原则** —— AI 产出天然不可重放，必须**划清边界**而不是假装满足：
+
+| 范围 | 是否可重放 | 落地位置 |
+|---|---|---|
+| 草稿的**当前 content 版本**重复采纳 | ✅ 可重放 | 结果逐字段相等（`pity_ai_case_draft.content` 是唯一真源） |
+| 日志聚类 / 突增检测 | ✅ 完全确定 | 纯 Python，归一化规则 + p95（线性插值）都是确定性的 |
+| **模型输出**（同一份输入两次生成） | ❌ 不可重放 | 重新生成产生**新批次的新草稿**，旧草稿保留供对比 |
+
+**"不可重放"的显式标注**落在三处：`app/models/ai_draft.py` 的模块 docstring 与
+`PityAICaseDraft` 类 docstring、`app/core/ai_prompts/case_gen.py` 的模块 docstring、
+本文的 §3.3 与 §4.1。
+
+**确定性锚点**是草稿的**当前 content 版本**：保存修改只是把锚点移到新版本
+（`pity_ai_case_draft` 只存当前版本，不存历史版本）；`status != 1` 时 content 冻结。
+
+### II. 复用既有机制
+
+**不新建平行体系** —— 文档里反复出现的一句话：
+
+| 复用的既有机制 | 位置 | 怎么复用 |
+|---|---|---|
+| `ai_client.complete_chat`（+ 新增 `complete_chat_with_usage`） | `app/core/ai_client.py` | 非流式调用，错误文案沿用 `_status_message` |
+| `pity_ai_vendor` / `pity_ai_model` | `app/models/ai_vendor.py` / `ai_model.py` | 不新建模型配置表 |
+| `Executor.my_assert` / `Render` | `app/core/executor.py` / `render.py` | 规则 8 的技术依据：断言取值只来自出参 |
+| `pity_testcase` / `pity_out_parameters` / `pity_testcase_asserts` / `pity_constructor` | `app/models/` | 采纳落库的四张既有表 |
+| `pity_test_result` | `app/models/result.py` | Bug 分析的上下文与历史数据 |
+| `pity_sql_history` | `app/models/sql_log.py` | 慢查询排行（**不新建表**） |
+| `pity_oss_file` + `view_url` | `app/models/oss_file.py` | 日志文件来源 |
+| `DbConfigDao.online_sql` / 数据工厂 `writer` | `app/crud/config/` / `app/core/data_factory/` | SQL 执行计划与表结构采集 |
+| **`ui_executor.validate_steps`** | `app/core/ui_executor.py` | 规则 11~13 直接复用（元素引用语义以 002 契约为准） |
+| `ui_security.is_blocked_ip` / `resolve_host` | `app/utils/ui_security.py` | OSS 日志文件下载的 SSRF 兜底 |
+| `PityResponse` / `Permission()` / `Config.ADMIN` | `app/handler/` / `app/routers/__init__.py` | 响应信封与鉴权语义完全一致 |
+
+**消除的重复**（原则 II 点名的问题）：厂商/模型解析原本在 `datafactory/dataset.py` 与
+`ai/chat.py` 各写一份，抽到 `ai_service.resolve_model()`；JSON 提取原本在
+`data_factory/ai_parser.py` 私有实现，抽到 `ai_service.extract_json()`。
+
+### III. 跨端契约单一出处
+
+**断言类型白名单的权威定义从 TS 迁到后端** —— 修正既有违规：
+
+| 常量 | 后端权威 | 前端镜像 |
+|---|---|---|
+| 断言类型白名单(14 种) / 优先级 | `app/enums/AIWorkbenchEnum.py` | `src/consts/config.ts` 的 `ASSERT_TYPE` / `PRIORITY` |
+| DSL 的动作集 / 测试类型 / 类别 | `app/core/ai_prompts/case_gen.py`（引用枚举） | `src/consts/aiWorkbench.ts` |
+| UI 步骤动作白名单 | `app/core/ui_executor.py` | `src/consts/uiTest.ts` |
+
+两端互相指认，**改一处必须同时改另一处**。
+
+### IV. 交互自成闭环
+
+**就地指引点 G1~G5**(`data-model.md` §5)全部落地：无模型提示条 + 跳转、无目录就地新建、
+对象存储未配置降级说明、Web UI 元素库为空提示 + 跳转、失败原因 + 重试按钮。
+指引点定义以 `data-model.md` §5 为准，前端组件只引用不重写。
+
+### V. 落地前必须过回归
+
+三个脚本是**门禁**不是可选项：
+
+```bash
+.venv/bin/python scripts/ai_workbench_selftest.py   # 不依赖数据库, 184 项断言
+.venv/bin/python scripts/ai_workbench_smoke.py      # 需要数据库, 20 项断言
+.venv/bin/python scripts/ai_workbench_e2e.py        # 需要数据库, 102 项断言(直接调路由函数 + 假模型桩)
+```
+
+**安全要求**：不新增 `exec()` 执行面（录制脚本静态解析、改写 SQL 只做合法性检查）；
+外部输入只解析不执行（`<document>` / `<logs>` / `<sql>` 标签包裹 + 输出侧字段白名单）。
