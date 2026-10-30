@@ -17,6 +17,8 @@ from app.routers.ai.chat import router as ai_chat_router
 from app.routers.auth import user
 from app.routers.config import router as config_router
 from app.routers.datafactory import router as datafactory_router
+from app.routers.mock.admin import router as mock_admin_router
+from app.routers.mock.service import router as mock_service_router
 from app.routers.notification import router as msg_router
 from app.routers.online import router as online_router
 from app.routers.operation import router as operation_router
@@ -64,6 +66,10 @@ pity.include_router(workspace_router, dependencies=[Depends(request_info)])
 pity.include_router(datafactory_router, dependencies=[Depends(request_info)])
 pity.include_router(ai_router, dependencies=[Depends(request_info)])
 pity.include_router(ui_router, dependencies=[Depends(request_info)])
+# Mock 管理路由(带 request_info)必须先注册, 对外 catch-all(不带 request_info)后注册 ——
+# Starlette 按注册顺序匹配, 顺序颠倒会把 /mock/rule/* 当成「app=rule」的对外请求吞掉
+pity.include_router(mock_admin_router, dependencies=[Depends(request_info)])
+pity.include_router(mock_service_router)
 # 聊天流式接口刻意不挂 request_info: 它会把 POST body 写进 DEBUG 日志,
 # prompt 明文落盘不合适
 pity.include_router(ai_chat_router)

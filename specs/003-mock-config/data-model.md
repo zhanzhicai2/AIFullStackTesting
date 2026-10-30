@@ -53,6 +53,7 @@
      full_path 以 `/api/` 开头即命中(星号匹配剩余任意内容,含空)
 5. 命中多条 → 排序取第一条(全排序确定):
    path_type 升序(精确 > 参数化 > 通配)
+   → 方法具体度升序(具体方法 0 > ANY 通配 1)
    → priority 升序(数字小优先)
    → id 升序(创建早优先)
 ```
@@ -77,7 +78,11 @@ def derive_path_type(path: str) -> int:
 | `$request.body.<key.path>` | JSON 请求体字段 | 点分路径逐层取,数组用数字索引(如 `$request.body.items.0.name`);body 非 JSON 或取不到 → 空串 |
 | `$request.header.<name>` / `$request.headers.<name>` | 请求头 | 忽略大小写;不存在 → 空串 |
 
-- **合法变量名**(管理端保存时校验):`^\$request\.(path|query\.[A-Za-z0-9_.-]+|body\.[A-Za-z0-9_.-]+|header(s)?\.[A-Za-z0-9_-]+)$`
+- **合法变量名**(管理端保存时校验, 权威正则定义在 `app/core/mock_render.py`):
+  `^\$request\.(path|query\.[A-Za-z0-9_.-]+|body\.[A-Za-z0-9_-]+(?:\.[A-Za-z0-9_-]+)*|header(s)?\.[A-Za-z0-9_-]+)$`
+  —— body 点分路径**段间非空**(`a..b` 拒绝);query 键名允许点(字面量, 如 `filter.name`);
+  任何「`$` + 字母开头」的 token 若不是 `$request.*` 白名单(如 `$randomInt`/`$timestamp`)一律拒绝;
+  `$5`(数字开头)与 `${...}`(非本系统变量语法, render 不处理)原样输出, 不在拒绝面
 - 未携带的参数 → **替换为空字符串**,不报错、不抛异常,响应结构保持稳定
 - 渲染器是**字典替换**:扫描 `$request.*` 模式并查表替换,零表达式求值、零函数调用 —— 源码 AST 静态扫描保证无 `eval`/`exec`/`getattr` 动态调用
 - **不使用**既有 `app/core/render.py`(裸 `Environment()`,非沙箱,可执行任意表达式 —— 那是 RCE 面)

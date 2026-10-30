@@ -107,4 +107,5 @@ from app.models.ui_case import (PityUIAllowedDomain, PityUICase, PityUIElement, 
                                PityUIImportLog, PityUINode, PityUIPage)
 from app.models.ai_draft import (PityAIAnalysis, PityAICaseDraft,  # noqa: E402,F401
                                  PityAIDraftBatch, PityAIInvokeLog)
+from app.models.mock import PityMockRule  # noqa: E402,F401
 

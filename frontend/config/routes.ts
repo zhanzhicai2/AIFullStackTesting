@@ -270,7 +270,7 @@ export default [
     path: '/mock',
     icon: 'icon-mockplus_doc',
     name: 'Mock配置',
-    component: './Building',
+    component: './Mock/index',
   },
   {
     path: '/tool',

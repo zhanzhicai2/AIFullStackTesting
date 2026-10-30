@@ -20,12 +20,12 @@
 | `page` | int | 否 | 默认 1 |
 | `size` | int | 否 | 默认 20 |
 
-**响应 `data`**:
+**响应 `data`**(遵循平台 `PityResponse.success_with_size` 结构:`data` 为数组、`total` 在顶层):
 
 ```json
 {
-  "total": 3,
-  "list": [
+  "code": 0, "msg": "操作成功",
+  "data": [
     {
       "id": 1, "project_id": 1, "name": "用户详情", "method": "GET",
       "path": "/api/user/:id", "path_type": 1, "priority": 0,
@@ -34,7 +34,8 @@
       "delay": 100, "status": 1, "remark": "联调用",
       "created_at": "2026-10-30 10:00:00", "update_user": 1
     }
-  ]
+  ],
+  "total": 3
 }
 ```
 

@@ -163,6 +163,38 @@ Request → CORS Middleware → Error Middleware → Router → DAO (connect装�
 - **`/ai/log/cluster` 读平台自身日志要 ADMIN**（FR-041）—— 普通用户只能传文本或文件
 - **OSS 日志文件的下载是出网请求** —— 复用 `app/utils/ui_security.py` 的 `is_blocked_ip` / `resolve_host` 兜底，不许指向内网
 
+### Mock 配置（003-mock-config 已实现：纯静态 Mock 服务 + 规则配置台）
+
+前端 `/mock` 菜单已从占位页变为真实页面。核心约定：
+
+- **纯静态 Mock 服务** —— 命中规则返回配置的状态码/头/体（可带 0~5000ms 延迟），未命中 404，**不转发到真实后端、不发任何外部请求、不执行任何代码**（SSRF/执行面从机制上排除，AST 静态扫描在 `scripts/mock_selftest.py` 保证）
+- **匹配全排序确定**（constitution 原则 I）—— 路径精确度（精确 > 参数化 > 通配）→ 方法具体度（具体 > ANY）→ priority → id；同一请求重复调用结果逐字段一致
+- **响应变量是封闭白名单（请求回显）** —— 仅 `$request.path / $request.query.* / $request.body.* / $request.header(s).*`，由请求内容决定、可重放；**不引入随机源/时间戳**；`$randomInt` 等未知变量保存时被拒
+- **变量权威正则定义在 `app/core/mock_render.py`**，schema 引用派生锚定版做保存校验 —— 单一出处
+- **不碰 `app/core/render.py`**（裸 `Environment()` 非沙箱，RCE 面）—— mock 渲染器只做字典替换
+- **管理接口 `Permission()`（与用例/元素同级）+ 私有项目 `read_permission`**；对外服务**无鉴权**（被测系统无法带 JWT，半公开入口 —— 勿在 mock 响应放真实凭据）
+- **路由注册顺序是硬约束** —— `main.py` 里管理路由（`mock_admin_router`，带 request_info）**先注册**，对外 catch-all（`mock_service_router`，不带）**后注册**，否则 `/mock/rule/*` 被当成「app=rule」吞掉
+
+**已落地**：
+
+| 位置 | 内容 |
+|---|---|
+| `app/enums/MockEnum.py` | **跨端常量权威定义**（方法集 / 路径类型 / 延迟上限） |
+| `app/core/mock_engine.py` | 匹配引擎（纯函数：derive_path_type / normalize_path / match_rule） |
+| `app/core/mock_render.py` | 白名单回显变量渲染器（字典替换，零表达式） |
+| `app/models/mock.py` | `pity_mock_rule` 表 |
+| `app/crud/mock/MockRuleDao.py` | 规则 CRUD + 查重提示 + app 定位项目（最早创建） |
+| `app/routers/mock/admin.py` · `service.py` | 7 个管理接口 + 对外 catch-all |
+| `scripts/mock_selftest.py` | 自测（**不依赖数据库**，100 项断言，含 AST 零出网零执行扫描） |
+| `scripts/mock_e2e.py` | 端到端（**需要数据库**，33 项断言，直接调路由函数 + 构造 Request） |
+
+**改这里前必须知道**：
+- **`app/enums/MockEnum.py` 是方法集/路径类型/延迟上限的权威定义**，前端镜像 `src/consts/mock.ts` —— **改一处必须同时改另一处**
+- **`mock_render.VARIABLE_PATTERN` 是回显变量白名单的权威**，`schema/mock.py` 的 `REQUEST_VARIABLE_PATTERN` 是它的锚定版 —— 收紧白名单只改渲染器一处
+- **`match_rule` 的排序键是硬契约**（path_type → method 具体度 → priority → id）—— 与 `specs/003-mock-config/data-model.md` §3 同步，别单独改
+- **对外服务不得挂 `request_info`**（无鉴权入口记操作日志只会刷垃圾）；异常统一 500，不暴露内部
+- **延迟上限 5000ms** 在 schema 拦；`*` 通配只能在路径末尾；body 点分路径段间非空
+
 ### UI 自动化子系统（Phase 1+2 已实现，US1~US3 未做）
 
 Playwright 驱动的 UI 自动化。核心约定：

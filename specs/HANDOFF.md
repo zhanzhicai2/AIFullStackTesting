@@ -7,7 +7,7 @@
 
 ## 0. 一句话状态
 
-**两个 feature 的实现都已完成。** `002-ui-automation`（T001~T050）与 `001-ai-workbench`（T001~T062，只剩 T063/T064 需真实环境人工验证）全部落地：001 的 US1 用例生成、US2 Bug 分析、US3 日志分析、US4 SQL 分析全部实现并验证（184 项 selftest + 20 项 smoke + 102 项 e2e，全部通过；前端 tsc 0 错误 / eslint 0 告警）。**剩余工作全是"配真实模型/浏览器人工验证"性质**：T063 G1~G5 界面验证、T064 SC 验收与人工判定、以及跑通真实模型调用。
+**三个 feature 均已完成设计,前两个实现完成、第三个实现完成。** `002-ui-automation`（T001~T050）与 `001-ai-workbench`（T001~T062，只剩 T063/T064 需真实环境人工验证）全部落地；**`003-mock-config`（Mock 配置）设计 + 实现全部完成并验证**：纯静态 Mock 服务（`/mock/{项目app}/**`）+ 规则配置台，`mock_selftest.py` 100 项断言（不依赖 DB）+ `mock_e2e.py` 33 项断言（依赖 DB）全绿，前端 tsc 0 错误 / eslint 0 告警。003 的设计与契约见 `specs/003-mock-config/`。
 
 ---
 
@@ -207,8 +207,14 @@ npm run lint:js
   **29 条实现决策与偏差**在 specs/001-ai-workbench/tasks.md 顶部的「实现记录」表里 ——
   **动手前先读那张表**（尤其第 17 条：规则 8/13 是「保留 + 告警 + 采纳时拦截」，
   不是"丢弃字段"）。
+- 003-mock-config **设计 + 实现全部完成**：纯静态 Mock 服务 + 规则配置台。
+  mock_selftest.py 100 项断言（不依赖 DB，含 AST 零出网零执行扫描）+
+  mock_e2e.py 33 项断言（依赖 DB）全绿；前端 tsc/eslint 0 问题。
+  硬约束：main.py 路由注册顺序（管理先、catch-all 后）；变量白名单权威在
+  mock_render.VARIABLE_PATTERN；对外服务无鉴权勿放真实凭据。
+  实现记录见 specs/003-mock-config/tasks.md 顶部与 backend/docs/mock-design.md。
 
-下一步：真实环境验证（没有代码要写了）。
+下一步（001/002）：真实环境验证（没有代码要写了）。
   - 配真实厂商凭据与启用模型 → 在浏览器里走 quickstart §3 的五个场景
   - T063: 按 quickstart.md §4 逐条验证 G1~G5 就地指引
   - T064: SC-002/004/007/008 用 scripts/ai_workbench_eval.py 抽样做人工判定
@@ -218,6 +224,8 @@ npm run lint:js
   cd backend && .venv/bin/python scripts/ai_workbench_selftest.py
   cd backend && .venv/bin/python scripts/ai_workbench_smoke.py
   cd backend && .venv/bin/python scripts/ai_workbench_e2e.py        # 需要数据库
+  cd backend && .venv/bin/python scripts/mock_selftest.py           # 003
+  cd backend && .venv/bin/python scripts/mock_e2e.py                # 003, 需要数据库
   cd frontend && nvm use && npx tsc --noEmit                        # 0 错误
   ⚠️ 装包要用 `uv pip install --python backend/.venv/bin/python <包名>`（HANDOFF §5 坑 16）
 
