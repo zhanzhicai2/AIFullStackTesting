@@ -211,8 +211,10 @@ npm run lint:js
 - 003-mock-config **设计 + 实现全部完成**：纯静态 Mock 服务 + 规则配置台。
   mock_selftest.py 107 项断言（不依赖 DB，含 AST 零出网零执行扫描）+
   mock_e2e.py 33 项断言（依赖 DB）全绿；前端 tsc/eslint 0 问题。
+  **UI 已在浏览器走查过**（G1~G4 就地指引 + 表单/调试/真实 curl 全过）。
   硬约束：main.py 路由注册顺序（管理先、catch-all 后）；变量白名单权威在
-  mock_render.VARIABLE_PATTERN；对外服务无鉴权勿放真实凭据。
+  mock_render.VARIABLE_PATTERN；对外服务无鉴权勿放真实凭据；
+  **proxy.ts 与 nginx.conf 已补 /mock /ui 代理前缀**（走查发现，见 003/tasks.md）。
   实现记录见 specs/003-mock-config/tasks.md 顶部与 backend/docs/mock-design.md。
 
 下一步（001/002）：真实环境验证（没有代码要写了）。
@@ -323,7 +325,7 @@ npm run lint:js
 
 **001 未验证**（环境限制，不是代码缺陷）：
 
-- 前端没跑过 `umi build`（分类器拦 `npm run build`）
+- **前端 `umi build` 已跑通**（2026-10-30 实测：`npm run build` 退出码 0，dist 132 个文件 / 10M，`p__Mock__index` / `p__Ai__Workbench__*` / `p__uiTest__*` 等新页面 chunk 全部正常产出）
 - 四个场景的**真实模型调用**没跑过（e2e 里全是假模型桩）—— 链路本身已验证, "模型真能把需求翻译成合格 DSL"需要真实厂商凭据
 - **T063 G1~G5 的界面呈现没在浏览器里点过**（按契约实现, tsc/eslint 过了）
 - **T064 SC-002/004/007/008 的人工判定没做**（依赖真实模型 + `ai_workbench_eval.py`）
@@ -345,7 +347,7 @@ npm run lint:js
 
 **未验证**（环境限制）：
 
-- **前端没跑过 `umi build`** —— 分类器把 `npm run build` / `npx umi build` 拦了，只跑了 tsc 与 eslint
+- **前端 `umi build` 已跑通**（2026-10-30 实测，`p__Mock__index` 等 003 新页面 chunk 正常产出）
 - **`ui_e2e.py` 的 HTTP 层没跑过** —— 分类器不让起后台常驻进程（后端服务），所以用「直接调路由函数」的等价方式验证了全部断言
 - **U1~U6 的界面呈现没在浏览器里点过** —— 按契约实现，`tsc`/eslint 过了
 - **失败截图没真正落 OSS** —— dev 环境没配对象存储，`upload_failure_screenshot` 优雅返回空串（不影响用例结论）。配好 OSS 后重跑即可

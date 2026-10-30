@@ -61,8 +61,17 @@
 
 ### 未验证(环境限制)
 
-- 前端没跑过 `umi build`(既有环境限制)
-- 页面 UI 没在浏览器里人工点过(G1~G4 就地指引按契约实现,tsc/eslint 过)—— quickstart §2 场景 A~D 已由 e2e 等价覆盖
+- 前端 `umi build` **已跑通**（2026-10-30 实测：`npm run build` 退出码 0，`p__Mock__index` chunk 正常产出）
+- 页面 UI **已在浏览器人工走查过**（2026-10-30，playwright）：G1 未选项目提示+按钮禁用 / G2 app 为空就地指引 / G3 无规则空态引导 / G4 app 冲突提示 全部通过；新建规则表单（变量提示、保存即生效）、调试 Modal（命中 + 变量解析 `$request.path`/`$request.query.*` 回显正确）、真实 curl（mock 服务直连 7777 与经前端代理 8001 均命中，未命中 / app 不存在 404 结构正确）全部通过
+
+### 走查中发现并修复（2 处 dev 与生产同源缺口）
+
+| # | 问题 | 修法 |
+|---|---|---|
+| 1 | `frontend/config/proxy.ts` dev 代理缺 `/mock`（和 `/ui`）前缀 → 前端 dev 访问 mock 管理接口 404、列表恒空 | proxy.ts dev 加 `/mock/` 与 `/ui/`（与 nginx 正则同前缀集） |
+| 2 | `nginx/nginx.conf` 后端反代正则缺 `ui`/`mock` → 生产同源 `/mock/*` 落 SPA 拿不到 mock 服务 | 正则补 `ui\|mock`（与 proxy.ts 对齐） |
+
+> 注意：dev 后端若用 `python pity.py --reload` 热重载，改完代码后**确认新路由真的注册了**（本次发现 10/29 起的旧进程未加载 mock 路由，需手动重启）。
 
 ---
 

@@ -65,6 +65,15 @@ export default {
       target: 'http://0.0.0.0:7777',
       changeOrigin: true,
     },
+    // 002 UI 自动化 / 003 Mock 配置 —— 与 nginx.conf 的代理正则保持同一前缀集
+    '/ui/': {
+      target: 'http://0.0.0.0:7777',
+      changeOrigin: true,
+    },
+    '/mock/': {
+      target: 'http://0.0.0.0:7777',
+      changeOrigin: true,
+    },
   },
   /**
    * @name 详细的代理配置
