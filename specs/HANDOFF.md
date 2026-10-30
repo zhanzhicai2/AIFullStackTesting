@@ -7,7 +7,7 @@
 
 ## 0. 一句话状态
 
-**三个 feature 均已完成设计,前两个实现完成、第三个实现完成。** `002-ui-automation`（T001~T050）与 `001-ai-workbench`（T001~T062，只剩 T063/T064 需真实环境人工验证）全部落地；**`003-mock-config`（Mock 配置）设计 + 实现全部完成并验证**：纯静态 Mock 服务（`/mock/{项目app}/**`）+ 规则配置台，`mock_selftest.py` 100 项断言（不依赖 DB）+ `mock_e2e.py` 33 项断言（依赖 DB）全绿，前端 tsc 0 错误 / eslint 0 告警。003 的设计与契约见 `specs/003-mock-config/`。
+**三个 feature 均已完成设计,前两个实现完成、第三个实现完成。** `002-ui-automation`（T001~T050）与 `001-ai-workbench`（T001~T062，只剩 T063/T064 需真实环境人工验证）全部落地；**`003-mock-config`（Mock 配置）设计 + 实现全部完成并验证**：纯静态 Mock 服务（`/mock/{项目app}/**`）+ 规则配置台，`mock_selftest.py` 107 项断言（不依赖 DB）+ `mock_e2e.py` 33 项断言（依赖 DB）全绿，前端 tsc 0 错误 / eslint 0 告警。003 的设计与契约见 `specs/003-mock-config/`。
 
 ---
 
@@ -189,6 +189,7 @@ npm run lint:js
 
 - 001 落地后（新增文档解析外部输入面、SQL 计划采集、写入用例库）
 - 002 落地后（**新引入两个安全面，最需要审查**）
+- 003 落地后（**新增对外无鉴权 Mock 服务面**：`/mock/{app}/**` catch-all 任何未登录请求可达——风险点在「app 定位项目语义 + 变量渲染器零表达式保证 + preview 调试接口不产生真实延迟」，AST 零出网零执行扫描已进 selftest 固化为门禁）
 
 ---
 
@@ -208,7 +209,7 @@ npm run lint:js
   **动手前先读那张表**（尤其第 17 条：规则 8/13 是「保留 + 告警 + 采纳时拦截」，
   不是"丢弃字段"）。
 - 003-mock-config **设计 + 实现全部完成**：纯静态 Mock 服务 + 规则配置台。
-  mock_selftest.py 100 项断言（不依赖 DB，含 AST 零出网零执行扫描）+
+  mock_selftest.py 107 项断言（不依赖 DB，含 AST 零出网零执行扫描）+
   mock_e2e.py 33 项断言（依赖 DB）全绿；前端 tsc/eslint 0 问题。
   硬约束：main.py 路由注册顺序（管理先、catch-all 后）；变量白名单权威在
   mock_render.VARIABLE_PATTERN；对外服务无鉴权勿放真实凭据。

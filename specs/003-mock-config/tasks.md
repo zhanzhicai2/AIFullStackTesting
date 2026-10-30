@@ -28,7 +28,7 @@
 | `backend/app/crud/mock/MockRuleDao.py` | 规则 CRUD + 查重提示 + app 定位项目(最早创建) |
 | `backend/app/routers/mock/admin.py` · `service.py` | 7 个管理接口 + 对外 catch-all(无鉴权) |
 | `backend/main.py` | 注册顺序硬约束: 管理路由先、服务路由后 |
-| `backend/scripts/mock_selftest.py` | **106 项断言**(不依赖 DB): 匹配全表 + 双跑一致 + 变量正反例 + AST 零出网零执行扫描 + 跨端常量核对 |
+| `backend/scripts/mock_selftest.py` | **107 项断言**(不依赖 DB): 匹配全表 + 双跑一致 + 变量正反例 + AST 零出网零执行扫描 + 跨端常量核对 |
 | `backend/scripts/mock_e2e.py` | **33 项断言**(需要 DB): 管理链路 + 对外服务命中/404 矩阵/启停/删除 + preview + 权限 + app 边界 |
 | `frontend/src/consts/mock.ts` | 前端镜像(指认后端) |
 | `frontend/src/services/mock.ts` | 7 个管理接口封装 |
@@ -54,7 +54,7 @@
 
 ### 验证结果
 
-- **`mock_selftest.py` 106 项断言全绿**(不依赖 DB):匹配全表正反例、双跑一致、变量四类正反例、未知变量拒绝、延迟/状态码边界、**AST 静态扫描零出网零执行**、跨端常量核对
+- **`mock_selftest.py` 107 项断言全绿**(不依赖 DB):匹配全表正反例、双跑一致、变量四类正反例、未知变量拒绝、延迟/状态码边界、**AST 静态扫描零出网零执行**、跨端常量核对
 - **`mock_e2e.py` 33 项断言全绿**(需要 DB):管理链路(建/查重 warning/列表/启停)、对外服务(命中/变量回显/404 矩阵/启停生效/app 重复取最早/app 为空)、preview 命中与未命中、私有项目权限(非成员被拒/超管放行)、删除即失效
 - **前端**: `npx tsc --noEmit` 0 错误;新增文件 `npx eslint` 0 告警(全量 47 个报错均为既有旧债,与本次无关)
 - `import main` 成功;`/mock` 下 7 个管理路由先注册、1 个对外 catch-all 后注册

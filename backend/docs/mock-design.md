@@ -74,11 +74,11 @@ status=0 --启用--> status=1   (立即恢复匹配)
 
 ```bash
 cd backend
-.venv/bin/python scripts/mock_selftest.py   # 不依赖数据库: 96 项断言
+.venv/bin/python scripts/mock_selftest.py   # 不依赖数据库: 107 项断言
 .venv/bin/python scripts/mock_e2e.py        # 需要数据库: 33 项断言
 ```
 
-**selftest**(96 项):匹配全表正反例 + 双跑一致 + 变量四类正反例 + 未知变量拒绝 +
+**selftest**(107 项):匹配全表正反例 + 双跑一致 + 变量四类正反例 + 未知变量拒绝 +
 延迟/状态码边界 + **AST 静态扫描(零出网零执行)** + 跨端常量核对。
 
 **e2e**(33 项):管理链路(建/查重/列表/启停)+ 对外服务(命中/变量回显/404 矩阵/
