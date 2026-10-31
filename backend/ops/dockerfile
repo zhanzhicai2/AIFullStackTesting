@@ -14,7 +14,10 @@ RUN python -m venv /pity/venv  \
     && apt install -y tzdata
 # playwright 的浏览器二进制不在 venv 里, 单独装到 /ms-playwright。
 # --with-deps 会顺带装系统库(apt), 那些库留在 builder 里, 最终阶段要再装一次(见下)。
-RUN if [ "$INSTALL_PLAYWRIGHT" = "1" ]; then \
+# 注意: 必须先 mkdir -p —— 最终阶段的无条件 COPY 要求源路径恒存在,
+# 否则 INSTALL_PLAYWRIGHT=0 时 Docker 报 "/ms-playwright": not found(Docker 没有条件 COPY)。
+RUN mkdir -p /ms-playwright \
+    && if [ "$INSTALL_PLAYWRIGHT" = "1" ]; then \
         /pity/venv/bin/playwright install --with-deps chromium; \
     fi
 
