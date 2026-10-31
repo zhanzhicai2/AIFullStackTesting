@@ -1,0 +1,147 @@
+- generic [ref=f1e10]:
+  - complementary [ref=f1e12]:
+    - generic [ref=f1e13]:
+      - generic [ref=f1e15] [cursor=pointer]:
+        - img "logo" [ref=f1e16]
+        - heading "玩转接口测试" [level=1] [ref=f1e17]
+      - menu [ref=f1e19]:
+        - menuitem "dashboard Dashboard" [ref=f1e20] [cursor=pointer]:
+          - generic [ref=f1e22]:
+            - img "dashboard" [ref=f1e24]
+            - generic [ref=f1e27]: Dashboard
+        - menuitem [ref=f1e38] [cursor=pointer]:
+          - link "项目管理" [ref=f1e40]:
+            - /url: "#/project"
+        - menuitem "api UI测试" [ref=f1e47] [cursor=pointer]:
+          - generic [ref=f1e49]:
+            - img "api" [ref=f1e51]
+            - generic [ref=f1e54]: UI测试
+        - menuitem "api 接口测试" [ref=f1e55] [cursor=pointer]:
+          - generic [ref=f1e57]:
+            - img "api" [ref=f1e59]
+            - generic [ref=f1e62]: 接口测试
+        - menuitem "测试报告" [ref=f1e63] [cursor=pointer]
+        - menuitem "测试配置" [ref=f1e71] [cursor=pointer]
+        - menuitem "lock 后台管理" [ref=f1e79] [cursor=pointer]:
+          - generic [ref=f1e81]:
+            - img "lock" [ref=f1e83]
+            - generic [ref=f1e86]: 后台管理
+        - menuitem "api AI 助手" [ref=f1e87] [cursor=pointer]:
+          - generic [ref=f1e89]:
+            - img "api" [ref=f1e91]
+            - generic [ref=f1e94]: AI 助手
+        - menuitem "Mock配置" [ref=f1e95] [cursor=pointer]
+        - menuitem "tool 实用工具" [ref=f1e103] [cursor=pointer]:
+          - generic [ref=f1e105]:
+            - img "tool" [ref=f1e107]
+            - generic [ref=f1e110]: 实用工具
+        - menuitem [ref=f1e111] [cursor=pointer]:
+          - link "持续集成" [ref=f1e113]:
+            - /url: "#/ci"
+        - menuitem [ref=f1e120] [cursor=pointer]:
+          - link "精准测试" [ref=f1e122]:
+            - /url: "#/precise"
+        - menuitem [ref=f1e129] [cursor=pointer]:
+          - link "数据工厂" [ref=f1e131]:
+            - /url: "#/datafactory"
+      - generic:
+        - menu
+      - generic [ref=f1e139]:
+        - img "bell" [ref=f1e142] [cursor=pointer]
+        - img "question-circle" [ref=f1e146] [cursor=pointer]
+        - generic [ref=f1e150] [cursor=pointer]: 数据工厂e2e
+      - generic [ref=f1e153] [cursor=pointer]
+  - generic [ref=f1e156]:
+    - main [ref=f1e157]:
+      - generic [ref=f1e159]:
+        - tablist [ref=f1e160]:
+          - generic [ref=f1e162]:
+            - generic [ref=f1e163] [cursor=pointer]:
+              - tab "工作台" [ref=f1e164]
+              - tab "remove" [ref=f1e280]:
+                - img "close" [ref=f1e281]
+            - generic [ref=f1e284] [cursor=pointer]:
+              - tab "Mock配置" [selected] [ref=f1e285]
+              - tab "remove" [ref=f1e286]:
+                - img "close" [ref=f1e287]
+          - button [ref=f1e166] [cursor=pointer]:
+            - img "ellipsis" [ref=f1e168]
+        - generic:
+          - generic:
+            - tabpanel "Mock配置"
+      - generic [ref=f1e292]:
+        - generic [ref=f1e294]:
+          - generic [ref=f1e295]: Mock 配置
+          - generic [ref=f1e297]:
+            - button "reload 刷新" [ref=f1e299] [cursor=pointer]:
+              - img "reload" [ref=f1e391]
+              - generic [ref=f1e394]: 刷新
+            - button "plus 新建规则" [ref=f1e301] [cursor=pointer]:
+              - img "plus" [ref=f1e396]
+              - generic [ref=f1e400]: 新建规则
+        - generic [ref=f1e302]:
+          - generic [ref=f1e303]:
+            - generic [ref=f1e304]: "所属项目:"
+            - generic [ref=f1e306] [cursor=pointer]:
+              - generic: me2e-537725
+              - generic [ref=f1e308]:
+                - combobox [active] [ref=f1e310]
+                - generic "me2e-537725" [ref=f1e401]
+          - alert [ref=f1e402]:
+            - img "info-circle" [ref=f1e403]
+            - generic [ref=f1e406]:
+              - generic [ref=f1e407]: 应用名 mockapp1793339537725 被多个项目使用
+              - generic [ref=f1e408]: mock 基地址将命中最早创建的项目, 请确认这不是预期外的复用。
+          - alert [ref=f1e409]:
+            - img "info-circle" [ref=f1e410]
+            - generic [ref=f1e413]:
+              - generic [ref=f1e414]: 被测系统调用地址
+              - generic [ref=f1e416]:
+                - generic [ref=f1e418]:
+                  - text: http://localhost:8001/mock/mockapp1793339537725/
+                  - button "复制" [ref=f1e419] [cursor=pointer]:
+                    - img "copy" [ref=f1e420]
+                - generic [ref=f1e423]: "例:"
+                - code [ref=f1e426]: curl "http://localhost:8001/mock/mockapp1793339537725/api/user/1"
+                - button "copy 复制示例" [ref=f1e428] [cursor=pointer]:
+                  - img "copy" [ref=f1e430]
+                  - generic [ref=f1e433]: 复制示例
+          - generic [ref=f1e312]:
+            - generic [ref=f1e316] [cursor=pointer]:
+              - combobox [ref=f1e318]
+              - generic: 方法
+            - textbox "路径关键字" [ref=f1e321]
+            - generic [ref=f1e326] [cursor=pointer]:
+              - combobox [ref=f1e328]
+              - generic: 状态
+          - generic [ref=f1e434]:
+            - img "暂无数据" [ref=f1e436]
+            - generic [ref=f1e449]:
+              - text: 项目下还没有 Mock 规则。点击右上角「新建规则」配置第一条 —— 被测系统即可通过
+              - code [ref=f1e451]: http://localhost:8001/mock/mockapp1793339537725/**
+              - text: 获取假数据。
+          - table [ref=f1e335]:
+            - rowgroup [ref=f1e345]:
+              - row [ref=f1e346]:
+                - columnheader "方法" [ref=f1e347]
+                - columnheader "路径" [ref=f1e348]
+                - columnheader "规则名" [ref=f1e349]
+                - columnheader "状态码" [ref=f1e350]
+                - columnheader "延迟(ms)" [ref=f1e351]
+                - columnheader "优先级" [ref=f1e352]
+                - columnheader "状态" [ref=f1e353]
+                - columnheader "操作" [ref=f1e354]
+            - rowgroup [ref=f1e355]:
+              - row [ref=f1e356]:
+                - cell "暂无数据 暂无数据" [ref=f1e357]:
+                  - generic [ref=f1e358]:
+                    - img "暂无数据" [ref=f1e360]
+                    - generic [ref=f1e361]: 暂无数据
+      - img "setting" [ref=f1e264] [cursor=pointer]
+    - contentinfo [ref=f1e267]:
+      - generic [ref=f1e269]:
+        - img "copyright" [ref=f1e270]
+        - generic [ref=f1e273]:
+          - text: "2026"
+          - link "粤ICP备20001602号" [ref=f1e274] [cursor=pointer]:
+            - /url: https://beian.miit.gov.cn

@@ -1,0 +1,234 @@
+- generic [ref=f5e1]:
+  - generic [ref=f5e4]:
+    - complementary [ref=f5e6]:
+      - generic [ref=f5e7]:
+        - generic [ref=f5e9] [cursor=pointer]:
+          - img "logo" [ref=f5e10]
+          - heading "玩转接口测试" [level=1] [ref=f5e11]
+        - menu [ref=f5e13]:
+          - menuitem "dashboard Dashboard" [ref=f5e14] [cursor=pointer]:
+            - generic [ref=f5e16]:
+              - img "dashboard" [ref=f5e18]
+              - generic [ref=f5e21]: Dashboard
+          - menuitem [ref=f5e22] [cursor=pointer]:
+            - link "项目管理" [ref=f5e24]:
+              - /url: "#/project"
+          - menuitem "api UI测试" [ref=f5e31] [cursor=pointer]:
+            - generic [ref=f5e33]:
+              - img "api" [ref=f5e35]
+              - generic [ref=f5e38]: UI测试
+          - menuitem "api 接口测试" [ref=f5e39] [cursor=pointer]:
+            - generic [ref=f5e41]:
+              - img "api" [ref=f5e43]
+              - generic [ref=f5e46]: 接口测试
+          - menuitem "测试报告" [ref=f5e47] [cursor=pointer]
+          - menuitem "测试配置" [ref=f5e55] [cursor=pointer]
+          - menuitem "lock 后台管理" [ref=f5e63] [cursor=pointer]:
+            - generic [ref=f5e65]:
+              - img "lock" [ref=f5e67]
+              - generic [ref=f5e70]: 后台管理
+          - menuitem "api AI 助手" [ref=f5e71] [cursor=pointer]:
+            - generic [ref=f5e73]:
+              - img "api" [ref=f5e75]
+              - generic [ref=f5e78]: AI 助手
+          - menuitem "Mock配置" [ref=f5e79] [cursor=pointer]
+          - menuitem "tool 实用工具" [ref=f5e86] [cursor=pointer]:
+            - generic [ref=f5e88]:
+              - img "tool" [ref=f5e90]
+              - generic [ref=f5e93]: 实用工具
+          - menuitem [ref=f5e94] [cursor=pointer]:
+            - link "持续集成" [ref=f5e96]:
+              - /url: "#/ci"
+          - menuitem [ref=f5e103] [cursor=pointer]:
+            - link "精准测试" [ref=f5e105]:
+              - /url: "#/precise"
+          - menuitem [ref=f5e112] [cursor=pointer]:
+            - link "数据工厂" [ref=f5e114]:
+              - /url: "#/datafactory"
+        - generic:
+          - menu
+        - generic [ref=f5e122]:
+          - img "bell" [ref=f5e125] [cursor=pointer]
+          - img "question-circle" [ref=f5e129] [cursor=pointer]
+          - generic [ref=f5e133] [cursor=pointer]: 数据工厂e2e
+        - generic [ref=f5e136] [cursor=pointer]
+    - generic [ref=f5e139]:
+      - main [ref=f5e140]:
+        - generic [ref=f5e142]:
+          - tablist [ref=f5e143]:
+            - tab "Mock配置" [selected] [ref=f5e147] [cursor=pointer]
+            - button [ref=f5e149] [cursor=pointer]:
+              - img "ellipsis" [ref=f5e151]
+          - generic:
+            - generic:
+              - tabpanel "Mock配置"
+        - generic [ref=f5e156]:
+          - generic [ref=f5e158]:
+            - generic [ref=f5e159]: Mock 配置
+            - generic [ref=f5e161]:
+              - button "reload 刷新" [ref=f5e163] [cursor=pointer]:
+                - img "reload" [ref=f5e267]
+                - generic [ref=f5e270]: 刷新
+              - button "plus 新建规则" [ref=f5e165] [cursor=pointer]:
+                - img "plus" [ref=f5e272]
+                - generic [ref=f5e276]: 新建规则
+          - generic [ref=f5e166]:
+            - generic [ref=f5e167]:
+              - generic [ref=f5e168]: "所属项目:"
+              - generic [ref=f5e172]:
+                - combobox [expanded] [active] [ref=f5e174]:
+                  - listbox:
+                    - option "mock-g3-empty": "33"
+                    - option "me2e-537725" [selected]: "29"
+                    - option "me2e-dup-537725": "31"
+                - generic "me2e-537725" [ref=f5e277]
+            - alert [ref=f5e278]:
+              - img "info-circle" [ref=f5e279]
+              - generic [ref=f5e282]:
+                - generic [ref=f5e283]: 应用名 mockapp1793339537725 被多个项目使用
+                - generic [ref=f5e284]: mock 基地址将命中最早创建的项目, 请确认这不是预期外的复用。
+            - alert [ref=f5e285]:
+              - img "info-circle" [ref=f5e286]
+              - generic [ref=f5e289]:
+                - generic [ref=f5e290]: 被测系统调用地址
+                - generic [ref=f5e292]:
+                  - generic [ref=f5e294]:
+                    - text: http://localhost:8001/mock/mockapp1793339537725/
+                    - button "复制" [ref=f5e295] [cursor=pointer]:
+                      - img "copy" [ref=f5e296]
+                  - generic [ref=f5e299]: "例:"
+                  - code [ref=f5e302]: curl "http://localhost:8001/mock/mockapp1793339537725/api/user/1"
+                  - button "copy 复制示例" [ref=f5e304] [cursor=pointer]:
+                    - img "copy" [ref=f5e306]
+                    - generic [ref=f5e309]: 复制示例
+            - generic [ref=f5e176]:
+              - generic [ref=f5e180] [cursor=pointer]:
+                - combobox [ref=f5e182]
+                - generic: 方法
+              - textbox "路径关键字" [ref=f5e185]
+              - generic [ref=f5e190] [cursor=pointer]:
+                - combobox [ref=f5e192]
+                - generic: 状态
+            - generic [ref=f5e195]:
+              - table [ref=f5e199]:
+                - rowgroup [ref=f5e209]:
+                  - row [ref=f5e210]:
+                    - columnheader "方法" [ref=f5e211]
+                    - columnheader "路径" [ref=f5e212]
+                    - columnheader "规则名" [ref=f5e213]
+                    - columnheader "状态码" [ref=f5e214]
+                    - columnheader "延迟(ms)" [ref=f5e215]
+                    - columnheader "优先级" [ref=f5e216]
+                    - columnheader "状态" [ref=f5e217]
+                    - columnheader "操作" [ref=f5e218]
+                - rowgroup [ref=f5e219]:
+                  - row "GET /api/user/1 精确 用户详情2 200 0 1 experiment 调试 编 辑 删 除" [ref=f5e310]:
+                    - cell "GET" [ref=f5e311]
+                    - cell "/api/user/1 精确" [ref=f5e313]:
+                      - generic [ref=f5e314]:
+                        - code [ref=f5e316]: /api/user/1
+                        - generic [ref=f5e317]: 精确
+                    - cell "用户详情2" [ref=f5e318]
+                    - cell "200" [ref=f5e319]
+                    - cell "0" [ref=f5e320]
+                    - cell "1" [ref=f5e321]
+                    - cell [ref=f5e322]:
+                      - switch [checked] [ref=f5e323] [cursor=pointer]
+                    - cell [ref=f5e326]:
+                      - generic [ref=f5e327]:
+                        - button "experiment 调试" [ref=f5e329] [cursor=pointer]:
+                          - img "experiment" [ref=f5e331]
+                          - generic [ref=f5e334]: 调试
+                        - button "编 辑" [ref=f5e336] [cursor=pointer]
+                        - button "删 除" [ref=f5e339] [cursor=pointer]
+                  - row "ANY /fallback/* 通配 兜底 200 0 0 experiment 调试 编 辑 删 除" [ref=f5e341]:
+                    - cell "ANY" [ref=f5e342]
+                    - cell "/fallback/* 通配" [ref=f5e344]:
+                      - generic [ref=f5e345]:
+                        - code [ref=f5e347]: /fallback/*
+                        - generic [ref=f5e348]: 通配
+                    - cell "兜底" [ref=f5e349]
+                    - cell "200" [ref=f5e350]
+                    - cell "0" [ref=f5e351]
+                    - cell "0" [ref=f5e352]
+                    - cell [ref=f5e353]:
+                      - switch [checked] [ref=f5e354] [cursor=pointer]
+                    - cell [ref=f5e357]:
+                      - generic [ref=f5e358]:
+                        - button "experiment 调试" [ref=f5e360] [cursor=pointer]:
+                          - img "experiment" [ref=f5e362]
+                          - generic [ref=f5e365]: 调试
+                        - button "编 辑" [ref=f5e367] [cursor=pointer]
+                        - button "删 除" [ref=f5e370] [cursor=pointer]
+                  - row "GET /api/standalone 精确 独立接口 200 0 0 experiment 调试 编 辑 删 除" [ref=f5e372]:
+                    - cell "GET" [ref=f5e373]
+                    - cell "/api/standalone 精确" [ref=f5e375]:
+                      - generic [ref=f5e376]:
+                        - code [ref=f5e378]: /api/standalone
+                        - generic [ref=f5e379]: 精确
+                    - cell "独立接口" [ref=f5e380]
+                    - cell "200" [ref=f5e381]
+                    - cell "0" [ref=f5e382]
+                    - cell "0" [ref=f5e383]
+                    - cell [ref=f5e384]:
+                      - switch [ref=f5e385] [cursor=pointer]
+                    - cell [ref=f5e388]:
+                      - generic [ref=f5e389]:
+                        - button "experiment 调试" [ref=f5e391] [cursor=pointer]:
+                          - img "experiment" [ref=f5e393]
+                          - generic [ref=f5e396]: 调试
+                        - button "编 辑" [ref=f5e398] [cursor=pointer]
+                        - button "删 除" [ref=f5e401] [cursor=pointer]
+                  - row "GET /api/user/1 精确 用户详情 200 0 0 experiment 调试 编 辑 删 除" [ref=f5e403]:
+                    - cell "GET" [ref=f5e404]
+                    - cell "/api/user/1 精确" [ref=f5e406]:
+                      - generic [ref=f5e407]:
+                        - code [ref=f5e409]: /api/user/1
+                        - generic [ref=f5e410]: 精确
+                    - cell "用户详情" [ref=f5e411]
+                    - cell "200" [ref=f5e412]
+                    - cell "0" [ref=f5e413]
+                    - cell "0" [ref=f5e414]
+                    - cell [ref=f5e415]:
+                      - switch [checked] [ref=f5e416] [cursor=pointer]
+                    - cell [ref=f5e419]:
+                      - generic [ref=f5e420]:
+                        - button "experiment 调试" [ref=f5e422] [cursor=pointer]:
+                          - img "experiment" [ref=f5e424]
+                          - generic [ref=f5e427]: 调试
+                        - button "编 辑" [ref=f5e429] [cursor=pointer]
+                        - button "删 除" [ref=f5e432] [cursor=pointer]
+              - list [ref=f5e434]:
+                - listitem "上一页" [ref=f5e435]:
+                  - button [disabled] [ref=f5e436]:
+                    - img "left" [ref=f5e437]
+                - listitem "1" [ref=f5e440] [cursor=pointer]
+                - listitem "下一页" [ref=f5e442]:
+                  - button [disabled] [ref=f5e443]:
+                    - img "right" [ref=f5e444]
+                - listitem [ref=f5e447]:
+                  - generic "页码" [ref=f5e448] [cursor=pointer]:
+                    - generic [ref=f5e450]:
+                      - combobox "页码" [ref=f5e452]
+                      - generic "20 条/页" [ref=f5e453]
+        - img "setting" [ref=f5e227] [cursor=pointer]
+      - contentinfo [ref=f5e230]:
+        - generic [ref=f5e232]:
+          - img "copyright" [ref=f5e233]
+          - generic [ref=f5e236]:
+            - text: "2026"
+            - link "粤ICP备20001602号" [ref=f5e237] [cursor=pointer]:
+              - /url: https://beian.miit.gov.cn
+  - generic [ref=f5e240]:
+    - generic [ref=f5e243]:
+      - generic "mock-g2-noapp" [ref=f5e244] [cursor=pointer]
+      - generic "mock-g3-empty" [ref=f5e246] [cursor=pointer]
+      - generic "me2e-537725" [ref=f5e248] [cursor=pointer]
+      - generic "me2e-dup-537725" [ref=f5e250] [cursor=pointer]
+      - generic "me2e-535389" [ref=f5e252] [cursor=pointer]
+      - generic "me2e-dup-535389" [ref=f5e254] [cursor=pointer]
+      - generic "me2e-264527" [ref=f5e256] [cursor=pointer]
+      - generic "me2e-dup-264527" [ref=f5e258] [cursor=pointer]
+      - generic "me2e-254880" [ref=f5e260] [cursor=pointer]
+      - generic "me2e-dup-254880" [ref=f5e262] [cursor=pointer]
+    - generic [ref=f5e265] [cursor=pointer]

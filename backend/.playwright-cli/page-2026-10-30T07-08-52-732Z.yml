@@ -1,0 +1,126 @@
+- generic [active] [ref=e1]:
+  - generic [ref=e84]:
+    - complementary [ref=e86]:
+      - generic [ref=e87]:
+        - img "logo" [ref=e90] [cursor=pointer]
+        - menu [ref=e92]:
+          - menuitem "dashboard Dashboard" [expanded] [ref=e93] [cursor=pointer]:
+            - generic [ref=e95]:
+              - img "dashboard" [ref=e97]
+              - generic [ref=e100]: Dashboard
+          - menu:
+            - menuitem "工作台" [ref=e101] [cursor=pointer]
+            - menuitem [ref=e105] [cursor=pointer]:
+              - link "看板" [ref=e107]:
+                - /url: "#/dashboard/statistics"
+          - menuitem [ref=e110] [cursor=pointer]:
+            - link "项目管理" [ref=e112]:
+              - /url: "#/project"
+          - menuitem "api UI测试" [ref=e119] [cursor=pointer]:
+            - generic [ref=e121]:
+              - img "api" [ref=e123]
+              - generic [ref=e126]: UI测试
+          - menuitem "api 接口测试" [ref=e127] [cursor=pointer]:
+            - generic [ref=e129]:
+              - img "api" [ref=e131]
+              - generic [ref=e134]: 接口测试
+          - menuitem "测试报告" [ref=e135] [cursor=pointer]
+          - menuitem "测试配置" [ref=e143] [cursor=pointer]
+          - menuitem "lock 后台管理" [ref=e151] [cursor=pointer]:
+            - generic [ref=e153]:
+              - img "lock" [ref=e155]
+              - generic [ref=e158]: 后台管理
+          - menuitem "api AI 助手" [ref=e159] [cursor=pointer]:
+            - generic [ref=e161]:
+              - img "api" [ref=e163]
+              - generic [ref=e166]: AI 助手
+          - menuitem [ref=e167] [cursor=pointer]:
+            - link "Mock配置" [ref=e169]:
+              - /url: "#/mock"
+          - menuitem "tool 实用工具" [ref=e175] [cursor=pointer]:
+            - generic [ref=e177]:
+              - img "tool" [ref=e179]
+              - generic [ref=e182]: 实用工具
+          - menuitem [ref=e183] [cursor=pointer]:
+            - link "持续集成" [ref=e185]:
+              - /url: "#/ci"
+          - menuitem [ref=e192] [cursor=pointer]:
+            - link "精准测试" [ref=e194]:
+              - /url: "#/precise"
+          - menuitem [ref=e201] [cursor=pointer]:
+            - link "数据工厂" [ref=e203]:
+              - /url: "#/datafactory"
+        - generic:
+          - menu
+        - generic [ref=e211]:
+          - img "bell" [ref=e214] [cursor=pointer]
+          - img "question-circle" [ref=e218] [cursor=pointer]
+          - generic [ref=e222] [cursor=pointer]: 数据工厂e2e
+        - generic [ref=e225] [cursor=pointer]
+    - generic [ref=e228]:
+      - main [ref=e229]:
+        - generic [ref=e231]:
+          - tablist [ref=e232]:
+            - tab "工作台" [selected] [ref=e236] [cursor=pointer]
+            - button [ref=e238] [cursor=pointer]:
+              - img "ellipsis" [ref=e240]
+          - generic:
+            - generic:
+              - tabpanel "工作台"
+        - generic [ref=e244]:
+          - generic [ref=e245]:
+            - generic "工作台" [ref=e248]
+            - generic [ref=e252]:
+              - generic [ref=e258]:
+                - generic [ref=e259]: 下午好, 数据工厂e2e!
+                - generic [ref=e260]: e2e_85984@pity.local
+              - generic [ref=e262]:
+                - generic [ref=e264]:
+                  - generic [ref=e265]: 参与项目
+                  - generic [ref=e266]: "0"
+                - generic [ref=e269]:
+                  - generic [ref=e270]: 用例数量
+                  - generic [ref=e271]: "0"
+                - generic [ref=e274]:
+                  - generic [ref=e275]: 团队内排名
+                  - generic [ref=e276]:
+                    - generic [ref=e277]: "-"
+                    - generic [ref=e278]: / 0
+          - generic [ref=e283]:
+            - generic [ref=e285]:
+              - generic [ref=e289]:
+                - strong [ref=e290]: 关注中的测试计划
+                - text: (0个)
+              - generic [ref=e294]:
+                - img "empty" [ref=e296]
+                - generic [ref=e298]:
+                  - text: 你还没有关注测试计划, 赶紧去
+                  - link "关注" [ref=e299] [cursor=pointer]:
+                    - /url: /#/apiTest/testplan
+                  - text: 一个吧！
+            - generic [ref=e300]:
+              - generic [ref=e301]:
+                - generic [ref=e302]: 快速导航
+                - generic [ref=e306]:
+                  - generic [ref=e307]: 项目列表
+                  - generic [ref=e309]: 测试计划
+                  - generic [ref=e311]: 测试报告
+                  - generic [ref=e313]: HTTP工具
+                  - generic [ref=e315]: 数据库配置
+                  - button "plus 添加" [ref=e318] [cursor=pointer]:
+                    - img "plus" [ref=e319]
+                    - generic [ref=e323]: 添加
+              - generic [ref=e326]:
+                - generic [ref=e327]: 最近7天编写用例数量
+                - button "去编写" [ref=e329] [cursor=pointer]
+        - img "setting" [ref=e336] [cursor=pointer]
+      - contentinfo [ref=e339]:
+        - generic [ref=e341]:
+          - img "copyright" [ref=e342]
+          - generic [ref=e345]:
+            - text: "2026"
+            - link "粤ICP备20001602号" [ref=e346] [cursor=pointer]:
+              - /url: https://beian.miit.gov.cn
+  - generic [ref=e348]:
+    - img "check-circle" [ref=e349]
+    - generic [ref=e352]: 🎉 🎉 🎉 登录成功

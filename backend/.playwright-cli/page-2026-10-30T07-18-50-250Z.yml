@@ -1,0 +1,115 @@
+- generic [ref=f5e4]:
+  - complementary [ref=f5e6]:
+    - generic [ref=f5e7]:
+      - generic [ref=f5e9] [cursor=pointer]:
+        - img "logo" [ref=f5e10]
+        - heading "玩转接口测试" [level=1] [ref=f5e11]
+      - menu [ref=f5e13]:
+        - menuitem "dashboard Dashboard" [ref=f5e14] [cursor=pointer]:
+          - generic [ref=f5e16]:
+            - img "dashboard" [ref=f5e18]
+            - generic [ref=f5e21]: Dashboard
+        - menuitem [ref=f5e22] [cursor=pointer]:
+          - link "项目管理" [ref=f5e24]:
+            - /url: "#/project"
+        - menuitem "api UI测试" [ref=f5e31] [cursor=pointer]:
+          - generic [ref=f5e33]:
+            - img "api" [ref=f5e35]
+            - generic [ref=f5e38]: UI测试
+        - menuitem "api 接口测试" [ref=f5e39] [cursor=pointer]:
+          - generic [ref=f5e41]:
+            - img "api" [ref=f5e43]
+            - generic [ref=f5e46]: 接口测试
+        - menuitem "测试报告" [ref=f5e47] [cursor=pointer]
+        - menuitem "测试配置" [ref=f5e55] [cursor=pointer]
+        - menuitem "lock 后台管理" [ref=f5e63] [cursor=pointer]:
+          - generic [ref=f5e65]:
+            - img "lock" [ref=f5e67]
+            - generic [ref=f5e70]: 后台管理
+        - menuitem "api AI 助手" [ref=f5e71] [cursor=pointer]:
+          - generic [ref=f5e73]:
+            - img "api" [ref=f5e75]
+            - generic [ref=f5e78]: AI 助手
+        - menuitem "Mock配置" [ref=f5e79] [cursor=pointer]
+        - menuitem "tool 实用工具" [ref=f5e86] [cursor=pointer]:
+          - generic [ref=f5e88]:
+            - img "tool" [ref=f5e90]
+            - generic [ref=f5e93]: 实用工具
+        - menuitem [ref=f5e94] [cursor=pointer]:
+          - link "持续集成" [ref=f5e96]:
+            - /url: "#/ci"
+        - menuitem [ref=f5e103] [cursor=pointer]:
+          - link "精准测试" [ref=f5e105]:
+            - /url: "#/precise"
+        - menuitem [ref=f5e112] [cursor=pointer]:
+          - link "数据工厂" [ref=f5e114]:
+            - /url: "#/datafactory"
+      - generic:
+        - menu
+      - generic [ref=f5e122]:
+        - img "bell" [ref=f5e125] [cursor=pointer]
+        - img "question-circle" [ref=f5e129] [cursor=pointer]
+        - generic [ref=f5e133] [cursor=pointer]: 数据工厂e2e
+      - generic [ref=f5e136] [cursor=pointer]
+  - generic [ref=f5e139]:
+    - main [ref=f5e140]:
+      - generic [ref=f5e142]:
+        - tablist [ref=f5e143]:
+          - tab "Mock配置" [selected] [ref=f5e147] [cursor=pointer]
+          - button [ref=f5e149] [cursor=pointer]:
+            - img "ellipsis" [ref=f5e151]
+        - generic:
+          - generic:
+            - tabpanel "Mock配置"
+      - generic [ref=f5e156]:
+        - generic [ref=f5e158]:
+          - generic [ref=f5e159]: Mock 配置
+          - generic [ref=f5e161]:
+            - button "reload 刷新" [disabled] [ref=f5e163]:
+              - generic:
+                - img "reload"
+              - generic: 刷新
+            - button "plus 新建规则" [disabled] [ref=f5e165]:
+              - generic:
+                - img "plus"
+              - generic: 新建规则
+        - generic [ref=f5e166]:
+          - generic [ref=f5e167]:
+            - generic [ref=f5e168]: "所属项目:"
+            - generic [ref=f5e172]:
+              - combobox [ref=f5e174]
+              - generic: 请先选择项目
+            - generic [ref=f5e175]: 请先选择项目 —— Mock 规则按项目隔离, 未选择无法配置与查看。
+          - generic [ref=f5e176]:
+            - generic [ref=f5e180] [cursor=pointer]:
+              - combobox [ref=f5e182]
+              - generic: 方法
+            - textbox "路径关键字" [ref=f5e185]
+            - generic [ref=f5e190] [cursor=pointer]:
+              - combobox [ref=f5e192]
+              - generic: 状态
+          - table [ref=f5e199]:
+            - rowgroup [ref=f5e209]:
+              - row [ref=f5e210]:
+                - columnheader "方法" [ref=f5e211]
+                - columnheader "路径" [ref=f5e212]
+                - columnheader "规则名" [ref=f5e213]
+                - columnheader "状态码" [ref=f5e214]
+                - columnheader "延迟(ms)" [ref=f5e215]
+                - columnheader "优先级" [ref=f5e216]
+                - columnheader "状态" [ref=f5e217]
+                - columnheader "操作" [ref=f5e218]
+            - rowgroup [ref=f5e219]:
+              - row [ref=f5e220]:
+                - cell "暂无数据 暂无数据" [ref=f5e221]:
+                  - generic [ref=f5e222]:
+                    - img "暂无数据" [ref=f5e224]
+                    - generic [ref=f5e225]: 暂无数据
+      - img "setting" [ref=f5e227] [cursor=pointer]
+    - contentinfo [ref=f5e230]:
+      - generic [ref=f5e232]:
+        - img "copyright" [ref=f5e233]
+        - generic [ref=f5e236]:
+          - text: "2026"
+          - link "粤ICP备20001602号" [ref=f5e237] [cursor=pointer]:
+            - /url: https://beian.miit.gov.cn
