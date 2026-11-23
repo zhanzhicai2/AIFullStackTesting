@@ -295,6 +295,81 @@ export default [
         icon: 'redis',
         component: './Tool/RedisOnline',
       },
+      // ---- 以下为纯本地转换工具(A 档) + 需后端计算的工具(B 档) ----
+      // 图标全部取自 iconfont(font_915840_kom9s5w2t6k), 以 `icon-` 开头才会走
+      // pro-layout 的 IconFont 渲染, 不带前缀的字符串会被当成文字直接显示
+      {
+        path: '/tool/json',
+        name: 'JSON工具',
+        icon: 'icon-biaoge',
+        component: './Tool/JsonTool',
+      },
+      {
+        path: '/tool/diff',
+        name: 'JSON对比',
+        icon: 'icon-duoweidu',
+        component: './Tool/JsonDiff',
+      },
+      {
+        path: '/tool/timestamp',
+        name: '时间戳',
+        icon: 'icon--shalou',
+        component: './Tool/Timestamp',
+      },
+      {
+        path: '/tool/jwt',
+        name: 'JWT解码',
+        icon: 'icon-Debug',
+        component: './Tool/JwtDecoder',
+      },
+      {
+        path: '/tool/codec',
+        name: '编解码',
+        icon: 'icon-change',
+        component: './Tool/Codec',
+      },
+      {
+        path: '/tool/hash',
+        name: 'Hash计算',
+        icon: 'icon-count',
+        component: './Tool/HashTool',
+      },
+      {
+        path: '/tool/crypto',
+        name: '加解密',
+        icon: 'icon-shezhi',
+        component: './Tool/CryptoTool',
+      },
+      {
+        path: '/tool/regex',
+        name: '正则测试',
+        icon: 'icon-filter',
+        component: './Tool/RegexTester',
+      },
+      {
+        path: '/tool/random',
+        name: '随机生成',
+        icon: 'icon-qita',
+        component: './Tool/RandomGen',
+      },
+      {
+        path: '/tool/cron',
+        name: 'Cron解析',
+        icon: 'icon-jihua',
+        component: './Tool/CronParser',
+      },
+      {
+        path: '/tool/stat',
+        name: '字符串统计',
+        icon: 'icon-tongji',
+        component: './Tool/StringStat',
+      },
+      {
+        path: '/tool/net',
+        name: '网络判断',
+        icon: 'icon-fuwuqi',
+        component: './Tool/NetChecker',
+      },
     ],
   },
   {

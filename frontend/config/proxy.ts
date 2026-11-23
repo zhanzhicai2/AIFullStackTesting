@@ -74,6 +74,16 @@ export default {
       target: 'http://0.0.0.0:7777',
       changeOrigin: true,
     },
+    // 实用工具(/tool/* 的 JSON对比/网络判断/加解密/摘要)
+    '/tool/': {
+      target: 'http://0.0.0.0:7777',
+      changeOrigin: true,
+    },
+    // 持续集成 —— 此前两处(这里与 nginx.conf)都漏了, CI 页面的 API 全部落 SPA
+    '/ci/': {
+      target: 'http://0.0.0.0:7777',
+      changeOrigin: true,
+    },
   },
   /**
    * @name 详细的代理配置

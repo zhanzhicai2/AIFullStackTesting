@@ -27,6 +27,7 @@ from app.routers.oss import router as oss_router
 from app.routers.project import project
 from app.routers.request import http
 from app.routers.testcase import router as testcase_router
+from app.routers.tool import router as tool_router
 from app.routers.ui import router as ui_router
 from app.routers.workspace import router as workspace_router
 from app.utils.log_sanitize import MAX_BODY_LOG_BYTES, sanitize_payload, sanitize_url
@@ -78,6 +79,9 @@ pity.include_router(http.router, dependencies=[Depends(request_info)])
 pity.include_router(testcase_router, dependencies=[Depends(request_info)])
 pity.include_router(config_router, dependencies=[Depends(request_info)])
 pity.include_router(online_router, dependencies=[Depends(request_info)])
+# 实用工具(/tool/*) 刻意不挂 request_info: 纯计算、不写库, 且 body 是用户
+# 粘贴的待加密文本/密文, 明文进 DEBUG 日志不合适 —— 理由见 app/routers/tool/__init__.py
+pity.include_router(tool_router)
 pity.include_router(oss_router, dependencies=[Depends(request_info)])
 pity.include_router(operation_router, dependencies=[Depends(request_info)])
 pity.include_router(msg_router, dependencies=[Depends(request_info)])

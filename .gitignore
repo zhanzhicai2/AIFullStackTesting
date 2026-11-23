@@ -74,6 +74,9 @@ build/
 dist/
 *.egg-info/
 
+# playwright-cli 会话产物(快照/控制台日志/截图) —— 每次跑浏览器自动化都会生成
+.playwright-cli/
+
 # ---------- Claude Code personal (never commit) ----------
 .claude/settings.local.json
 .claude/memory/
