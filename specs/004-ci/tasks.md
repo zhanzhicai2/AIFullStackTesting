@@ -165,7 +165,7 @@
 - [X] T048 Run `cd backend && .venv/bin/python -c "import main"` —— 导入无误（验收口径见 `specs/004-ci/quickstart.md` §2）
 - [X] T049 Run `cd frontend && npx tsc --noEmit && npm run lint` —— tsc **0 错误**、eslint 0 告警（验收口径见 `frontend/CLAUDE.md`「TypeScript 检查」）
 - [ ] T050 Run `specs/004-ci/quickstart.md` §3 场景 A~G 人工验证 —— 逐条对照 §4 的 SC-001~SC-012
-- [ ] T051 **提示用户决定是否执行 `security-review`** —— 触发条件见 `backend/CLAUDE.md`「安全审查检查点」，本特性四条全命中（新增 8 个路由接口 / 新增鉴权判断 / 新增外部输入面 / 新增敏感数据存储）；按 constitution 由**人决定**，不自动执行；**建议在 T029（US2 实现完成）后、T046（全量回归）前跑一次**
+- [X] T051 **提示用户决定是否执行 `security-review`** —— 触发条件见 `backend/CLAUDE.md`「安全审查检查点」，本特性四条全命中（新增 8 个路由接口 / 新增鉴权判断 / 新增外部输入面 / 新增敏感数据存储）；按 constitution 由**人决定**，不自动执行；**建议在 T029（US2 实现完成）后、T046（全量回归）前跑一次**
 
 ---
 

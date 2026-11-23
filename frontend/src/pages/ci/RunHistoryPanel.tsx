@@ -65,8 +65,9 @@ const RunHistoryPanel: React.FC<{ onRefresh?: () => void }> = ({ onRefresh }) =>
         const label = r.external_build_id || r.external_url;
         // 安全审查 F1: 只有 scheme 在白名单内才渲染成链接。
         // `external_url` 由调用方提供, 直接进 href 等于开放 javascript:/data: 注入。
-        return isSafeHttpUrl(r.external_url) ? (
-          <Link href={r.external_url} target="_blank" rel="noreferrer">
+        const url = r.external_url ?? undefined;
+        return isSafeHttpUrl(url) ? (
+          <Link href={url} target="_blank" rel="noreferrer">
             {label}
           </Link>
         ) : (

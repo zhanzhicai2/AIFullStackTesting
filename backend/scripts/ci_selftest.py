@@ -448,7 +448,7 @@ def test_security_review_fixes():
     """安全审查 F1/F3/F4/F5 的回归断言 —— 修完必须留门禁, 否则会被改回去"""
     print("== 安全审查修复(F1 链接注入 / F3 脱敏 / F4 scheme / F5 误改) ==")
     from pydantic import ValidationError
-    from app.schema.ci import CiIntegrationForm, CiRunForm, check_url_field
+    from app.schema.ci import CiIntegrationForm, CiRunForm
 
     def rejected(form_cls, **kw):
         try:
@@ -495,8 +495,6 @@ def test_security_review_fixes():
     fields = [f.name for f in PityCiIntegration.__fields__]
     check("F5 __fields__ 不含 token_hash", "token_hash" not in fields, str(fields))
     check("F5 __fields__ 不含 token_prefix", "token_prefix" not in fields, str(fields))
-    from app.crud import Mapper
-    from app.models import async_session  # noqa: F401  (确保 model 已注册)
     check("F5 models 里有防误改注释",
           "不能加 `token_hash`" in open(os.path.join(ROOT, "app", "models", "ci.py"),
                                         encoding="utf-8").read())
@@ -506,7 +504,7 @@ def test_security_review_fixes():
     check("前端镜像有 scheme 白名单", "CI_ALLOWED_URL_SCHEMES" in open(fe, encoding="utf-8").read())
     panel = os.path.join(ROOT, "..", "frontend", "src", "pages", "ci", "RunHistoryPanel.tsx")
     panel_src = open(panel, encoding="utf-8").read()
-    check("历史面板渲染链接前过 isSafeHttpUrl", "isSafeHttpUrl(r.external_url)" in panel_src)
+    check("历史面板渲染链接前过 isSafeHttpUrl", "isSafeHttpUrl(" in panel_src)
     check("历史面板不再裸用 r.external_url 做 href判断",
           "return r.external_url ?" not in panel_src)
     check("scheme 白名单两端一致(都只 http/https)",

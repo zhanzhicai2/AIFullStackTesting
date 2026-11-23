@@ -126,7 +126,7 @@ curl -X POST "http://localhost:7777/ci/run" \
 | `project_id` | int | 是 | 项目存在 |
 | `name` | str | 是 | ≤32 字符，同项目内不重复 |
 | `plan_id` | int | 否 | 属于 `project_id`，否则 110 |
-| `callback_url` | str | 否 | **一期只存不发**；≤255 |
+| `callback_url` | str | 否 | **一期只存不发**；≤255；**只允许 `http`/`https`**（安全审查 F4 —— 一期就堵住二期的口子） |
 | `expires_at` | str | 否 | ISO 时间；不传 = `now + 1 年`；显式传 `null` = 长期有效（决定 Q4） |
 
 **响应**：
@@ -181,7 +181,7 @@ curl -X POST "http://localhost:7777/ci/run" \
 | `wait` | bool | 否 | **默认 `false`**（决定 Q3） |
 | `timeout_sec` | int | 否 | 仅 `wait=true` 生效；默认 `300`，上限 `1800`，下限 `1` |
 | `external_build_id` | str | 否 | ≤64，如 Jenkins `$BUILD_NUMBER` |
-| `external_url` | str | 否 | ≤255，流水线地址，历史中可跳转 |
+| `external_url` | str | 否 | ≤255，流水线地址，历史中可跳转。**只允许 `http`/`https`** —— 其余 scheme（`javascript:`/`data:`/`ftp:`…）在 schema 层直接拒绝，前端渲染前还会再校验一次（安全审查 F1） |
 
 **响应（`wait=true`，执行完成）**：
 

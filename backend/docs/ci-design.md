@@ -183,10 +183,21 @@ npm run lint
 
 - **一期无回调 webhook**（决定 Q5）：结果只能等返回或轮询，不会主动推回流水线
 - **回调 SSRF 与内网 Jenkins 的矛盾未解**（`proposal.md` §7.2）—— 二期开工前必须先决策「项目级 host 白名单 + 仅管理员配置」还是别的取向。**这条不定，二期不要开工**
+- **`POST /ci/run` 没有并发上限**（安全审查 F2，**已知风险、未强制执行**）：
+  全站本就没有任何限流（grep `limiter|rate_limit|slowapi|throttle` 零命中），`/testcase/plan/execute`
+  早就允许任意 MEMBER 无限制触发计划执行 —— 所以这不是本次新引入的形态，但 CI 这条入口**每次触发都真的执行测试计划**
+  （出网打被测系统 + 写 `pity_report`/`pity_test_result`），`wait=true` 时 `timeout_sec` 上限 **1800s**，
+  测试计划执行链路没有并发上限（`BrowserManager._semaphore` 只管 UI 浏览器）。
+  **已有的缓解**：同计划防重（`find_in_flight` + `@lock("test_plan")`）—— 同一 plan 不会并发跑两份，
+  但**不同 plan 可以无限并发**。
+  **待决策**（三选一，尚未实施）：① `ci_runner` 加全局/每凭据 `asyncio.Semaphore` ② 按 integration 限流
+  ③ 仅文档标注（**当前选择**，避免给已跑通的功能引入新的失败模式）。
+  走 ①/② 时要注意：信号量满要返回可区分的业务码，不能让 CI 拿到一个含糊的 `110`。
 - **`pity_test_plan.pass_rate` 仍只写不读** —— 全仓库除 model/schema 外无人引用，「通过率低于阈值自动通知/门禁」从未实现。二期接上它就能做门禁
 - **执行结果不可重放** —— 测试结论取决于被测系统状态，同一 `plan_id` 两次触发结果可能不同（与既有接口/UI 自动化同源约束）
 - **凭据粒度是项目级** —— 不提供「只允许触发单条计划」的更细限制（绑定默认计划只是引导，不强制）
 - **`GET /ci/integration/switch` 与 `/delete` 走「先按 id 查归属项目再操作」** —— 比直接收 `project_id` 多一次查询，换来契约只暴露 `id`
+- **摘要比对非恒定时间** —— `token_hash != compute_hash(token)` 走普通字符串比较。但调用方必须先通过 DB 的 `token_hash = ?` 等值查询（本身也非恒定时间），且凭据是 128 bit 熵，时序攻击不可行。列为 informational，不修
 
 ---
 
@@ -200,3 +211,21 @@ npm run lint
 | `run_test_plan` 通知段 | 单个 try | **拆成独立 try** | 通知失败不该把已跑完的执行判成平台失败（§4） |
 | `run_test_plan` 列表解析 | `map(int, x.split(","))` | **过滤空串** | `int("")` 会 ValueError，空计划必须走 FR-018 而不是抛异常 |
 | `/run/{id}` 与 `/run/list` | 未规定顺序 | **list 定义在 `{id}` 之前** | FastAPI 按注册顺序匹配，否则 `list` 被当成 run_id 捕获 |
+
+---
+
+## 11. 安全审查记录（2026-11-23，T051）
+
+用 ECC `security-review` 10 项清单跑了一遍（§9 区块链不适用）。**结论：无高危、无阻断；4 项需修已修，1 项为已知风险。**
+
+| # | 严重度 | 发现 | 处置 |
+|---|---|---|---|
+| F1 | 中 | `external_url` 无 scheme 校验 → 存储型链接注入。该值由调用方提供、被 `RunHistoryPanel` 渲染成 `<a href>`；React 18 对 `javascript:` href **只在 dev 打 warning、不阻断** | ✅ **已修**：`schema.check_url_field()` 白名单 + 前端 `isSafeHttpUrl()` 纵深双层 |
+| F2 | 中低 | `POST /ci/run` 无并发上限，每次触发真的执行测试计划（出网 + 写库），`timeout_sec` 上限 1800s | ⚠️ **仅文档标注**（§9）——全站本就无限流，走信号量/限流需先定方案，避免给已跑通的功能引入新失败模式 |
+| F3 | 低 | `error_msg` 文档称「已脱敏」但 `clip_error` 只截断 → 异常文本可能带出 URL query / `password=` 片段 | ✅ **已修**：先 scrub（URL query → `?***`、凭据 KV → `key=***`、含 `Bearer <jwt>`）再截断到 500 |
+| F4 | 低 | `callback_url` 无 scheme 校验 —— 一期不发，但二期一开就是现成入口 | ✅ **已修**：同一白名单，一期就上 |
+| F5 | 加固 | `token_hash` 不进操作日志是**隐性**保护（靠 `__fields__` 过滤），将来加进 `__fields__` 会静默泄露 | ✅ **已修**：`models/ci.py` 的 `__fields__` 旁写明该依赖 |
+
+**通过项**：零硬编码凭据 · 全 SQLAlchemy 绑定参数（无裸 SQL）· `Permission()` 本体未改 · 项目作用域三处强制 · JWT/CI 凭据都在自定义 header（非 cookie，CSRF 不适用）· 请求头不进日志（`request_info` 只记 method + `sanitize_url` + `sanitize_payload(body)`，而凭据在 header 里）· 零新增依赖 · 零执行面 · 一期零出网。
+
+**回归门禁**：以上 5 项全部固化进 `scripts/ci_selftest.py::test_security_review_fixes`（25 条断言），改回去会直接红。
