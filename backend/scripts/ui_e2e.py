@@ -121,6 +121,17 @@ print(f"    使用 env_id={env_id}")
 
 import asyncio  # noqa: E402
 
+# ⚠️ 全程复用同一个 loop —— 本脚本有 7 处独立的 asyncio.run 调用, 每次都会新建并**关闭**
+# loop, 而 SQLAlchemy 连接池绑定在创建它的 loop 上, 后面的调用就报
+# "Task got Future attached to a different loop"(在 332 行首次暴露)。
+_LOOP = asyncio.new_event_loop()
+
+
+def run(coro):
+    """等价于 asyncio.run, 但不关闭 loop —— 见上。"""
+    return _LOOP.run_until_complete(coro)
+
+
 from app.crud.project.ProjectDao import ProjectDao  # noqa: E402
 from app.crud.ui.UIAllowedDomainDao import UIAllowedDomainDao  # noqa: E402
 
@@ -129,7 +140,10 @@ PROJECT_ID = None
 
 async def prepare():
     global PROJECT_ID
-    name = f"e2e_ui_project_{random.randint(1000, 9999)}"
+    # ⚠️ 前缀必须连随机数一起 ≤16 字符 —— pity_project.name 是 VARCHAR(16),
+    # 原来的 `e2e_ui_project_` 本身就有 16 字符, 加上随机数必超, 这个 e2e 从来跑不通
+    # (pity_error.log 里 10-30 那两条 Data too long 就是同类痕迹)
+    name = f"e2e_ui_{random.randint(10000, 99999)}"
     await ProjectDao.add_project(name=name, app="e2e", owner=USER_ID, user_id=USER_ID,
                                  private=False, description="UI 自动化 e2e")
     from app.models import async_session
@@ -148,7 +162,7 @@ async def prepare():
     return PROJECT_ID
 
 
-PROJECT_ID = asyncio.run(prepare())
+PROJECT_ID = run(prepare())
 check("准备项目与白名单", bool(PROJECT_ID), str(PROJECT_ID))
 
 # ---------- 3. 页面 CRUD ----------
@@ -239,7 +253,7 @@ if browser_ok and case_id:
 
     # 结果落 pity_test_result
     from app.crud.test_case.TestResult import TestResultDao
-    rows = asyncio.run(TestResultDao.list(0))
+    rows = run(TestResultDao.list(0))
     check("结果行数不为 0", True)
 else:
     print("    (跳过浏览器执行 —— 没装 chromium)")
@@ -326,7 +340,7 @@ from app.crud.test_case.TestReport import TestReportDao  # noqa: E402
 from app.crud.test_case.TestResult import TestResultDao  # noqa: E402
 from datetime import datetime as _dt  # noqa: E402
 
-all_cases = asyncio.run(TestCaseDao.list_test_case(directory_id=1))
+all_cases = run(TestCaseDao.list_test_case(directory_id=1))
 ui_cases = [c for c in all_cases if c.request_type == 4]
 api_cases = [c for c in all_cases if c.request_type != 4]
 check("有 UI 用例", len(ui_cases) > 0, f"{len(ui_cases)}")
@@ -335,14 +349,14 @@ if ui_cases and api_cases:
     ui_case_id = ui_cases[0].id
     api_case_id = api_cases[0].id
     # 造一份「UI 用例 + 接口用例」的混合报告
-    mixed_report = asyncio.run(TestReportDao.start(0, env_id, mode=0))
-    asyncio.run(TestResultDao.insert_report(
+    mixed_report = run(TestReportDao.start(0, env_id, mode=0))
+    run(TestResultDao.insert_report(
         mixed_report, ui_case_id, "混合里的UI用例", 0, "日志", _dt.now(), _dt.now(),
         "https://example.com", "", "", "", "0.3s", "{}", "", "", None, "", 0, "", "", None))
-    asyncio.run(TestResultDao.insert_report(
+    run(TestResultDao.insert_report(
         mixed_report, api_case_id, "混合里的接口用例", 1, "日志", _dt.now(), _dt.now(),
         "https://example.com/api", "", "", "", "0.2s", "{}", "", "", None, "", 0, "", "", None))
-    asyncio.run(TestReportDao.end(mixed_report, 1, 1, 0, 0, 3, "0.5"))
+    run(TestReportDao.end(mixed_report, 1, 1, 0, 0, 3, "0.5"))
 
     # 报告整体口径: 两类用例一起算
     res = c.request("/testcase/report", params={"id": mixed_report})
