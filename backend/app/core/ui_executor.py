@@ -305,14 +305,15 @@ class BrowserManager(object):
         if cls._browser is not None:
             try:
                 await cls._browser.close()
-            except Exception:
-                pass
+            except Exception as e:
+                # 关不掉 = 端口泄漏, 必须留痕; 但继续置 None(浏览器实例已不可用)
+                log.warning(f"关闭 browser 失败, 可能端口泄漏: {e}")
             cls._browser = None
         if cls._playwright is not None:
             try:
                 await cls._playwright.stop()
-            except Exception:
-                pass
+            except Exception as e:
+                log.warning(f"停止 playwright 失败: {e}")
             cls._playwright = None
 
     @classmethod
@@ -440,8 +441,9 @@ class UIExecutor(object):
             finally:
                 try:
                     await context.close()
-                except Exception:
-                    pass
+                except Exception as e:
+                    # 关不掉 = 上下文泄漏(浏览器实例还活着), 记 warning 便于排查
+                    log.warning(f"关闭 browser context 失败, 可能上下文泄漏: {e}")
 
     def _failed_step(self) -> Optional[dict]:
         for step in self.steps:
@@ -690,8 +692,9 @@ class UIExecutor(object):
             try:
                 if path and os.path.exists(path):
                     os.remove(path)
-            except Exception:
-                pass
+            except Exception as e:
+                # 只是临时文件没删掉, 影响小 —— debug 级, 不升 warning 免得刷屏
+                log.debug(f"删除临时文件失败: {path} ({e})")
 
     async def _do_drag(self, page, step, base_url, timeout):
         source = await self._unique(page, step)
@@ -852,6 +855,9 @@ class UIExecutor(object):
         重定向的每一跳也会重新走这个拦截器, 所以「重定向跳到内网」同样会被拦下。
         """
         async def handler(route, request):
+            # 预置为空串: 出错时下面两条日志无条件引用 url/host, 不能因变量未绑定再抛 NameError
+            url = ""
+            host = ""
             try:
                 url = request.url
                 if "://" not in url:
@@ -866,12 +872,19 @@ class UIExecutor(object):
                     await route.abort()
                     return
                 await route.continue_()
-            except Exception:
+            except Exception as e:
                 # 拦截器自身出错时**放行**会放大风险, 宁可直接中断该请求
                 try:
-                    await route.abort()
+                    log.error(f"SSRF 路由拦截器异常, 已中断该请求 url={url} host={host}: {e}")
                 except Exception:
-                    pass
+                    pass  # 日志本身失败也不能挡住下面的 abort
+                try:
+                    await route.abort()
+                except Exception as e2:
+                    try:
+                        log.error(f"SSRF 路由拦截器 abort 也失败, 请求可能已被放行 url={url} host={host}: {e2}")
+                    except Exception:
+                        pass
 
         return handler
 
@@ -901,17 +914,28 @@ class UIExecutor(object):
         不拦就等于 SSRF 边界开了个后门。这里按同一套域名白名单判定, 不放行就断开。
         """
         async def handler(ws):
+            # 预置为空串: 出错时下面两条日志无条件引用 url/host, 不能因变量未绑定再抛 NameError
+            url = ""
+            host = ""
             try:
-                host = (ws.url or "").split("://", 1)[-1].split("/", 1)[0].split(":", 1)[0].lower()
+                url = ws.url or ""
+                host = url.split("://", 1)[-1].split("/", 1)[0].split(":", 1)[0].lower()
                 if not host or not self._host_allowed(host):
                     await ws.close()
                     return
                 await ws.connect_to_server()
-            except Exception:
+            except Exception as e:
+                try:
+                    log.error(f"WebSocket 握手拦截器异常, 已断开该连接 url={url} host={host}: {e}")
+                except Exception:
+                    pass  # 日志本身失败也不能挡住下面的 close
                 try:
                     await ws.close()
-                except Exception:
-                    pass
+                except Exception as e2:
+                    try:
+                        log.error(f"WebSocket 握手拦截器 close 也失败, 连接可能已建立 url={url} host={host}: {e2}")
+                    except Exception:
+                        pass
 
         return handler
 
