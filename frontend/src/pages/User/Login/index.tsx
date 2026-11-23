@@ -198,6 +198,8 @@ const Login: React.FC = () => {
                 fieldProps={{
                   size: 'large',
                   prefix: <UserOutlined/>,
+                  // Chrome 据此识别字段用途, 才能可靠地保存/回填密码(警告2 的正解)
+                  autoComplete: 'username',
                 }}
                 placeholder={intl.formatMessage({
                   id: 'pages.login.username.placeholder',
@@ -220,6 +222,8 @@ const Login: React.FC = () => {
                 fieldProps={{
                   size: 'large',
                   prefix: <LockOutlined/>,
+                  // current-password = 已有账号的密码; 注册表单用 new-password
+                  autoComplete: 'current-password',
                 }}
                 placeholder={intl.formatMessage({
                   id: 'pages.login.password.placeholder',
@@ -246,6 +250,7 @@ const Login: React.FC = () => {
                 fieldProps={{
                   size: 'large',
                   prefix: <UserOutlined/>,
+                  autoComplete: 'username',
                 }}
                 name="username"
                 placeholder="请输入用户名"
@@ -260,6 +265,7 @@ const Login: React.FC = () => {
                 fieldProps={{
                   size: 'large',
                   prefix: <MobileOutlined/>,
+                  autoComplete: 'name',
                 }}
                 name="name"
                 placeholder="请输入姓名"
@@ -274,6 +280,7 @@ const Login: React.FC = () => {
                 fieldProps={{
                   size: 'large',
                   prefix: <MailOutlined/>,
+                  autoComplete: 'email',
                 }}
                 name="email"
                 placeholder="请输入用户邮箱"
@@ -289,7 +296,9 @@ const Login: React.FC = () => {
                 fieldProps={{
                   size: 'large',
                   prefix: <LockOutlined/>,
-                  type: 'password'
+                  type: 'password',
+                  // new-password 让 Chrome 主动建议强密码; 登录表单才是 current-password
+                  autoComplete: 'new-password',
                 }}
                 name="password"
                 placeholder="请输入用户密码"
