@@ -3,7 +3,7 @@ import json
 from fastapi import APIRouter, Depends
 from fastapi.responses import StreamingResponse
 
-from app import logger
+from app.utils.logger import Log
 from app.core import ai_service
 from app.core.ai_client import ChatError, stream_chat
 from app.crud.ai.AIChatDao import AIChatDao
@@ -12,6 +12,8 @@ from app.crud.ai.AIVendorDao import AIVendorDao
 from app.handler.fatcory import PityResponse
 from app.routers import Permission
 from app.schema.ai import ChatSessionInsertForm, ChatSessionUpdateForm, ChatStreamForm
+
+log = Log("AIChat")
 
 # 独立 router 实例: main.py 注册 ai_router 时带了 request_info 依赖,
 # 它会把 POST body 写进 DEBUG 日志, 聊天 prompt 不该明文落盘
@@ -168,7 +170,7 @@ async def chat_stream(form: ChatStreamForm, user_info=Depends(Permission())):
         except Exception as e:
             # ★ 必须在这里兜底: 异常若逃出生成器, 全局 ServerErrorMiddleware 会重抛,
             #   客户端拿到的是被截断的响应体而不是错误信息
-            logger.bind(name=None).error(f"chat stream error: {e}")
+            log.error(f"chat stream error: {e}")
             yield _sse({"error": str(e)}, event="error")
             yield "data: [DONE]\n\n"
         finally:
@@ -178,7 +180,7 @@ async def chat_stream(form: ChatStreamForm, user_info=Depends(Permission())):
                     await AIChatDao.insert_message(form.session_id, "assistant", "".join(chunks),
                                                    user_id, model_name, tokens)
                 except Exception as e:
-                    logger.bind(name=None).error(f"保存 AI 回复失败: {e}")
+                    log.error(f"保存 AI 回复失败: {e}")
 
     return StreamingResponse(gen(), media_type="text/event-stream", headers={
         "Cache-Control": "no-cache",

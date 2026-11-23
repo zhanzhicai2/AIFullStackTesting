@@ -43,6 +43,9 @@ services:
         - pity_server
     volumes:
       - ./dev.env.ops:/pity/conf/dev.env
+      # 日志落回 backend/logs/(与非容器方式 `python pity.py` 同一位置, .gitignore 已忽略)。
+      # 该目录含 .gitkeep 恒存在, 不会踩「docker 自动建空目录」的坑
+      - ../logs:/pity/logs
 
 networks:
   pity_net:

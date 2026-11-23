@@ -12,9 +12,12 @@ from app.middleware.Jwt import UserToken
 from app.routers import Permission, FORBIDDEN
 from app.schema.user import UserUpdateForm, UserForm, UserDto, ResetPwdForm
 from app.utils.des import Des
+from app.utils.logger import Log
 from config import Config
 
 router = APIRouter(prefix="/auth")
+
+log = Log("Auth")
 
 
 # router注册的函数都会自带/auth，所以url是/auth/register
@@ -26,6 +29,8 @@ async def register(user: UserDto):
         expire, token = UserToken.get_token(user)
         return PityResponse.success(dict(token=token, user=user, expire=expire), msg="注册成功, 请登录")
     except Exception as e:
+        # 注册失败留痕(重复用户名等), **不记密码**
+        log.warning(f"注册失败: username={user.username} | {type(e).__name__}: {str(e)[:300]}")
         return PityResponse.failed(e)
 
 
@@ -37,6 +42,8 @@ async def login(data: UserForm):
         expire, token = UserToken.get_token(user)
         return PityResponse.success(dict(token=token, user=user, expire=expire), msg="登录成功")
     except Exception as e:
+        # 登录失败是审计核心, 必须留痕 —— 但**绝不记密码**, 只记用户名与失败原因
+        log.warning(f"登录失败: username={data.username} | {type(e).__name__}: {str(e)[:300]}")
         return PityResponse.failed(e)
 
 
@@ -67,7 +74,10 @@ async def login_with_github(code: str):
             user = PityResponse.model_to_dict(user, "password")
             expire, token = UserToken.get_token(user)
             return PityResponse.success(dict(token=token, user=user, expire=expire), msg="登录成功")
-    except:
+    except Exception as e:
+        # 记真实原因 —— 之前是裸 except 直接回「登录超时」, 排查时无从下手。
+        # **不记 code / token**, 它们是凭据
+        log.warning(f"GitHub OAuth 登录失败: {type(e).__name__}: {str(e)[:300]}")
         # 大部分原因是github出问题，忽略
         return PityResponse.failed(code=110, msg="登录超时, 请稍后再试")
 
@@ -141,5 +151,7 @@ async def check_reset_url(token: str):
     try:
         email = Des.des_decrypt(token)
         return PityResponse.success(email)
-    except:
+    except Exception as e:
+        # **不记 token** —— 它本身就是凭据(DES(email) 密文), 落盘等于把重置链接存了一份
+        log.warning(f"重置链接校验失败: {type(e).__name__}: {str(e)[:300]}")
         return PityResponse.failed("重置链接不存在, 请不要无脑尝试")

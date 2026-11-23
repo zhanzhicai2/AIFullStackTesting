@@ -27,11 +27,13 @@ import inspect
 from dataclasses import dataclass, field
 from typing import Any, Callable, Dict, List, Optional
 
-from app import logger
+from app.utils.logger import Log
 from app.core.ai_client import ChatError, complete_chat_with_usage
 from app.crud.ai.AIInvokeLogDao import AIInvokeLogDao
 from app.crud.ai.AIModelDao import AIModelDao
 from app.crud.ai.AIVendorDao import AIVendorDao
+
+log = Log("AIService")
 
 # 纠错重试的次数上限(包含第一次)—— research.md §3.3
 MAX_ATTEMPTS = 2
@@ -176,7 +178,7 @@ async def _write_invoke_log(scene: str, user_id: Optional[int], ref: ModelRef, p
                                         tokens=tokens, elapsed=elapsed, status=status,
                                         error_msg=error_msg)
     except Exception as e:  # noqa: BLE001 —— 埋点失败只记日志
-        logger.bind(name=None).warning(f"写 AI 调用流水失败: {e}")
+        log.warning(f"写 AI 调用流水失败: {e}")
 
 
 async def invoke(messages: list, vendor_id: int, model_id: int, scene: str,
@@ -224,7 +226,7 @@ async def invoke(messages: list, vendor_id: int, model_id: int, scene: str,
                 await _write_invoke_log(scene, user_id, ref, prompt_chars, 0, elapsed,
                                         "failed", _sanitize_error(str(e), ref.api_key))
                 raise
-            logger.bind(name=None).warning(f"AI 调用失败, 准备重试: {e}")
+            log.warning(f"AI 调用失败, 准备重试: {e}")
             continue
 
         elapsed = time.time() - start
@@ -249,7 +251,7 @@ async def invoke(messages: list, vendor_id: int, model_id: int, scene: str,
                                             f"模型返回的内容无法解析为合法结构, 已重试 1 次仍失败: {last_reason}",
                                             ref.api_key))
                 raise ChatError("模型返回的内容无法解析为合法结构, 已重试 1 次仍失败, 请重试")
-            logger.bind(name=None).warning(f"AI 输出解析失败, 准备纠错重试: {last_reason}")
+            log.warning(f"AI 输出解析失败, 准备纠错重试: {last_reason}")
             current = current + [
                 {"role": "assistant", "content": content},
                 {"role": "user", "content": RETRY_HINT.format(reason=last_reason)},

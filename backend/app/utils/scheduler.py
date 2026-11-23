@@ -5,6 +5,9 @@ from apscheduler.triggers.cron import CronTrigger
 
 from app.core.executor import Executor
 from app.handler.fatcory import PityResponse
+from app.utils.logger import Log
+
+log = Log("Scheduler")
 
 
 class Scheduler(object):
@@ -24,9 +27,17 @@ class Scheduler(object):
 
     @staticmethod
     def add_test_plan(plan_id, plan_name, cron):
-        return Scheduler.scheduler.add_job(func=Executor.run_test_plan, args=(plan_id,),
-                                           name=plan_name, id=str(plan_id),
-                                           trigger=CronTrigger.from_crontab(cron))
+        try:
+            job = Scheduler.scheduler.add_job(func=Executor.run_test_plan, args=(plan_id,),
+                                              name=plan_name, id=str(plan_id),
+                                              trigger=CronTrigger.from_crontab(cron))
+        except Exception:
+            # cron 表达式非法等 —— 异常照旧抛给路由, 但先留痕, 否则排查时
+            # 只知道「保存失败」, 不知道是 cron 写错了
+            log.exception(f"添加测试计划任务失败: plan_id={plan_id} name={plan_name} cron={cron}")
+            raise
+        log.info(f"添加测试计划任务: plan_id={plan_id} name={plan_name} cron={cron}")
+        return job
 
     @staticmethod
     def edit_test_plan(plan_id, plan_name, cron):
@@ -44,6 +55,7 @@ class Scheduler(object):
         Scheduler.scheduler.modify_job(job_id=str(plan_id), trigger=CronTrigger.from_crontab(cron), name=plan_name)
         Scheduler.scheduler.pause_job(str(plan_id))
         Scheduler.scheduler.resume_job(str(plan_id))
+        log.info(f"更新测试计划任务: plan_id={plan_id} name={plan_name} cron={cron}")
 
     @staticmethod
     def pause_resume_test_plan(plan_id, status):
@@ -55,8 +67,10 @@ class Scheduler(object):
         """
         if status:
             Scheduler.scheduler.resume_job(job_id=str(plan_id))
+            log.info(f"恢复测试计划任务: plan_id={plan_id}")
         else:
             Scheduler.scheduler.pause_job(job_id=str(plan_id))
+            log.info(f"暂停测试计划任务: plan_id={plan_id}")
 
     @staticmethod
     def remove(plan_id):
@@ -66,6 +80,7 @@ class Scheduler(object):
         :return:
         """
         Scheduler.scheduler.remove_job(str(plan_id))
+        log.info(f"删除测试计划任务: plan_id={plan_id}")
 
     @staticmethod
     def list_test_plan(data: List):
@@ -75,7 +90,10 @@ class Scheduler(object):
             temp['follow'] = follow is not None
             job = Scheduler.scheduler.get_job(str(temp.get('id')))
             if job is None:
-                # 说明job初始化失败了
+                # 说明job初始化失败了 —— 之前完全静默, 前端只看到 state=2,
+                # 没人知道调度器里压根没这个 job
+                log.warning(f"测试计划任务不存在(初始化失败?): plan_id={temp.get('id')} "
+                            f"name={temp.get('name')}")
                 temp["state"] = 2
                 ans.append(temp)
                 continue

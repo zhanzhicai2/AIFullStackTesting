@@ -4,7 +4,10 @@ import json
 from typing import TypeVar
 
 import pydantic
-from loguru import logger
+
+from app.utils.logger import Log
+
+log = Log("RequestSchema")
 
 """
 translate mitmproxy request and response data
@@ -51,7 +54,7 @@ class RequestInfo(pydantic.BaseModel):
         try:
             return json.dumps(json.loads(text), indent=4, ensure_ascii=False)
         except Exception as e:
-            logger.bind(name=None).warning(f"解析json格式请求失败: {e}")
+            log.warning(f"解析json格式请求失败: {e}")
             return text
 
     @classmethod

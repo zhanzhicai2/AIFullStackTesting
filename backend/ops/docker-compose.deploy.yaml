@@ -93,6 +93,12 @@ services:
       REDIS_HOST: redis         # 同上
       MYSQL_PWD: ${MYSQL_ROOT_PASSWORD}        # 对齐容器内 MYSQL user 密码
       REDIS_PASSWORD: ${REDIS_PASSWORD}
+    volumes:
+      # 日志持久化 —— 不挂的话 pity_info/pity_error/gunicorn.log 全在容器可写层,
+      # compose down 或换镜像即丢, 排查历史问题无从下手(第7行约定的 logs 目录已留好)。
+      # ⚠️ 宿主机目录**先手动 mkdir -p /home/tester/pity-data/logs/backend**,
+      #    否则 docker engine 会自动建空目录(同类坑见第20-21行)
+      - /home/tester/pity-data/logs/backend:/pity/logs
     depends_on:
       mysql:
         condition: service_healthy   # 等 mysql healthcheck 通过

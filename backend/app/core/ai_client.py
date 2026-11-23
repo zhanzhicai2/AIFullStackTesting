@@ -10,7 +10,9 @@ from typing import Any, Dict, List, Optional
 
 import aiohttp
 
-from app import logger
+from app.utils.logger import Log
+
+log = Log("AIClient")
 
 FETCH_TIMEOUT = 15      # 拉模型列表的总超时
 CONNECT_TIMEOUT = 8     # 建连超时
@@ -109,7 +111,7 @@ async def fetch_remote_models(base_url: str, api_key: str) -> List[Dict[str, Any
                 # 直接用 resp.json() 会抛 ContentTypeError
                 text = await resp.text()
                 if resp.status != 200:
-                    logger.bind(name=None).warning(f"拉取厂商模型失败 {resp.status}: {text[:200]}")
+                    log.warning(f"拉取厂商模型失败 {resp.status}: {text[:200]}")
                     raise FetchModelError(_status_message(resp.status, text))
                 try:
                     payload = json.loads(text)
@@ -136,7 +138,7 @@ async def fetch_remote_models(base_url: str, api_key: str) -> List[Dict[str, Any
             if detail:
                 raise FetchModelError(f"厂商返回: {detail}")
         raise FetchModelError("未获取到模型列表, 请确认 API Key 是否可用")
-    logger.bind(name=None).info(f"fetch models from {url}, got {len(models)}")
+    log.info(f"fetch models from {url}, got {len(models)}")
     return models
 
 def _build_chat_url(base_url: str) -> str:
@@ -183,7 +185,7 @@ async def stream_chat(base_url: str, api_key: str, model_name: str, messages: li
             async with session.post(url, json=payload, headers=headers, ssl=False) as resp:
                 if resp.status != 200:
                     text = await resp.text()
-                    logger.bind(name=None).warning(f"对话请求失败 {resp.status}: {text[:200]}")
+                    log.warning(f"对话请求失败 {resp.status}: {text[:200]}")
                     raise ChatError(_status_message(resp.status, text))
                 async for raw in resp.content:
                     line = raw.decode("utf-8", errors="ignore").strip()
@@ -275,7 +277,7 @@ async def complete_chat_with_usage(base_url: str, api_key: str, model_name: str,
             async with session.post(url, json=payload, headers=headers, ssl=False) as resp:
                 if resp.status != 200:
                     text = await resp.text()
-                    logger.bind(name=None).warning(f"对话请求失败 {resp.status}: {text[:200]}")
+                    log.warning(f"对话请求失败 {resp.status}: {text[:200]}")
                     raise ChatError(_status_message(resp.status, text))
                 # 部分厂商的 Content-Type 不是 application/json, 直接 resp.json() 会抛 ContentTypeError
                 text = await resp.text()

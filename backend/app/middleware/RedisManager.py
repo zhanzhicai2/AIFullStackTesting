@@ -10,14 +10,16 @@ from random import Random
 from typing import Tuple
 
 from awaits.awaitable import awaitable
-from loguru import logger
 from redis import ConnectionPool, StrictRedis
 # redis-py 4+ 把 cluster 功能合并到主包,RedisCluster 自己管理连接池,
 # ClusterConnectionPool 已被移除,不再需要 redis-py-cluster
 from redis.cluster import RedisCluster
 
 from app.exception.error import RedisError
+from app.utils.logger import Log
 from config import Config
+
+log = Log("Redis")
 
 
 class PityRedisManager(object):
@@ -227,7 +229,7 @@ class RedisHelper(object):
         """
         for k in RedisHelper.pity_redis_client.scan_iter(f"{key}*"):
             RedisHelper.pity_redis_client.delete(k)
-            logger.bind(name=None).debug(f"delete redis key: {k}")
+            log.debug(f"delete redis key: {k}")
 
     @staticmethod
     def delete_prefix(key: str):
@@ -238,7 +240,7 @@ class RedisHelper(object):
         """
         for k in RedisHelper.pity_redis_client.scan_iter(f"{key}*"):
             RedisHelper.pity_redis_client.delete(k)
-            logger.bind(name=None).debug(f"delete redis key: {k}")
+            log.debug(f"delete redis key: {k}")
 
     @staticmethod
     def get_key(_redis_key: str, args_key: bool = True, *args, **kwargs):
@@ -283,7 +285,7 @@ class RedisHelper(object):
                     # 获取最新数据
                     new_data = await func(*args, **kwargs)
                     info = pickle.dumps(new_data)
-                    # logger.bind(name=None).debug(f"set redis key: {redis_key}")
+                    # log.debug(f"set redis key: {redis_key}")
                     RedisHelper.pity_redis_client.set(redis_key, info.hex(), ex=expired_time)
                     return new_data
 
@@ -302,7 +304,7 @@ class RedisHelper(object):
                     # 获取最新数据
                     new_data = func(*args, **kwargs)
                     info = pickle.dumps(new_data)
-                    # logger.bind(name=None).debug(f"set redis key: {redis_key}")
+                    # log.debug(f"set redis key: {redis_key}")
                     # 添加随机数防止缓存雪崩
                     RedisHelper.pity_redis_client.set(redis_key, info.hex(), ex=expired_time + Random().randint(10, 59))
                     return new_data

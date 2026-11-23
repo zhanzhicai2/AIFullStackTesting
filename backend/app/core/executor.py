@@ -262,7 +262,8 @@ class Executor(object):
                 response_info["logs"] = self.logger.join()
             return response_info, None
         except Exception as e:
-            Executor.log.exception("执行用例失败: \n")
+            # 带上 case_id 与 path —— 只写「执行用例失败」根本不知道是哪条
+            Executor.log.exception(f"执行用例失败: case_id={case_id} path={path}: {e}")
             self.append(f"执行用例失败: {str(e)}")
             if self._main:
                 response_info["logs"] = self.logger.join()
@@ -323,8 +324,12 @@ class Executor(object):
                 status = 2
             else:
                 status = 0 if result.get("status") else 1
+            status_text = {0: "成功", 1: "断言失败", 2: "执行异常"}.get(status, status)
             # 若status不为0，代表case执行失败，走重试逻辑
             if status != 0 and i < retry_times:
+                # 重试前必须留痕 —— 之前静默 sleep, 报告里看不出「这条用例其实跑了 3 遍」
+                Executor.log.warning(f"用例执行失败, 准备重试(第 {i + 2}/{retry_times + 1} 次): "
+                                     f"case_id={case_id} status={status} 等待 {retry_minutes} 分钟")
                 await asyncio.sleep(60 * retry_minutes)
                 times += 1
                 continue
@@ -349,6 +354,9 @@ class Executor(object):
                                               url, body, request_method, request_headers, cost,
                                               asserts, response_headers, response,
                                               status_code, cookies, times, req, name, data_id)
+            # 结果落盘后留一条汇总 —— 不用翻报告页也能从日志看到每条用例的结局
+            Executor.log.info(f"用例执行完成: case_id={case_id} name={case_name} "
+                              f"status={status_text} cost={cost} 重试={times} 数据组={name}")
             break
 
     @staticmethod
@@ -543,7 +551,8 @@ class Executor(object):
         """
         plan = await PityTestPlanDao.query_test_plan(plan_id)
         if plan is None:
-            Executor.log.debug(f"测试计划: [{plan_id}]不存在")
+            # 计划不存在是异常(可能被删了但 cron 还在), 不该用 debug 淹没
+            Executor.log.warning(f"测试计划: [{plan_id}]不存在, 跳过本次调度")
             return
         try:
             # 设置为running
@@ -563,8 +572,8 @@ class Executor(object):
             if executor != 0:
                 await ws_manage.notify(executor, title="测试计划执行完毕", content=f"请前往测试报告页面查看细节")
         except Exception as e:
+            # exception 已带完整堆栈, 不再补一条重复的 error
             Executor.log.exception(f"执行测试计划: 【{plan.name}】失败: {str(e)}")
-            Executor.log.error(f"执行测试计划: 【{plan.name}】失败: {str(e)}")
 
     @staticmethod
     async def run_multiple(executor: int, env: int, case_list: List[int], mode=0, plan_id: int = None, ordered=False,

@@ -5,7 +5,7 @@ from collections import defaultdict
 from json import JSONDecodeError
 from typing import List
 
-from loguru import logger
+from app.utils.logger import Log
 
 from app.enums.CaseStatusEnum import CaseStatus
 from app.enums.ConstructorEnum import ConstructorType
@@ -15,6 +15,8 @@ from app.exception.convert import GenerateError
 from app.schema.constructor import ConstructorForm, IndexConstructorForm
 from app.schema.request import RequestInfo
 from app.schema.testcase_schema import TestCaseForm
+
+log = Log("CaseGenerator")
 
 """
 case生成器，根据RequestInfo数组生成
@@ -165,7 +167,7 @@ class CaseGenerator(object):
             except JSONDecodeError:
                 pass
             except Exception as e:
-                logger.error(f"转换body变量失败: {e}")
+                log.error(f"转换body变量失败: {e}")
 
     @staticmethod
     def dfs_replace(body, ans: dict, var_type: list, replaced: list):
