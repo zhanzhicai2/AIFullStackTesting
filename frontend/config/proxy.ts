@@ -84,6 +84,15 @@ export default {
       target: 'http://0.0.0.0:7777',
       changeOrigin: true,
     },
+    // WebSocket(IndexPage 连 /ws/{user_id} 收通知)。
+    // **必须 ws: true** —— 否则 http-proxy 不处理 Upgrade 握手, 连接会挂到超时,
+    // 表现是 console 里的 "WebSocket opening handshake timed out" 而不是 404,
+    // 按 HTTP 状态码扫描根本查不到。nginx 侧早有 location /ws/, 只有这里漏了。
+    '/ws/': {
+      target: 'ws://0.0.0.0:7777',
+      ws: true,
+      changeOrigin: true,
+    },
   },
   /**
    * @name 详细的代理配置
