@@ -138,4 +138,7 @@ dmypy.json
 
 .vscode
 
+# playwright-cli 会话产物(每次跑都会生成 page-*.yml / console-*.log, 会漏进 git status)
+.playwright-cli/
+
 conf/pro.env
