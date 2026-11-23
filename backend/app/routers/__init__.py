@@ -7,6 +7,7 @@ from starlette import status
 
 from app.crud import Mapper
 from app.crud.auth.UserDao import UserDao
+from app.enums.CiEnum import TOKEN_PREFIX
 from app.exception.request import AuthException, PermissionException
 from app.handler.fatcory import PityResponse
 from app.middleware.Jwt import UserToken
@@ -38,6 +39,61 @@ class Permission:
         return user_info
 
 
+class CIPermission:
+    """
+    CI 端点鉴权 —— **双模**: 外部流水线的长期凭据, 或平台管理员的 JWT。
+
+    **为什么需要双模**: `/ci/run/{id}` 与 `/ci/run/list` 同时服务两端 ——
+    - 外部 CI 轮询结果 → 用 `pity_ci_` 凭据(spec US2 / SC-004)
+    - 平台用户在 `/ci` 页看触发历史 → 用登录 JWT(spec US3)
+
+    只认凭据的话, 前端发 JWT 一律 401, 历史页永远是空的。
+
+    **与 `Permission()` 的关系**(research D2):
+    - 读**同名的 `token` header**(平台既有约定), CI 接入示例因此与前端写法一致
+    - **`Permission()` 本体一行不改** —— JWT 分支直接**调用**它, 不重复实现一遍解析
+    - 返回结构是 `Permission()` 的**超集**: 既有 `user_info['id']` / `['role']` 照旧可用,
+      额外多一个 `ci_integration` 键:凭据路径带作用域, **JWT 路径为 `None`**
+
+    凭据路径的校验链(`contracts/api.md` §1.3 第 1~5、7 步; 第 6 步「项目作用域」在
+    路由层做, 因为目标 plan_id 在请求体里): 前缀 → 摘要等值查 → 未删除 → 启用 →
+    未过期 → 更新 last_used_at。四种拒绝的 `msg` 各不相同, **都不回显凭据内容**。
+    """
+
+    async def __call__(self, token: str = Header(...)):
+        if token and token.startswith(TOKEN_PREFIX):
+            return await self._by_credential(token)
+        # JWT 分支: 复用 Permission(限定 MANAGER —— /ci 页含凭据, 与页面 authority 一致)
+        user_info = await Permission(Config.MANAGER)(token=token)
+        user_info["ci_integration"] = None
+        return user_info
+
+    @staticmethod
+    async def _by_credential(token: str):
+        # 延迟导入: app/routers/__init__.py 被全站 import, 顶层引 DAO 容易成环
+        from app.crud.ci.CiIntegrationDao import CiIntegrationDao
+
+        try:
+            integration, err = await CiIntegrationDao.validate_token(token)
+            if integration is None:
+                raise AuthException(status.HTTP_200_OK, err or "CI 凭据无效")
+            user = await UserDao.query_user(integration.create_user)
+            if user is None:
+                raise AuthException(status.HTTP_200_OK, "凭据签发人不存在, 无法识别操作身份")
+            user_info = PityResponse.model_to_dict(user, "password")
+        except AuthException as e:
+            raise e
+        except Exception as e:
+            raise AuthException(status.HTTP_200_OK, str(e))
+        user_info["ci_integration"] = dict(
+            id=integration.id,
+            project_id=integration.project_id,
+            plan_id=integration.plan_id,
+            name=integration.name,
+        )
+        return user_info
+
+
 async def get_session():
     """
     获取异步session
@@ -45,7 +101,6 @@ async def get_session():
     """
     async with async_session() as session:
         yield session
-
 
 _router: Dict[str, APIRouter] = {}
 T = TypeVar("T", bound=BaseModel)

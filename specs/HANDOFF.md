@@ -1,13 +1,18 @@
-# 交接文档 · AI 工作台 + UI 自动化子系统
+# 交接文档 · AI 工作台 + UI 自动化 + Mock + 持续集成
 
-> 用途：新会话接手这两条线时的入口。
-> 生成时间：2026-10-26 · 分支：`main` · 状态：**设计已完成并通过一致性检查，尚未写任何业务代码**
+> 用途：新会话接手这几条线时的入口。
+> 生成时间：2026-10-26 · 最近更新：2026-11-23（新增 `004-ci`）· 分支：`main`
 
 ---
 
 ## 0. 一句话状态
 
-**三个 feature 均已完成设计,前两个实现完成、第三个实现完成。** `002-ui-automation`（T001~T050）与 `001-ai-workbench`（T001~T062，只剩 T063/T064 需真实环境人工验证）全部落地；**`003-mock-config`（Mock 配置）设计 + 实现全部完成并验证**：纯静态 Mock 服务（`/mock/{项目app}/**`）+ 规则配置台，`mock_selftest.py` 107 项断言（不依赖 DB）+ `mock_e2e.py` 33 项断言（依赖 DB）全绿，前端 tsc 0 错误 / eslint 0 告警。003 的设计与契约见 `specs/003-mock-config/`。
+**四个 feature 均已完成设计，前三个实现完成并验证，第四个（004-ci）也已实现完成。**
+
+- `001-ai-workbench`（T001~T062，只剩 T003/T064 需真实环境人工验证）
+- `002-ui-automation`（T001~T050）全部落地
+- `003-mock-config`：纯静态 Mock 服务（`/mock/{项目app}/**`）+ 规则配置台，`mock_selftest.py` 107 项 + `mock_e2e.py` 33 项全绿
+- **`004-ci`（持续集成 · 外部 CI 对接）设计 + 实现全部完成**：`/ci` 从占位页变成真实页面，新增 2 表（`pity_ci_integration` / `pity_ci_run`）+ 8 个端点 + `CIPermission` 双模鉴权 + `ci_runner` 编排。`ci_selftest.py` **107 项断言**（不依赖 DB）+ `ci_e2e.py`（依赖 DB，含 1000 条分页性能）全绿，前端 tsc 0 错误 / eslint 0 告警。设计与契约见 `specs/004-ci/`，深设计附录见 `backend/docs/ci-design.md`。
 
 ---
 
@@ -17,7 +22,8 @@
 
 | 顺序 | 文件 | 为什么 |
 |---|---|---|
-| 1 | `specs/001-ai-workbench/spec.md` · `specs/002-ui-automation/spec.md` | WHAT/WHY。需求编号（FR / SC）与验收场景 |
+| 0 | `specs/004-ci/proposal.md` | **004 的计划书**：现状实测、五个真实缺口、分期、风险、§9 五项已拍板决定 |
+| 1 | `specs/001-ai-workbench/spec.md` · `specs/002-ui-automation/spec.md` · `specs/004-ci/spec.md` | WHAT/WHY。需求编号（FR / SC）与验收场景 |
 | 2 | `specs/*/tasks.md` | **实际要干的活**。任务带 ID、带文件路径、带依赖顺序 |
 | 3 | `specs/*/contracts/*.md` | **前后端唯一契约**。改代码前必看，改错了两端一起漂 |
 | 4 | `specs/*/data-model.md` | 表结构、字段约束、状态流转 |
@@ -50,6 +56,35 @@
 002 的元素库与执行 ──不依赖──▶ 001
 两者共用一份步骤 DSL 契约（002/contracts/steps.md）
 ```
+
+---
+
+## 2.5 `004-ci` 持续集成（外部 CI 对接）
+
+**做什么**：让 Jenkins / GitHub Actions / GitLab CI 携带**项目级长期凭据**触发平台的测试计划，拿到「通过 / 未通过」的明确结论并阻断构建；平台侧在 `/ci` 页面完成凭据签发、接入示例一键复制与历史查询。
+
+**不是**「平台自己监听 Git webhook 编排流水线」—— 那是二期备选，见 `proposal.md` §5.2。
+
+| | 004-ci |
+|---|---|
+| 任务数 | 51（T001~T051，**MVP = US1 + US2**） |
+| FR / SC | 33 条 / 12 条 |
+| 新表 | 2（`pity_ci_integration` 凭据、`pity_ci_run` 触发记录） |
+| 新端点 | 8（`/ci/integration/*` 5 个 + `/ci/run*` 3 个） |
+| 新依赖 | **零**（`secrets` + `hashlib` 均为标准库） |
+| 新安全面 | **机器凭据（长期 token）**、外部输入面（构建号 / 外部地址） |
+| 改既有代码 | 仅 3 处：`executor.py`（`run_test_plan` 补返回值）、`app/__init__.py`（lifespan 终态恢复）、`routes.ts`（`/ci` 指向真实页面） |
+
+**四条别踩的硬约束**：
+
+1. **等待语义用 `asyncio.wait`，禁止 `asyncio.wait_for`** —— 后者超时会 `cancel()` 执行，违反 FR-011（`ci_selftest` 有源码断言）
+2. **凭据只存 `sha256(明文)`**，明文仅签发响应出现一次；`token_prefix` **绝不参与校验**
+3. **`run_test_plan` 的 `raise_on_error` 默认 `False`** —— cron 与 `/plan/execute` 既有行为一字不变；`None` 返回 =「没跑」，**绝不当成功**
+4. **一期零出网** —— `callback_url` 只存不发，AST 静态扫描保证；回调与内网 Jenkins 的 SSRF 矛盾**未解**，二期开工前必须先决策（`proposal.md` §7.2）
+
+**入口**：`specs/004-ci/proposal.md`（计划书）→ `spec.md` → `plan.md` → `research.md` → `data-model.md` → `contracts/api.md` → `tasks.md`；深设计附录 `backend/docs/ci-design.md`。
+
+**实现期偏差（都已回填进附录 §10）**：`CIPermission` 从「只认 CI 凭据」改成**双模**（否则前端历史页永远 401，US3 无法交付）；业务码新增 **`112` 等待超时**（`proposal.md` §9 只批了 `111`）。
 
 ---
 
@@ -170,6 +205,10 @@ python pity.py                                    # 起后端
 .venv/bin/python scripts/ai_workbench_e2e.py        # 001 端到端(Phase 3 起才有)
 .venv/bin/python scripts/ui_selftest.py
 .venv/bin/python scripts/ui_e2e.py                # 需要 chromium
+.venv/bin/python scripts/mock_selftest.py         # 003 回归(不依赖数据库, 107 项)
+.venv/bin/python scripts/mock_e2e.py              # 003 端到端(需要数据库, 33 项)
+.venv/bin/python scripts/ci_selftest.py           # 004 回归(不依赖数据库, 107 项)
+.venv/bin/python scripts/ci_e2e.py                # 004 端到端(需要数据库, 含 1000 条分页性能)
 
 # 前端
 cd ../frontend
@@ -190,6 +229,7 @@ npm run lint:js
 - 001 落地后（新增文档解析外部输入面、SQL 计划采集、写入用例库）
 - 002 落地后（**新引入两个安全面，最需要审查**）
 - 003 落地后（**新增对外无鉴权 Mock 服务面**：`/mock/{app}/**` catch-all 任何未登录请求可达——风险点在「app 定位项目语义 + 变量渲染器零表达式保证 + preview 调试接口不产生真实延迟」，AST 零出网零执行扫描已进 selftest 固化为门禁）
+- **004 落地后（四条触发条件全命中：新增 8 个路由接口 / 新增鉴权判断 `CIPermission` / 新增外部输入面（构建号、外部地址）/ 新增敏感数据存储（凭据摘要））** —— 重点看：①凭据摘要与明文的边界 ②`CIPermission` 双模是否有绕过 ③跨项目作用域是否可越 ④一期零出网是否真的成立
 
 ---
 

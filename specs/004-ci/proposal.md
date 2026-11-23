@@ -180,27 +180,29 @@
 
 ### 5.1 一期 MVP —— 让一条 Jenkinsfile 真的能跑通
 
-| # | 任务 | 产出 |
-|---|---|---|
-| T01 | `pity_ci_integration` model + schema + DAO + 签发/吊销路由 | Token 全生命周期 |
-| T02 | `CIPermission()` 鉴权依赖（hash 校验、启用态、过期、项目作用域） | 机器凭据通道 |
-| T03 | `Executor.run_test_plan()` 返回值改造 + `raise_on_error` | 结果不再丢弃 |
-| T04 | `pity_ci_run` 表 + 写入/回填逻辑 | 触发记录 |
-| T05 | `POST /ci/run`（`wait` 两态 + 超时）+ `GET /ci/run/{id}` + `/list` | 触发与查询 |
-| T06 | 业务码 `111` 接入 `PityResponse` | CI 可单响应判定 |
-| T07 | `scripts/ci_selftest.py`（**无 DB**：Token 格式/校验链、业务码映射、权限边界、`run_test_plan` 返回结构静态断言） | 回归基线 |
-| T08 | `/ci` 页面三 tab + `services/ci.ts` + `models/ci.ts` + 路由切换 | 可用界面 |
-| T09 | `scripts/ci_e2e.py`（**需 DB**：签发 → 触发 → 轮询 → 断言记录） | 端到端 |
+**✅ 已全部完成（2026-11-23）**，任务编号已细化为 `tasks.md` 的 T001~T051（本表 T01~T09 是里程碑粒度）：
+
+| # | 任务 | 产出 | 状态 |
+|---|---|---|---|
+| T01 | `pity_ci_integration` model + schema + DAO + 签发/吊销路由 | Token 全生命周期 | ✅ |
+| T02 | `CIPermission()` 鉴权依赖（hash 校验、启用态、过期、项目作用域） | 机器凭据通道 | ✅ **实现期改为双模**（见 §10 偏差） |
+| T03 | `Executor.run_test_plan()` 返回值改造 + `raise_on_error` | 结果不再丢弃 | ✅ 另加通知段拆分与空列表防护 |
+| T04 | `pity_ci_run` 表 + 写入/回填逻辑 | 触发记录 | ✅ |
+| T05 | `POST /ci/run`（`wait` 两态 + 超时）+ `GET /ci/run/{id}` + `/list` | 触发与查询 | ✅ |
+| T06 | 业务码 `111` 接入 `PityResponse` | CI 可单响应判定 | ✅ **另新增 `112` 等待超时** |
+| T07 | `scripts/ci_selftest.py`（**无 DB**） | 回归基线 | ✅ **107 项断言全绿** |
+| T08 | `/ci` 页面三 tab + `services/ci.ts` + `models/ci.ts` + 路由切换 | 可用界面 | ✅ tsc 0 错误 / eslint 0 告警 |
+| T09 | `scripts/ci_e2e.py`（**需 DB**） | 端到端 | ✅ 全绿（含 1000 条分页 < 1 秒） |
 
 **验收（一期全绿才算完）**：
 ```
 cd backend
-.venv/bin/python scripts/ci_selftest.py      # 无 DB，全绿
-.venv/bin/python scripts/ci_e2e.py           # 需 DB，全绿
-.venv/bin/python -c "import main"            # 导入无误
-cd ../frontend && npx tsc --noEmit           # 0 错误
+.venv/bin/python scripts/ci_selftest.py      # 无 DB，全绿 ✅ 107 项
+.venv/bin/python scripts/ci_e2e.py           # 需 DB，全绿 ✅
+.venv/bin/python -c "import main"            # 导入无误 ✅
+cd ../frontend && npx tsc --noEmit           # 0 错误 ✅
 ```
-**人工验收**：一段真实 Jenkinsfile / GitHub Actions 调通，失败用例能让流水线红。
+**人工验收**：一段真实 Jenkinsfile / GitHub Actions 调通，失败用例能让流水线红。 ⬜ **未做**（需要真实 Jenkins/GitHub 环境，见 §10）
 
 ### 5.2 二期（不展开，仅列清单）
 
@@ -259,14 +261,16 @@ cd ../frontend && npx tsc --noEmit           # 0 错误
 
 ---
 
-## 8. 下一步
+## 8. 下一步（✅ 2026-11-23 已走完 1~6）
 
-1. 你确认本计划书（尤其 §7.2 回调 SSRF 的取向、§3.2 业务码 `111` 是否接受）
-2. 走 `/speckit-specify` 出 `specs/004-ci/spec.md`（FR / SC 需求编号 + 验收场景）
-3. `/speckit-plan` → `plan.md`（constitution 门禁）+ `research.md` + `data-model.md`
-4. `/speckit-tasks` → `tasks.md`（带 ID、文件路径、依赖顺序）
-5. `contracts/` 定死 Token 鉴权头、`POST /ci/run` 请求/响应结构、业务码表 —— **这是前后端唯一契约，先于实现**
-6. 实现一期 T01~T09，`ci_selftest.py` + `ci_e2e.py` 全绿后，更新 `specs/HANDOFF.md`
+| # | 步骤 | 状态 |
+|---|---|---|
+| 1 | 你确认本计划书（§9 五项决定） | ✅ 全部按建议通过 |
+| 2 | `/speckit-specify` → `spec.md` | ✅ 33 FR / 12 SC，质量自检 16/16 |
+| 3 | `/speckit-plan` → `plan.md` + `research.md` + `data-model.md` | ✅ 六项门禁全 PASS |
+| 4 | `/speckit-tasks` → `tasks.md` | ✅ 51 项，MVP = US1 + US2 |
+| 5 | `contracts/api.md` 定死鉴权头、请求/响应结构、业务码表 | ✅ 含 §1.0 双模鉴权修正 |
+| 6 | 实现一期 + 回归全绿 + 更新 `specs/HANDOFF.md` | ✅ 见 §10 |
 
 ---
 
@@ -281,3 +285,22 @@ cd ../frontend && npx tsc --noEmit           # 0 错误
 | Q5 | 一期要不要回调 webhook？ | **不要**。一期只做「触发 + 判定 + 记录」闭环，回调整体放二期 |
 
 > 以上 5 条是 `spec.md` 的输入约束。写需求时不得偏离 —— 如需推翻，先回来改本表再改 spec。
+
+---
+
+## 10. 实现记录（2026-11-23，与本计划书的偏差）
+
+一期 T001~T051 全部落地。**回归**：`ci_selftest.py` **107 项**全绿（无 DB）、`ci_e2e.py` 全绿（含 1000 条分页 < 1 秒）、`import main` 正常、前端 `tsc` 0 错误 / eslint 0 告警。
+
+**实现期发现并修正的 6 处偏差**（详细论证见 `backend/docs/ci-design.md` §10）：
+
+| # | 计划书怎么写 | 实际怎么做的 | 为什么 |
+|---|---|---|---|
+| 1 | `CIPermission` 只认 CI 凭据（§3.1 / research D2） | **双模**：CI 凭据 **或** 管理员 JWT | `/ci/run/{id}`、`/ci/run/list` 同时服务外部轮询与平台历史页。只认凭据 → 前端发 JWT 一律 401 → **US3 历史页永远空白，无法交付**。JWT 分支直接**调用** `Permission(Config.MANAGER)`，`Permission()` 本体仍一行不改 |
+| 2 | §3.2 只批了业务码 `111` | **新增 `112` 等待超时** | FR-011 要求「超时」与「业务异常」可区分，否则 CI 无法决定「再轮询一次」还是「放弃」。`[ "$code" = "0" ]` 一行判据才成立 |
+| 3 | 「触发必须走 CI 凭据」未显式约定 | **`POST /ci/run` 拒绝 JWT**（401） | 允许管理员点按钮触发会让 `pity_ci_run` 的「谁触发的」退化成「哪个管理员点了按钮」，失去溯源意义 |
+| 4 | `run_test_plan` 只补返回值 + 开关 | **另加**：①通知段拆成独立 try ②空列表过滤 | ①用例已跑完，通知失败不该把绿的构建判成平台失败；②`"".split(",")` → `[""]` → `int("")` 会 ValueError，空计划必须走 FR-018 而不是抛异常 |
+| 5 | `run_multiple.report_dict` 不含 `report_id` | **加了 `report_id` 键** | `pity_ci_run.report_ids` 要存报告 id；两个既有消费者（邮件/钉钉）都是 `**kwargs`，加键零影响 |
+| 6 | 未规定 `/run/{id}` 与 `/run/list` 顺序 | **`list` 定义在 `{id}` 之前** | FastAPI 按注册顺序匹配，顺序颠倒会把 `list` 当 run_id 捕获（int 转换失败 → 101），历史页直接打不开 |
+
+**唯一未做的人工验收**：真实 Jenkins / GitHub Actions 调通（§5.1）—— 需要外部流水线环境，属 `quickstart.md` §3 场景 A/B 的人工部分，由你决定何时跑。

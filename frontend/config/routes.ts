@@ -301,7 +301,9 @@ export default [
     path: '/ci',
     icon: 'icon-CI',
     name: '持续集成',
-    component: './Building',
+    component: './ci',
+    // 页面里能签发/查看凭据, 收紧到管理员(spec FR-028)
+    authority: ['admin', 'superAdmin'],
   },
   {
     path: '/precise',

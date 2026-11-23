@@ -328,6 +328,7 @@ log.info("..."); log.warning("..."); log.exception("...")
 - 前端 `localStorage` 中 JWT token 的 key 为 `pityToken`
 - 所有 HTTP 响应 code 都在 200，业务错误通过 body 的 `code` 字段区分
 - `app/crud/__init__.py` 启动时通过 `importlib` 动态导入所有 DAO 模块
+- **CI 业务码 `111`（测试未通过）/ `112`（等待超时）与 `RunStatus` 六态的权威定义在 `app/enums/CiEnum.py`**，前端镜像 `src/consts/ci.ts` —— **改一处必须同时改另一处**（契约：`specs/004-ci/contracts/api.md` §0、§4）
 
 ## 安全审查检查点
 

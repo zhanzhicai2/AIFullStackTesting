@@ -15,6 +15,7 @@ from app.enums.MessageEnum import MessageStateEnum, MessageTypeEnum
 from app.routers.ai import router as ai_router
 from app.routers.ai.chat import router as ai_chat_router
 from app.routers.auth import user
+from app.routers.ci import router as ci_router
 from app.routers.config import router as config_router
 from app.routers.datafactory import router as datafactory_router
 from app.routers.mock.admin import router as mock_admin_router
@@ -84,6 +85,8 @@ pity.include_router(workspace_router, dependencies=[Depends(request_info)])
 pity.include_router(datafactory_router, dependencies=[Depends(request_info)])
 pity.include_router(ai_router, dependencies=[Depends(request_info)])
 pity.include_router(ui_router, dependencies=[Depends(request_info)])
+# CI: 凭据管理 + 触发查询。挂 request_info 记操作日志(凭据明文不入日志, 见 data-model §5)
+pity.include_router(ci_router, dependencies=[Depends(request_info)])
 # Mock 管理路由(带 request_info)必须先注册, 对外 catch-all(不带 request_info)后注册 ——
 # Starlette 按注册顺序匹配, 顺序颠倒会把 /mock/rule/* 当成「app=rule」的对外请求吞掉。
 # 对外的 mock_service_router **刻意不挂 request_info**: 无鉴权入口, 挂上只会被

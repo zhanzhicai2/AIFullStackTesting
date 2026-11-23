@@ -542,38 +542,59 @@ class Executor(object):
 
     @staticmethod
     @lock("test_plan")
-    async def run_test_plan(plan_id: int, executor: int = 0):
+    async def run_test_plan(plan_id: int, executor: int = 0, *, raise_on_error: bool = False):
         """
         通过测试计划id执行测试计划
         :param plan_id:
         :param executor:
-        :return:
+        :param raise_on_error: True 时异常上抛 —— CI 触发路径(`app/core/ci_runner.py`)用它
+            区分「测试未通过」与「平台执行失败」(spec FR-015)。**默认 False**,
+            cron 与 `/testcase/plan/execute` 两个既有调用方的行为一字不变。
+        :return: report_dict(env → {plan_result, report_id, success, failed, ...});
+            **未执行时返回 None** —— 计划不存在、或 `@lock` 分布式锁没抢到(说明同一
+            (plan_id, executor) 已有执行在跑)。CI 侧把 None 当作「未启动」处理,
+            不能当成「执行成功」。
         """
         plan = await PityTestPlanDao.query_test_plan(plan_id)
         if plan is None:
             # 计划不存在是异常(可能被删了但 cron 还在), 不该用 debug 淹没
             Executor.log.warning(f"测试计划: [{plan_id}]不存在, 跳过本次调度")
-            return
+            if raise_on_error:
+                raise Exception(f"测试计划不存在或已删除: {plan_id}")
+            return None
         try:
             # 设置为running
             await PityTestPlanDao.update_test_plan_state(plan.id, 1)
             project, _ = await ProjectDao.query_project(plan.project_id)
-            env = list(map(int, plan.env.split(",")))
-            case_list = list(map(int, plan.case_list.split(",")))
-            receiver = list(map(int, plan.receiver.split(",") if plan.receiver else []))
+            # 过滤空串: `"".split(",")` 得到 `[""]`, 直接 int 会 ValueError ——
+            # 计划被清空用例时应当走「空计划 → 判未通过」(spec FR-018), 而不是抛异常
+            env = [int(x) for x in str(plan.env).split(",") if str(x).strip()]
+            case_list = [int(x) for x in str(plan.case_list).split(",") if str(x).strip()]
+            receiver = [int(x) for x in str(plan.receiver or "").split(",") if str(x).strip()]
             # 聚合报告dict
             report_dict = dict()
             await asyncio.gather(
                 *(Executor.run_multiple(executor, int(e), case_list, mode=1, retry_minutes=plan.retry_minutes,
                                         plan_id=plan.id, ordered=plan.ordered, report_dict=report_dict) for e in env))
             await PityTestPlanDao.update_test_plan_state(plan.id, 0)
+        except Exception as e:
+            # exception 已带完整堆栈, 不再补一条重复的 error
+            Executor.log.exception(f"执行测试计划: 【{plan.name}】失败: {str(e)}")
+            if raise_on_error:
+                raise
+            return None
+
+        # 通知单独一段: 用例已经跑完了, 邮件/钉钉/websocket 发送失败不该把一次
+        # 成功的执行判成「平台执行失败」(否则 CI 会把绿的构建拦红, spec FR-015)
+        try:
             users = await UserDao.list_user_touch(*receiver)
             await Executor.notice(env, plan, project, report_dict, users)
             if executor != 0:
                 await ws_manage.notify(executor, title="测试计划执行完毕", content=f"请前往测试报告页面查看细节")
-        except Exception as e:
-            # exception 已带完整堆栈, 不再补一条重复的 error
-            Executor.log.exception(f"执行测试计划: 【{plan.name}】失败: {str(e)}")
+        except Exception:
+            Executor.log.exception(f"测试计划通知发送失败: 【{plan.name}】(不影响执行结果)")
+
+        return report_dict
 
     @staticmethod
     async def run_multiple(executor: int, env: int, case_list: List[int], mode=0, plan_id: int = None, ordered=False,
@@ -619,6 +640,9 @@ class Executor(object):
             report = await TestReportDao.end(report_id, ok, fail, error, skip, 3, cost)
             if report_dict is not None:
                 report_dict[env] = {
+                    # report_id 是新增键 —— CI 触发记录要存报告 id 列表(spec FR-013),
+                    # 既有消费者(邮件/钉钉通知)只按名字取值, 加键零影响
+                    "report_id": report_id,
                     "report_url": f"{Config.SERVER_REPORT}{report_id}",
                     "start_time": report.start_at.strftime("%Y-%m-%d %H:%M:%S"),
                     "end_time": report.finished_at.strftime("%Y-%m-%d %H:%M:%S"),

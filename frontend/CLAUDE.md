@@ -226,6 +226,15 @@ export default function useNewFeature() {
 - 报告页 `src/pages/BuildHistory/ReportDetail.jsx` 扩了「附件」tab，展示 UI 用例的失败截图（数据来自 `/ui/execution/attachments`）
 - **白名单为空 = 不可执行**（不是「允许全部」）：前端要提示「本项目尚未配置允许访问的域名，去配置」
 
+### CI 常量（跨端同步）
+
+`src/consts/ci.ts` 里的 `CI_ERROR_CODE`（业务码 `0/101/110/111/112/401/403`）与 `CI_RUN_STATUS`（触发记录六态）是**后端 `backend/app/enums/CiEnum.py` 的 `CiErrorCode` / `RunStatus` 的镜像** —— **改一处必须同时改另一处**。契约文档：`../specs/004-ci/contracts/api.md` §0、§4。
+
+- **`3`（测试未通过）与 `5`（平台执行失败）必须可区分** —— 一个是测试红了、一个是平台坏了，文案与 Tag 颜色都不能混（spec FR-015 / SC-006）
+- 接入示例片段里的凭据**恒为占位符 `YOUR_PITY_CI_TOKEN`** —— 片段要被粘进 Git 仓库，填真实凭据等于教用户把凭据提交进代码库；完整明文只在签发成功的那一个弹窗里出现一次
+- `src/services/ci.ts` + `src/models/ci.ts`（hooks 风格）封装 `/ci/*` 的 8 个端点；页面在 `src/pages/ci/`
+- CI 端点的鉴权 header 与平台同名（`token`），但值是 `pity_ci_` 前缀的长期凭据，**不是 JWT**
+
 ## 重要规则
 
 1. 前端开发服务器运行在 `localhost:8000`，后端 API 运行在 `localhost:7777/7778`。

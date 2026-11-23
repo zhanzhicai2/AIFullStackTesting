@@ -29,9 +29,9 @@
 
 **Purpose**: 跨端常量的单一权威出处（GATE-III）
 
-- [ ] T001 [P] Create `backend/app/enums/CiEnum.py` —— 权威定义 `CI_NOT_PASSED=111`、`CI_WAIT_TIMEOUT=112`、`RunStatus` 六态（0 PENDING / 1 RUNNING / 2 SUCCESS / 3 FAILED / 4 TIMEOUT / 5 ERROR）、`TOKEN_PREFIX="pity_ci_"`、`TOKEN_DEFAULT_EXPIRE_DAYS=365`、`WAIT_TIMEOUT_DEFAULT_SEC=300`、`WAIT_TIMEOUT_MAX_SEC=1800`；文件头注释指认 `specs/004-ci/contracts/api.md`
-- [ ] T002 [P] Create `frontend/src/consts/ci.ts` —— 镜像 T001 全部常量 + 六态的前端文案与颜色映射（`3` 红·未通过 / `5` 灰·执行失败），文件头注释指认 `backend/app/enums/CiEnum.py` 为权威出处（GATE-III）
-- [ ] T003 [P] 在 `backend/CLAUDE.md` 与 `frontend/CLAUDE.md` 各补一条硬约定：「CI 业务码 `111`/`112` 与 `RunStatus` 六态的权威定义在 `backend/app/enums/CiEnum.py`，前端镜像 `src/consts/ci.ts`，**改一处 MUST 同步改另一处**」
+- [X] T001 [P] Create `backend/app/enums/CiEnum.py` —— 权威定义 `CI_NOT_PASSED=111`、`CI_WAIT_TIMEOUT=112`、`RunStatus` 六态（0 PENDING / 1 RUNNING / 2 SUCCESS / 3 FAILED / 4 TIMEOUT / 5 ERROR）、`TOKEN_PREFIX="pity_ci_"`、`TOKEN_DEFAULT_EXPIRE_DAYS=365`、`WAIT_TIMEOUT_DEFAULT_SEC=300`、`WAIT_TIMEOUT_MAX_SEC=1800`；文件头注释指认 `specs/004-ci/contracts/api.md`
+- [X] T002 [P] Create `frontend/src/consts/ci.ts` —— 镜像 T001 全部常量 + 六态的前端文案与颜色映射（`3` 红·未通过 / `5` 灰·执行失败），文件头注释指认 `backend/app/enums/CiEnum.py` 为权威出处（GATE-III）
+- [X] T003 [P] 在 `backend/CLAUDE.md` 与 `frontend/CLAUDE.md` 各补一条硬约定：「CI 业务码 `111`/`112` 与 `RunStatus` 六态的权威定义在 `backend/app/enums/CiEnum.py`，前端镜像 `src/consts/ci.ts`，**改一处 MUST 同步改另一处**」
 
 **Checkpoint**: 两端常量就位且互相指认
 
@@ -43,12 +43,12 @@
 
 **⚠️ CRITICAL**: 本阶段未完成前，任何用户故事都不得开工
 
-- [ ] T004 Create `backend/app/models/ci.py` —— 两张表 `PityCiIntegration`（`project_id` index、`name` VARCHAR(32)、`token_hash` CHAR(64) **unique**、`token_prefix` VARCHAR(12) index、`plan_id` 可空 index、`callback_url` VARCHAR(255) 可空、`enabled` BOOLEAN 默认 1、`expires_at` 可空、`last_used_at` 可空；唯一约束 `project_id+name+deleted_at`）与 `PityCiRun`（`integration_id`/`project_id`/`plan_id`/`env`/`external_build_id` VARCHAR(64)/`external_url` VARCHAR(255)/`status` SMALLINT 默认 0/`report_ids` TEXT/四计数 INT/`pass_rate` SMALLINT 默认 0/`error_msg` VARCHAR(500)/`started_at`/`finished_at`/`cost` VARCHAR(8)/`waited` BOOLEAN 默认 0；复合索引 `(project_id, created_at)`），均继承 `PityBase`，约束逐条照 `data-model.md` §2.1/§2.2
-- [ ] T005 [P] Create `backend/app/schema/ci.py` —— Pydantic **v1** 表单：集成 CRUD（`name` ≤32、`plan_id` 归属校验、`callback_url` ≤255、`expires_at` 可空）与触发请求（`plan_id`/`env`/`wait` 默认 false/`timeout_sec` 默认 300 上限 1800 下限 1/`external_build_id` ≤64/`external_url` ≤255），校验失败走 `101`
-- [ ] T006 [P] Implement `CIPermission()` in `backend/app/routers/__init__.py` —— 读 `token` header，按 `contracts/api.md` §1.3 七步校验链（前缀 → `sha256` 等值查 `token_hash` → `deleted_at=0` → `enabled` → `expires_at` → 项目作用域 → 更新 `last_used_at`），四种拒绝分别返回 `401 "CI 凭据无效"` / `401 "CI 凭据已停用"` / `401 "CI 凭据已过期"` / `403 "无权触发该项目的测试计划"`；**返回结构与 `Permission()` 完全一致**，`Permission()` 本体一行不改
-- [ ] T007 Modify `backend/app/core/executor.py` 的 `run_test_plan` —— 签名改为 `run_test_plan(plan_id, executor=0, *, raise_on_error=False)`；成功时 `return report_dict`（含各环境 `plan_result` 与 `report_id`）；`raise_on_error=True` 时异常上抛、否则保持既有「`log.exception` 后返回」语义 —— **既有两个调用方（`testplan.py:75` 的 `create_task`、`scheduler.py` 的 cron）行为必须一字不变**
-- [ ] T008 Modify `backend/app/__init__.py` 的 `lifespan` —— 在第 3 步 `create_table()` 之后加**第 5 步**：`UPDATE pity_ci_run SET status=5, error_msg='平台重启导致执行中断', finished_at=now() WHERE status IN (0,1) AND deleted_at=0`；失败只 `log.exception` 不抛（同「注册内置 UI 执行节点」处理，不拖垮启动）
-- [ ] T009 [P] Create `backend/scripts/ci_selftest.py` 骨架 —— 参照 `mock_selftest.py` 的 `check()` 打印格式，含**源码静态扫描**四条断言：①无明文凭据落库 ②一期零出网（源码无 `aiohttp`/`httpx`/`requests`）③无 `exec`/`eval` ④等待用 `asyncio.wait` 而非 `wait_for`
+- [X] T004 Create `backend/app/models/ci.py` —— 两张表 `PityCiIntegration`（`project_id` index、`name` VARCHAR(32)、`token_hash` CHAR(64) **unique**、`token_prefix` VARCHAR(12) index、`plan_id` 可空 index、`callback_url` VARCHAR(255) 可空、`enabled` BOOLEAN 默认 1、`expires_at` 可空、`last_used_at` 可空；唯一约束 `project_id+name+deleted_at`）与 `PityCiRun`（`integration_id`/`project_id`/`plan_id`/`env`/`external_build_id` VARCHAR(64)/`external_url` VARCHAR(255)/`status` SMALLINT 默认 0/`report_ids` TEXT/四计数 INT/`pass_rate` SMALLINT 默认 0/`error_msg` VARCHAR(500)/`started_at`/`finished_at`/`cost` VARCHAR(8)/`waited` BOOLEAN 默认 0；复合索引 `(project_id, created_at)`），均继承 `PityBase`，约束逐条照 `data-model.md` §2.1/§2.2
+- [X] T005 [P] Create `backend/app/schema/ci.py` —— Pydantic **v1** 表单：集成 CRUD（`name` ≤32、`plan_id` 归属校验、`callback_url` ≤255、`expires_at` 可空）与触发请求（`plan_id`/`env`/`wait` 默认 false/`timeout_sec` 默认 300 上限 1800 下限 1/`external_build_id` ≤64/`external_url` ≤255），校验失败走 `101`
+- [X] T006 [P] Implement `CIPermission()` in `backend/app/routers/__init__.py` —— 读 `token` header，按 `contracts/api.md` §1.3 七步校验链（前缀 → `sha256` 等值查 `token_hash` → `deleted_at=0` → `enabled` → `expires_at` → 项目作用域 → 更新 `last_used_at`），四种拒绝分别返回 `401 "CI 凭据无效"` / `401 "CI 凭据已停用"` / `401 "CI 凭据已过期"` / `403 "无权触发该项目的测试计划"`；**返回结构与 `Permission()` 完全一致**，`Permission()` 本体一行不改
+- [X] T007 Modify `backend/app/core/executor.py` 的 `run_test_plan` —— 签名改为 `run_test_plan(plan_id, executor=0, *, raise_on_error=False)`；成功时 `return report_dict`（含各环境 `plan_result` 与 `report_id`）；`raise_on_error=True` 时异常上抛、否则保持既有「`log.exception` 后返回」语义 —— **既有两个调用方（`testplan.py:75` 的 `create_task`、`scheduler.py` 的 cron）行为必须一字不变**
+- [X] T008 Modify `backend/app/__init__.py` 的 `lifespan` —— 在第 3 步 `create_table()` 之后加**第 5 步**：`UPDATE pity_ci_run SET status=5, error_msg='平台重启导致执行中断', finished_at=now() WHERE status IN (0,1) AND deleted_at=0`；失败只 `log.exception` 不抛（同「注册内置 UI 执行节点」处理，不拖垮启动）
+- [X] T009 [P] Create `backend/scripts/ci_selftest.py` 骨架 —— 参照 `mock_selftest.py` 的 `check()` 打印格式，含**源码静态扫描**四条断言：①无明文凭据落库 ②一期零出网（源码无 `aiohttp`/`httpx`/`requests`）③无 `exec`/`eval` ④等待用 `asyncio.wait` 而非 `wait_for`
 
 **Checkpoint**: 底座就位 —— 用户故事可并行开工
 
@@ -64,19 +64,19 @@
 
 > 先写测试并确认失败，再实现（GATE-V）
 
-- [ ] T010 [US1] Extend `backend/scripts/ci_selftest.py` —— 凭据校验链正反例：`pity_ci_` 前缀缺失 / 摘要不匹配 / `deleted_at≠0` / `enabled=0` / `expires_at` 已过 / 跨项目 → 断言六种 `code`+`msg` 各不相同且**不回显任何凭据内容**（对应 `contracts/api.md` §1.3）
+- [X] T010 [US1] Extend `backend/scripts/ci_selftest.py` —— 凭据校验链正反例：`pity_ci_` 前缀缺失 / 摘要不匹配 / `deleted_at≠0` / `enabled=0` / `expires_at` 已过 / 跨项目 → 断言六种 `code`+`msg` 各不相同且**不回显任何凭据内容**（对应 `contracts/api.md` §1.3）
 
 ### Implementation for User Story 1
 
-- [ ] T011 Create `backend/app/crud/ci/CiIntegrationDao.py` —— `@ModelWrapper(PityCiIntegration)`；签发（`secrets.token_hex(16)` + `sha256`，**注释显式标注 token 不可重放（安全属性，非缺陷）**，对应 constitution 原则 I 豁免条款）、按 `token_hash` 等值校验、停用/启用、更新 `last_used_at`、列表按 `project_id` 隔离
-- [ ] T012 Create `backend/app/routers/ci/integration.py` —— `APIRouter(prefix="/ci")`，五个端点 `GET /integration/list`、`POST /integration/insert`（**明文仅此一次返回**）、`POST /integration/update`（**不接受任何凭据字段**）、`GET /integration/switch`、`GET /integration/delete`（逻辑删除），全部 `Depends(Permission(Config.MANAGER))`，`insert` 校验 `plan_id` 归属 `project_id` 否则 `110`
-- [ ] T013 Create `backend/app/routers/ci/__init__.py` 汇总导出 `router`，并在 `backend/main.py` 注册 `pity.include_router(ci_router, dependencies=[Depends(request_info)])`（**须在既有管理路由之后、不与 mock catch-all 顺序冲突**）
-- [ ] T014 [P] Create `frontend/src/services/ci.ts` —— 封装 `contracts/api.md` 全部 8 个端点，请求头走 `auth.headers()` 注入 `token`，响应类型按契约 `data` 结构定义（`RunStatus` 从 `@/consts/ci` 取）
-- [ ] T015 [P] Create `frontend/src/models/ci.ts` —— **hooks 风格**（`@umijs/plugin-model`，不混 dva），状态：`projectId` / 集成分页 / `loading` / 一次性明文 `justIssuedToken`（签发后置入、关闭即清空），切换项目即重拉
-- [ ] T016 Create `frontend/src/pages/ci/index.tsx` + `frontend/src/pages/ci/index.less` —— 三 tab 容器（集成配置 / 接入示例 / 触发历史），顶部项目选择器；**G1 未选项目时就地提示 + 项目入口，不渲染任何空表格**（FR-029）
-- [ ] T017 Create `frontend/src/pages/ci/IntegrationPanel.tsx` —— 集成列表（列：名称、`token_prefix`、绑定计划、启用开关、有效期、最后使用时间）+ 签发弹窗（**明文一次性展示 + 复制按钮，关闭后不可再取**）+ 停用/删除；**G2 无集成配置**与 **G3 无测试计划**就地指引，两者并列时按「先计划、后凭据」排序（`data-model.md` §7）
-- [ ] T018 Modify `frontend/config/routes.ts` 第 301~305 行 —— `/ci` 的 `component: './Building'` → `'./ci'`，并给该路由加 `authority: ['admin', 'superAdmin']`（FR-028）
-- [ ] T019 [P] Run `backend/scripts/ci_selftest.py` —— 无 DB 部分全绿；同时跑 `npx tsc --noEmit` 确认 0 错误
+- [X] T011 Create `backend/app/crud/ci/CiIntegrationDao.py` —— `@ModelWrapper(PityCiIntegration)`；签发（`secrets.token_hex(16)` + `sha256`，**注释显式标注 token 不可重放（安全属性，非缺陷）**，对应 constitution 原则 I 豁免条款）、按 `token_hash` 等值校验、停用/启用、更新 `last_used_at`、列表按 `project_id` 隔离
+- [X] T012 Create `backend/app/routers/ci/integration.py` —— `APIRouter(prefix="/ci")`，五个端点 `GET /integration/list`、`POST /integration/insert`（**明文仅此一次返回**）、`POST /integration/update`（**不接受任何凭据字段**）、`GET /integration/switch`、`GET /integration/delete`（逻辑删除），全部 `Depends(Permission(Config.MANAGER))`，`insert` 校验 `plan_id` 归属 `project_id` 否则 `110`
+- [X] T013 Create `backend/app/routers/ci/__init__.py` 汇总导出 `router`，并在 `backend/main.py` 注册 `pity.include_router(ci_router, dependencies=[Depends(request_info)])`（**须在既有管理路由之后、不与 mock catch-all 顺序冲突**）
+- [X] T014 [P] Create `frontend/src/services/ci.ts` —— 封装 `contracts/api.md` 全部 8 个端点，请求头走 `auth.headers()` 注入 `token`，响应类型按契约 `data` 结构定义（`RunStatus` 从 `@/consts/ci` 取）
+- [X] T015 [P] Create `frontend/src/models/ci.ts` —— **hooks 风格**（`@umijs/plugin-model`，不混 dva），状态：`projectId` / 集成分页 / `loading` / 一次性明文 `justIssuedToken`（签发后置入、关闭即清空），切换项目即重拉
+- [X] T016 Create `frontend/src/pages/ci/index.tsx` + `frontend/src/pages/ci/index.less` —— 三 tab 容器（集成配置 / 接入示例 / 触发历史），顶部项目选择器；**G1 未选项目时就地提示 + 项目入口，不渲染任何空表格**（FR-029）
+- [X] T017 Create `frontend/src/pages/ci/IntegrationPanel.tsx` —— 集成列表（列：名称、`token_prefix`、绑定计划、启用开关、有效期、最后使用时间）+ 签发弹窗（**明文一次性展示 + 复制按钮，关闭后不可再取**）+ 停用/删除；**G2 无集成配置**与 **G3 无测试计划**就地指引，两者并列时按「先计划、后凭据」排序（`data-model.md` §7）
+- [X] T018 Modify `frontend/config/routes.ts` 第 301~305 行 —— `/ci` 的 `component: './Building'` → `'./ci'`，并给该路由加 `authority: ['admin', 'superAdmin']`（FR-028）
+- [X] T019 [P] Run `backend/scripts/ci_selftest.py` —— 无 DB 部分全绿；同时跑 `npx tsc --noEmit` 确认 0 错误
 
 **Checkpoint**: US1 独立可验 —— 凭据全生命周期 + 页面可见
 
@@ -90,20 +90,20 @@
 
 ### Tests for User Story 2
 
-- [ ] T020 [US2] Create `backend/scripts/ci_e2e.py` —— 需 DB。链路：签发凭据 → `POST /ci/run`（`wait=true`）→ 断言 `code`/`data.status`/`report_ids`/`report_url` → `GET /ci/run/{id}` 断言字段齐全 → 历史可查（参照 `mock_e2e.py` 的 `check()` 格式）
-- [ ] T021 [US2] Extend `backend/scripts/ci_selftest.py` —— 业务码映射断言（`0`/`101`/`110`/`111`/`112`/`401`/`403` 七档齐全）、`RunStatus` 六态齐全且 **`3`（测试未通过）与 `5`（执行失败）不混淆**、`run_test_plan` 源码断言（有 `return report_dict`、有 `raise_on_error` 且默认 `False`）
-- [ ] T022 [US2] Extend `backend/scripts/ci_e2e.py` —— 拒绝类六条：停用 → `401 已停用`、过期 → `401 已过期`、随机串 → `401 无效`、跨项目 → `403`、计划不存在 → `110`、重复触发 → `110`；断言**均不回显凭据**
-- [ ] T023 [US2] Extend `backend/scripts/ci_e2e.py` —— 超时场景：长用例 + `timeout_sec=5` → `code=112`、`data.wait_timeout=true`、随后轮询落到 `2` 或 `3`，**证明执行未被中断**（FR-011）
-- [ ] T024 [US2] Extend `backend/scripts/ci_e2e.py` —— 重启恢复：手工把一条记录改 `status=1` → 重启 → 断言收敛为 `status=5` 且 `error_msg='平台重启导致执行中断'`（FR-031）
-- [ ] T025 [US2] Extend `backend/scripts/ci_e2e.py` —— 并发防重：并发对同一 `plan_id` 发两次触发，断言**只成功一次**、另一次 `110`（SC-010）
+- [X] T020 [US2] Create `backend/scripts/ci_e2e.py` —— 需 DB。链路：签发凭据 → `POST /ci/run`（`wait=true`）→ 断言 `code`/`data.status`/`report_ids`/`report_url` → `GET /ci/run/{id}` 断言字段齐全 → 历史可查（参照 `mock_e2e.py` 的 `check()` 格式）
+- [X] T021 [US2] Extend `backend/scripts/ci_selftest.py` —— 业务码映射断言（`0`/`101`/`110`/`111`/`112`/`401`/`403` 七档齐全）、`RunStatus` 六态齐全且 **`3`（测试未通过）与 `5`（执行失败）不混淆**、`run_test_plan` 源码断言（有 `return report_dict`、有 `raise_on_error` 且默认 `False`）
+- [X] T022 [US2] Extend `backend/scripts/ci_e2e.py` —— 拒绝类六条：停用 → `401 已停用`、过期 → `401 已过期`、随机串 → `401 无效`、跨项目 → `403`、计划不存在 → `110`、重复触发 → `110`；断言**均不回显凭据**
+- [X] T023 [US2] Extend `backend/scripts/ci_e2e.py` —— 超时场景：长用例 + `timeout_sec=5` → `code=112`、`data.wait_timeout=true`、随后轮询落到 `2` 或 `3`，**证明执行未被中断**（FR-011）
+- [X] T024 [US2] Extend `backend/scripts/ci_e2e.py` —— 重启恢复：手工把一条记录改 `status=1` → 重启 → 断言收敛为 `status=5` 且 `error_msg='平台重启导致执行中断'`（FR-031）
+- [X] T025 [US2] Extend `backend/scripts/ci_e2e.py` —— 并发防重：并发对同一 `plan_id` 发两次触发，断言**只成功一次**、另一次 `110`（SC-010）
 
 ### Implementation for User Story 2
 
-- [ ] T026 Create `backend/app/crud/ci/CiRunDao.py` —— `@ModelWrapper(PityCiRun)`；建记录（`status=0`）、置 `1 running`、回填（计数/`pass_rate`/`report_ids`/`cost`/`finished_at`/终态）、防重查询 `WHERE plan_id=? AND status IN (0,1) AND deleted_at=0`、按 `id` 查
-- [ ] T027 Create `backend/app/core/ci_runner.py` —— 编排：防重判定（`plan.state` + `CiRunDao` 双层，`research D7`）→ 建记录 → 置 running → **`task = asyncio.ensure_future(...)` 后 `await asyncio.wait({task}, timeout=timeout_sec)`**（**禁止 `asyncio.wait_for`**，超时与 handler 被取消都不中断执行）→ 回填；超时的 `task` 存入模块级强引用集合防 GC；`raise_on_error=True` 把异常转 `status=5`
-- [ ] T028 Create `backend/app/routers/ci/run.py` —— `POST /ci/run`（`wait` 默认 false、`timeout_sec` 默认 300 上限 1800；通过 `0`/`111`/`112`/`110` 返回，`data` 结构照 `contracts/api.md` §3.1）与 `GET /ci/run/{id}`（§3.2 同构），全部 `Depends(CIPermission())`
-- [ ] T029 Modify `backend/main.py` —— 若 T013 未覆盖则补注册 `run.py` 的路由（同一 `ci_router` 汇总）
-- [ ] T030 [P] Run `backend/scripts/ci_selftest.py` + `backend/scripts/ci_e2e.py` —— 两脚本全绿
+- [X] T026 Create `backend/app/crud/ci/CiRunDao.py` —— `@ModelWrapper(PityCiRun)`；建记录（`status=0`）、置 `1 running`、回填（计数/`pass_rate`/`report_ids`/`cost`/`finished_at`/终态）、防重查询 `WHERE plan_id=? AND status IN (0,1) AND deleted_at=0`、按 `id` 查
+- [X] T027 Create `backend/app/core/ci_runner.py` —— 编排：防重判定（`plan.state` + `CiRunDao` 双层，`research D7`）→ 建记录 → 置 running → **`task = asyncio.ensure_future(...)` 后 `await asyncio.wait({task}, timeout=timeout_sec)`**（**禁止 `asyncio.wait_for`**，超时与 handler 被取消都不中断执行）→ 回填；超时的 `task` 存入模块级强引用集合防 GC；`raise_on_error=True` 把异常转 `status=5`
+- [X] T028 Create `backend/app/routers/ci/run.py` —— `POST /ci/run`（`wait` 默认 false、`timeout_sec` 默认 300 上限 1800；通过 `0`/`111`/`112`/`110` 返回，`data` 结构照 `contracts/api.md` §3.1）与 `GET /ci/run/{id}`（§3.2 同构），全部 `Depends(CIPermission())`
+- [X] T029 Modify `backend/main.py` —— 若 T013 未覆盖则补注册 `run.py` 的路由（同一 `ci_router` 汇总）
+- [X] T030 [P] Run `backend/scripts/ci_selftest.py` + `backend/scripts/ci_e2e.py` —— 两脚本全绿
 
 **Checkpoint**: US2 独立可验 —— 一条 `curl` 就能阻断流水线
 
@@ -117,17 +117,17 @@
 
 ### Tests for User Story 3
 
-- [ ] T031 [US3] Extend `backend/scripts/ci_e2e.py` —— 历史字段完整率 100%（每次触发都有记录与报告入口，SC-005）、分页不重不漏、**项目隔离**（A 项目凭据查不到 B 项目记录）
-- [ ] T032 [US3] Extend `backend/scripts/ci_e2e.py` —— 造 1000 条记录后分页查询计时 **< 1 秒**（SC-009）
-- [ ] T033 [US3] Extend `backend/scripts/ci_selftest.py` —— `RunStatus` → 前端文案/颜色映射一致性断言（`3` 红·未通过、`5` 灰·执行失败，读 `frontend/src/consts/ci.ts` 比对）
+- [X] T031 [US3] Extend `backend/scripts/ci_e2e.py` —— 历史字段完整率 100%（每次触发都有记录与报告入口，SC-005）、分页不重不漏、**项目隔离**（A 项目凭据查不到 B 项目记录）
+- [X] T032 [US3] Extend `backend/scripts/ci_e2e.py` —— 造 1000 条记录后分页查询计时 **< 1 秒**（SC-009）
+- [X] T033 [US3] Extend `backend/scripts/ci_selftest.py` —— `RunStatus` → 前端文案/颜色映射一致性断言（`3` 红·未通过、`5` 灰·执行失败，读 `frontend/src/consts/ci.ts` 比对）
 
 ### Implementation for User Story 3
 
-- [ ] T034 [US3] Extend `backend/app/crud/ci/CiRunDao.py` —— 分页查询 `WHERE project_id=? AND created_at BETWEEN ? AND ? [AND plan_id=?] [AND status=?] ORDER BY created_at DESC LIMIT/OFFSET`，用复合索引 `(project_id, created_at)`
-- [ ] T035 [US3] Extend `backend/app/routers/ci/run.py` —— `GET /ci/run/list`（`project_id` 必填否则 `101`；`page`/`size`/`plan_id`/`status`/`start_time`/`end_time`；`PityResponse.success_with_size`，`total` 在顶层，**响应不含 `token_hash`**）
-- [ ] T036 [P] [US3] Create `frontend/src/pages/ci/RunHistoryPanel.tsx` —— ProTable：时间、计划、`external_build_id`（超链 `external_url`）、结果（用 `@/consts/ci` 的六态色）、耗时、报告入口（`Config.SERVER_REPORT + report_id`）、`error_msg` 展开
-- [ ] T037 [US3] Extend `frontend/src/services/ci.ts` 与 `frontend/src/models/ci.ts` —— 历史分页查询 + 筛选状态 + 项目切换即重拉
-- [ ] T038 [US3] Extend `frontend/src/pages/ci/index.tsx` —— 挂载 `RunHistoryPanel`，**G4 无触发记录时展示接入示例 + 「如何触发第一次」三步说明**，而不是空白
+- [X] T034 [US3] Extend `backend/app/crud/ci/CiRunDao.py` —— 分页查询 `WHERE project_id=? AND created_at BETWEEN ? AND ? [AND plan_id=?] [AND status=?] ORDER BY created_at DESC LIMIT/OFFSET`，用复合索引 `(project_id, created_at)`
+- [X] T035 [US3] Extend `backend/app/routers/ci/run.py` —— `GET /ci/run/list`（`project_id` 必填否则 `101`；`page`/`size`/`plan_id`/`status`/`start_time`/`end_time`；`PityResponse.success_with_size`，`total` 在顶层，**响应不含 `token_hash`**）
+- [X] T036 [P] [US3] Create `frontend/src/pages/ci/RunHistoryPanel.tsx` —— ProTable：时间、计划、`external_build_id`（超链 `external_url`）、结果（用 `@/consts/ci` 的六态色）、耗时、报告入口（`Config.SERVER_REPORT + report_id`）、`error_msg` 展开
+- [X] T037 [US3] Extend `frontend/src/services/ci.ts` 与 `frontend/src/models/ci.ts` —— 历史分页查询 + 筛选状态 + 项目切换即重拉
+- [X] T038 [US3] Extend `frontend/src/pages/ci/index.tsx` —— 挂载 `RunHistoryPanel`，**G4 无触发记录时展示接入示例 + 「如何触发第一次」三步说明**，而不是空白
 
 **Checkpoint**: US1+US2+US3 全部独立可验
 
@@ -141,13 +141,13 @@
 
 ### Tests for User Story 4
 
-- [ ] T039 [US4] Extend `backend/scripts/ci_selftest.py` —— 片段断言：①含 `YOUR_PITY_CI_TOKEN` 占位符 ②**不含** `pity_ci_` + 32 位 hex 的真实凭据形态 ③两段流水线语法关键字齐全（`httpRequest`/`customHeaders`、`curl`/`-H "token:`）④`plan_id` 为当前配置真实值
+- [X] T039 [US4] Extend `backend/scripts/ci_selftest.py` —— 片段断言：①含 `YOUR_PITY_CI_TOKEN` 占位符 ②**不含** `pity_ci_` + 32 位 hex 的真实凭据形态 ③两段流水线语法关键字齐全（`httpRequest`/`customHeaders`、`curl`/`-H "token:`）④`plan_id` 为当前配置真实值
 
 ### Implementation for User Story 4
 
-- [ ] T040 [P] [US4] Create `frontend/src/pages/ci/SnippetsPanel.tsx` —— Jenkinsfile 与 GitHub Actions 两段片段；`PITY_URL` 与 `plan_id`/`plan_name` 自动填当前配置真实值，**`PITY_CI_TOKEN` 恒为占位符并提示去集成配置复制**（D10）；一键复制 + 成功反馈；未选集成时就地提示先创建（G2）
-- [ ] T041 [US4] Extend `frontend/src/services/ci.ts` —— 片段渲染所需数据（当前集成配置 + 项目下测试计划列表）；无计划时给 G3 入口
-- [ ] T042 [US4] Extend `frontend/src/pages/ci/index.tsx` —— 挂载 `SnippetsPanel`，与 US3 的 `RunHistoryPanel` 同容器共存
+- [X] T040 [P] [US4] Create `frontend/src/pages/ci/SnippetsPanel.tsx` —— Jenkinsfile 与 GitHub Actions 两段片段；`PITY_URL` 与 `plan_id`/`plan_name` 自动填当前配置真实值，**`PITY_CI_TOKEN` 恒为占位符并提示去集成配置复制**（D10）；一键复制 + 成功反馈；未选集成时就地提示先创建（G2）
+- [X] T041 [US4] Extend `frontend/src/services/ci.ts` —— 片段渲染所需数据（当前集成配置 + 项目下测试计划列表）；无计划时给 G3 入口
+- [X] T042 [US4] Extend `frontend/src/pages/ci/index.tsx` —— 挂载 `SnippetsPanel`，与 US3 的 `RunHistoryPanel` 同容器共存
 
 **Checkpoint**: 四个用户故事全部独立可验
 
@@ -157,13 +157,13 @@
 
 **Purpose**: 文档、全量回归、安全审查提示
 
-- [ ] T043 [P] Create `backend/docs/ci-design.md` —— 深设计附录（constitution「文档分层」指定落点）：D1~D10 决策摘要、状态机、脱敏表、已知限制
-- [ ] T044 [P] Update `specs/HANDOFF.md` —— 增加 `004-ci` 段落（状态、入口文件、权威顺序指针）
-- [ ] T045 [P] Update `specs/004-ci/proposal.md` T01~T09 —— 回填实际完成状态与偏差说明
-- [ ] T046 Run `cd backend && .venv/bin/python scripts/ci_selftest.py` —— 全绿（无 DB）
-- [ ] T047 Run `cd backend && .venv/bin/python scripts/ci_e2e.py` —— 全绿（需 DB）
-- [ ] T048 Run `cd backend && .venv/bin/python -c "import main"` —— 导入无误（验收口径见 `specs/004-ci/quickstart.md` §2）
-- [ ] T049 Run `cd frontend && npx tsc --noEmit && npm run lint` —— tsc **0 错误**、eslint 0 告警（验收口径见 `frontend/CLAUDE.md`「TypeScript 检查」）
+- [X] T043 [P] Create `backend/docs/ci-design.md` —— 深设计附录（constitution「文档分层」指定落点）：D1~D10 决策摘要、状态机、脱敏表、已知限制
+- [X] T044 [P] Update `specs/HANDOFF.md` —— 增加 `004-ci` 段落（状态、入口文件、权威顺序指针）
+- [X] T045 [P] Update `specs/004-ci/proposal.md` T01~T09 —— 回填实际完成状态与偏差说明
+- [X] T046 Run `cd backend && .venv/bin/python scripts/ci_selftest.py` —— 全绿（无 DB）
+- [X] T047 Run `cd backend && .venv/bin/python scripts/ci_e2e.py` —— 全绿（需 DB）
+- [X] T048 Run `cd backend && .venv/bin/python -c "import main"` —— 导入无误（验收口径见 `specs/004-ci/quickstart.md` §2）
+- [X] T049 Run `cd frontend && npx tsc --noEmit && npm run lint` —— tsc **0 错误**、eslint 0 告警（验收口径见 `frontend/CLAUDE.md`「TypeScript 检查」）
 - [ ] T050 Run `specs/004-ci/quickstart.md` §3 场景 A~G 人工验证 —— 逐条对照 §4 的 SC-001~SC-012
 - [ ] T051 **提示用户决定是否执行 `security-review`** —— 触发条件见 `backend/CLAUDE.md`「安全审查检查点」，本特性四条全命中（新增 8 个路由接口 / 新增鉴权判断 / 新增外部输入面 / 新增敏感数据存储）；按 constitution 由**人决定**，不自动执行；**建议在 T029（US2 实现完成）后、T046（全量回归）前跑一次**
 

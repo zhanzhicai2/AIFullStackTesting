@@ -106,6 +106,20 @@ async def lifespan(app: FastAPI):
         # 节点注册失败不该拖垮整个服务 —— UI 用例执行时会自己再注册
         startup.warning(f"注册内置 UI 执行节点失败: {e}")
 
+    # 5. 收敛 CI 触发记录的残留进行中状态(spec FR-031 / data-model.md §3.2)
+    #    单进程部署(gunicorn -w 1)下, 进程重启 = 所有在跑的执行真的消失, 没有别的
+    #    worker 接手; 不处理的话这些记录会永久停在「进行中」, 轮询方一直等到天荒地老。
+    #    标 5(error, 平台执行失败) 而不是 3(failed, 测试未通过) —— 语义正确, 且与
+    #    FR-015「测试未通过 vs 平台执行失败可区分」一致。
+    try:
+        from app.crud.ci.CiRunDao import CiRunDao
+        recovered = await CiRunDao.recover_stale_runs()
+        if recovered:
+            startup.warning(f"ci run 终态恢复: {recovered} 条进行中记录收敛为 error")
+    except Exception as e:
+        # 恢复失败不该拖垮启动(同「注册内置 UI 执行节点」的处理方式)
+        startup.exception(f"ci run 终态恢复失败: {e}")
+
     yield
     # shutdown 阶段:原 stop_test 是 pass,目前不需要额外清理
     # APScheduler / Redis 连接由各自实现负责关闭

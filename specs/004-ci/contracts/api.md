@@ -32,6 +32,25 @@
 
 ## 1. 鉴权契约
 
+### 1.0 双模：CI 凭据 或 管理员 JWT
+
+`CIPermission()` 是**双模依赖** —— 这是实现期发现的必要修正（原设计只认 CI 凭据，
+会导致 `/ci` 页的「触发历史」永远 401、面板永远空白，spec US3 无法交付）：
+
+| 调用方 | `token` header 的值 | 走哪条分支 | 适用端点 |
+|---|---|---|---|
+| 外部流水线 | `pity_ci_...`（CI 长期凭据） | 凭据校验链（§1.3） | 全部 `/ci/*` |
+| 平台前端 / 管理员 | JWT（登录签发） | **直接调用 `Permission(Config.MANAGER)`** | 查询类（`GET /ci/run/{id}`、`GET /ci/run/list`） |
+
+**约束**：
+- **`POST /ci/run` 只接受 CI 凭据** —— JWT 调用返回 `401 "触发测试计划必须使用 CI 凭据"`。
+  触发是外部流水线的动作，若允许管理员点按钮触发，`pity_ci_run` 的「谁触发的」就失去溯源意义。
+- **`Permission()` 本体一行不改** —— JWT 分支是**调用**它，不重复实现 JWT 解析（research D2）
+- 返回结构是 `Permission()` 的**超集**：既有 `user_info['id']` / `['role']` 照旧可用，额外多一个
+  **`ci_integration`** 键：凭据路径为 `{id, project_id, plan_id, name}`，**JWT 路径为 `null`**
+- 作用域判定 `_scope_ok`：`ci_integration` 非空 → 只能访问本项目；为 `null`（管理员）→ 不受项目限制
+  （页面本身已按 `authority: admin/superAdmin` 收紧，FR-028）
+
 ### 1.1 Header
 
 CI 端点读 **`token`** header（与平台既有 `Permission()` 同名，接入示例好抄）：
