@@ -14,6 +14,7 @@ CI 触发记录 DAO —— 一次外部触发的完整生命周期
 `total > 0 且 failed == 0 且 error == 0` 才算通过; **空计划判未通过**。
 """
 import json
+import re
 from datetime import datetime
 from typing import List, Optional, Tuple
 
@@ -74,12 +75,27 @@ class CiRunDao(Mapper):
         except Exception:
             return []
 
+    # `error_msg` 会进三处: pity_ci_run(库) → GET /ci/run/{id} 响应 → 触发历史 UI。
+    # 单纯截断不够 —— 异常文本可能带出目标 URL 的 query(常含 token/签名)或
+    # `password=` 形式的凭据片段。落库前先 scrub, 才对得起 data-model §5 的「已脱敏」。
+    #
+    # `(?:bearer\s+)?` 是必要的: `Authorization: Bearer <jwt>` 只吃掉 `Bearer` 的话,
+    # 后面的 JWT 会原样留下 —— 那才是值本身。
+    _SECRET_KV = re.compile(
+        r"(?i)\b(password|passwd|pwd|token|api_key|apikey|secret|access_key|authorization)"
+        r"\b\s*[=:]\s*(?:bearer\s+)?\S+")
+    _URL_QUERY = re.compile(r"(https?://[^\s\"'<>]+)\?[^\s\"'<>]*")
+
     @staticmethod
     def clip_error(msg) -> Optional[str]:
-        """error_msg 截断到 500(data-model.md §5) —— 防异常堆栈把 TEXT 撑爆"""
+        """脱敏 + 截断到 500(data-model.md §5) —— 防异常堆栈把 TEXT 撑爆, 也防凭据落库"""
         if msg is None:
             return None
         text = str(msg)
+        # URL query 常带 token / 签名 —— 只留 scheme+host+path
+        text = CiRunDao._URL_QUERY.sub(lambda m: f"{m.group(1)}?***", text)
+        # `token=xxx` / `Authorization: Bearer xxx` 形式的凭据片段
+        text = CiRunDao._SECRET_KV.sub(lambda m: f"{m.group(1)}=***", text)
         return text[:ERROR_MSG_MAX_LEN]
 
     # ------------------------------------------------------------------

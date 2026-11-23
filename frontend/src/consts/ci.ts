@@ -74,3 +74,20 @@ export const CI_WAIT_TIMEOUT_MAX_SEC = 1800;
 export const CI_INTEGRATION_NAME_MAX_LEN = 32;
 export const CI_EXTERNAL_BUILD_ID_MAX_LEN = 64;
 export const CI_EXTERNAL_URL_MAX_LEN = 255;
+
+/**
+ * 允许渲染成链接的 URL scheme(与后端 `CiEnum.ALLOWED_URL_SCHEMES` 对齐)。
+ *
+ * `external_url` 由**调用方**提供, 会被历史面板渲染成可点链接。
+ * React 18 对 `javascript:` href **只在 dev 打 warning、不阻断** ——
+ * 所以前端必须再校验一次(纵深防御), 后端 schema 的白名单是第一道。
+ */
+export const CI_ALLOWED_URL_SCHEMES: string[] = ['http', 'https'];
+
+/** 该 URL 是否可以安全渲染成 `<a href>` —— 只认白名单 scheme */
+export function isSafeHttpUrl(url?: string | null): boolean {
+  if (!url) return false;
+  const matched = /^([a-zA-Z][a-zA-Z0-9+.-]*):\/\//.exec(url);
+  if (!matched) return false;
+  return CI_ALLOWED_URL_SCHEMES.includes(matched[1].toLowerCase());
+}

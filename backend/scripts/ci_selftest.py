@@ -32,9 +32,10 @@ from types import SimpleNamespace
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from app.crud.ci.CiIntegrationDao import CiIntegrationDao  # noqa: E402
-from app.enums.CiEnum import (CiErrorCode, RunStatus,  # noqa: E402
-                              TOKEN_DEFAULT_EXPIRE_DAYS, TOKEN_PREFIX, TOKEN_PREFIX_LEN,
-                              WAIT_TIMEOUT_DEFAULT_SEC, WAIT_TIMEOUT_MAX_SEC)
+from app.enums.CiEnum import (ALLOWED_URL_SCHEMES, CiErrorCode,  # noqa: E402
+                              RunStatus, TOKEN_DEFAULT_EXPIRE_DAYS, TOKEN_PREFIX,
+                              TOKEN_PREFIX_LEN, WAIT_TIMEOUT_DEFAULT_SEC,
+                              WAIT_TIMEOUT_MAX_SEC)
 from app.models.ci import PityCiIntegration, PityCiRun  # noqa: E402
 
 FAILED = []
@@ -443,6 +444,76 @@ def test_snippet_placeholders():
           "${YOUR_PITY_CI_TOKEN}" not in text and '"${CI_TOKEN_PLACEHOLDER}"' not in text)
 
 
+def test_security_review_fixes():
+    """安全审查 F1/F3/F4/F5 的回归断言 —— 修完必须留门禁, 否则会被改回去"""
+    print("== 安全审查修复(F1 链接注入 / F3 脱敏 / F4 scheme / F5 误改) ==")
+    from pydantic import ValidationError
+    from app.schema.ci import CiIntegrationForm, CiRunForm, check_url_field
+
+    def rejected(form_cls, **kw):
+        try:
+            form_cls(**kw)
+            return None
+        except ValidationError as e:
+            return e.errors()[0]["msg"]
+
+    # --- F1: external_url 是外部可控、会被渲染成链接的值 ---
+    bad_urls = ["javascript:alert(1)", "data:text/html,<script>x</script>",
+                "ftp://evil/x", "//evil.com/x", "vbscript:msgbox(1)"]
+    for u in bad_urls:
+        err = rejected(CiRunForm, external_url=u)
+        check(f"F1 拒绝 external_url={u[:28]}", err is not None, str(err))
+    check("F1 放行 http/https", rejected(CiRunForm, external_url="https://jenkins/job/1") is None)
+    check("F1 放行空值", rejected(CiRunForm, external_url=None) is None)
+
+    # --- F4: callback_url 一期不发, 但白名单现在就上 ---
+    for u in ["javascript:alert(1)", "data:text/html,x"]:
+        err = rejected(CiIntegrationForm, project_id=1, name="x", callback_url=u)
+        check(f"F4 拒绝 callback_url={u[:24]}", err is not None, str(err))
+    check("F4 放行 https 回调", rejected(CiIntegrationForm, project_id=1, name="x",
+                                        callback_url="https://jenkins/hook") is None)
+    check("F4 放行空回调", rejected(CiIntegrationForm, project_id=1, name="x",
+                                   callback_url=None) is None)
+
+    # --- F3: error_msg 脱敏(不只是截断) ---
+    from app.crud.ci.CiRunDao import CiRunDao
+    check("F3 URL query 被抹掉",
+          "***" in CiRunDao.clip_error("timeout https://a.com/v1?access_token=abc&x=1") and
+          "abc" not in CiRunDao.clip_error("timeout https://a.com/v1?access_token=abc&x=1"))
+    scrubbed = CiRunDao.clip_error("auth failed Authorization: Bearer eyJhbGciOi.xxx")
+    check("F3 Bearer JWT 被吃掉", "eyJ" not in scrubbed and "***" in scrubbed, scrubbed)
+    check("F3 password= 被抹掉",
+          "hunter2" not in CiRunDao.clip_error("连接失败 password=hunter2"))
+    check("F3 token= 被抹掉",
+          "pity_ci_" not in CiRunDao.clip_error("header token=pity_ci_9f2c4e8a1b7d0c3f"))
+    plain = "查询用例失败: 用例id: 999 不存在"
+    check("F3 普通文本不被误伤", CiRunDao.clip_error(plain) == plain)
+    check("F3 截断到 500", len(CiRunDao.clip_error("x" * 999)) == 500)
+    check("F3 None 保持 None", CiRunDao.clip_error(None) is None)
+
+    # --- F5: token_hash 不进操作日志, 靠 __fields__ 过滤(隐性依赖) ---
+    fields = [f.name for f in PityCiIntegration.__fields__]
+    check("F5 __fields__ 不含 token_hash", "token_hash" not in fields, str(fields))
+    check("F5 __fields__ 不含 token_prefix", "token_prefix" not in fields, str(fields))
+    from app.crud import Mapper
+    from app.models import async_session  # noqa: F401  (确保 model 已注册)
+    check("F5 models 里有防误改注释",
+          "不能加 `token_hash`" in open(os.path.join(ROOT, "app", "models", "ci.py"),
+                                        encoding="utf-8").read())
+
+    # --- 前端纵深: isSafeHttpUrl ---
+    fe = os.path.join(ROOT, "..", "frontend", "src", "consts", "ci.ts")
+    check("前端镜像有 scheme 白名单", "CI_ALLOWED_URL_SCHEMES" in open(fe, encoding="utf-8").read())
+    panel = os.path.join(ROOT, "..", "frontend", "src", "pages", "ci", "RunHistoryPanel.tsx")
+    panel_src = open(panel, encoding="utf-8").read()
+    check("历史面板渲染链接前过 isSafeHttpUrl", "isSafeHttpUrl(r.external_url)" in panel_src)
+    check("历史面板不再裸用 r.external_url 做 href判断",
+          "return r.external_url ?" not in panel_src)
+    check("scheme 白名单两端一致(都只 http/https)",
+          "http" in open(fe, encoding="utf-8").read() and "https" in
+          open(fe, encoding="utf-8").read() and ALLOWED_URL_SCHEMES == ("http", "https"))
+
+
 def main():
     test_credential_chain()
     test_token_format()
@@ -458,6 +529,7 @@ def main():
     test_static_source_scan()
     test_cross_endpoint_constants()
     test_snippet_placeholders()
+    test_security_review_fixes()
     print("")
     if FAILED:
         print(f"FAILED {len(FAILED)} 项: {FAILED}")

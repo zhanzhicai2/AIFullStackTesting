@@ -68,3 +68,11 @@ INTEGRATION_NAME_MAX_LEN = 32
 CALLBACK_URL_MAX_LEN = 255
 EXTERNAL_BUILD_ID_MAX_LEN = 64
 EXTERNAL_URL_MAX_LEN = 255
+
+# 允许的 URL scheme —— `external_url` / `callback_url` 的白名单(安全审查 F1/F4)
+#
+# 这两个值都由**调用方**提供, 且 `external_url` 会被前端渲染成可点链接
+# (`RunHistoryPanel`)。不拦 scheme 就等于允许 `javascript:` / `data:` 注入 ——
+# React 18 对 `javascript:` href 只在 dev 打 warning、**不阻断**。
+# 白名单只留 http/https, 其余一律在 schema 层拒绝。
+ALLOWED_URL_SCHEMES = ("http", "https")

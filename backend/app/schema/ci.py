@@ -18,6 +18,7 @@ from typing import List, Optional
 from pydantic import BaseModel, validator
 
 from app.enums.CiEnum import (
+    ALLOWED_URL_SCHEMES,
     CALLBACK_URL_MAX_LEN,
     EXTERNAL_BUILD_ID_MAX_LEN,
     EXTERNAL_URL_MAX_LEN,
@@ -27,6 +28,26 @@ from app.enums.CiEnum import (
     WAIT_TIMEOUT_MIN_SEC,
 )
 from app.schema.base import PityModel
+
+
+def check_url_field(value: Optional[str], field_label: str, max_len: int) -> Optional[str]:
+    """
+    外部可控 URL 的统一校验: 长度 + **scheme 白名单**(安全审查 F1/F4)。
+
+    `external_url` 会被前端渲染成可点链接, `callback_url` 二期要出网 ——
+    放过 `javascript:` / `data:` / `ftp:` 等就等于给它们开了执行/出网的口子。
+    白名单只认 `http` / `https`, 权威定义在 `app/enums/CiEnum.ALLOWED_URL_SCHEMES`。
+    """
+    if value is None or value == "":
+        return None
+    if len(value) > max_len:
+        raise ValueError(f"{field_label}不能超过 {max_len} 个字符")
+    if "://" not in value:
+        raise ValueError(f"{field_label}必须是完整的 http/https 地址")
+    scheme = value.split("://", 1)[0].lower()
+    if scheme not in ALLOWED_URL_SCHEMES:
+        raise ValueError(f"{field_label}只允许 {'/'.join(ALLOWED_URL_SCHEMES)}, 不接受 {scheme}")
+    return value
 
 
 class CiIntegrationForm(BaseModel):
@@ -50,13 +71,9 @@ class CiIntegrationForm(BaseModel):
         return v
 
     @validator("callback_url")
-    def callback_url_length(cls, v):
-        # 一期只存不发(决定 Q5): 这里只校验形状, 不做任何出网校验
-        if v is None or v == "":
-            return None
-        if len(v) > CALLBACK_URL_MAX_LEN:
-            raise ValueError(f"回调地址不能超过 {CALLBACK_URL_MAX_LEN} 个字符")
-        return v
+    def callback_url_valid(cls, v):
+        # 一期只存不发(决定 Q5) —— 但 scheme 白名单现在就上, 先把二期的口子堵住
+        return check_url_field(v, "回调地址", CALLBACK_URL_MAX_LEN)
 
     @validator("plan_id")
     def plan_id_positive(cls, v):
@@ -112,9 +129,7 @@ class CiRunForm(BaseModel):
         return v
 
     @validator("external_url")
-    def external_url_length(cls, v):
-        if v is None or v == "":
-            return None
-        if len(v) > EXTERNAL_URL_MAX_LEN:
-            raise ValueError(f"外部地址不能超过 {EXTERNAL_URL_MAX_LEN} 个字符")
-        return v
+    def external_url_valid(cls, v):
+        # 安全审查 F1: 该值会被 RunHistoryPanel 渲染成可点链接,
+        # 放过 javascript:/data: 等 = 存储型链接注入
+        return check_url_field(v, "外部地址", EXTERNAL_URL_MAX_LEN)

@@ -39,6 +39,11 @@ class PityCiIntegration(PityBase):
     last_used_at = Column(TIMESTAMP, comment="最近一次校验通过的时间")
 
     __tag__ = "CI集成"
+    # ⚠️ 这三个字段**不能加 `token_hash` / `token_prefix`** —— 操作日志的
+    # `Mapper.get_fields()` 会把 `__fields__` 之外的列全部跳过, 正是靠这一点,
+    # 凭据摘要才不会被复制进 `pity_operation_log`(那张表任何登录用户都能按
+    # user_id 查)。把摘要加进 `__fields__` 会**静默**打破 data-model §5 的
+    # 「token_hash 不落日志」承诺, 且不会有任何报错。
     __fields__ = (name, project_id, plan_id)
     __show__ = 3
     __alias__ = dict(name="集成名", project_id="所属项目", plan_id="默认计划",

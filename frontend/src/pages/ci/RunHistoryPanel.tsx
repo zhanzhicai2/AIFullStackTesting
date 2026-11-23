@@ -3,7 +3,11 @@ import { Alert, Button, Empty, Space, Table, Tag, Typography } from 'antd';
 import { ReloadOutlined } from '@ant-design/icons';
 import { useModel } from '@umijs/max';
 import { CiRun, isCiRunInFlight } from '@/services/ci';
-import { CI_RUN_STATUS_COLORS, CI_RUN_STATUS_LABELS } from '@/consts/ci';
+import {
+  CI_RUN_STATUS_COLORS,
+  CI_RUN_STATUS_LABELS,
+  isSafeHttpUrl,
+} from '@/consts/ci';
 
 const { Text, Link } = Typography;
 
@@ -59,7 +63,9 @@ const RunHistoryPanel: React.FC<{ onRefresh?: () => void }> = ({ onRefresh }) =>
           return <Text type="secondary">-</Text>;
         }
         const label = r.external_build_id || r.external_url;
-        return r.external_url ? (
+        // 安全审查 F1: 只有 scheme 在白名单内才渲染成链接。
+        // `external_url` 由调用方提供, 直接进 href 等于开放 javascript:/data: 注入。
+        return isSafeHttpUrl(r.external_url) ? (
           <Link href={r.external_url} target="_blank" rel="noreferrer">
             {label}
           </Link>
