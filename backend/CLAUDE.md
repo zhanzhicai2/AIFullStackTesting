@@ -290,9 +290,33 @@ Playwright 驱动的 UI 自动化。核心约定：
 
 ## 日志
 
-使用 Loguru，通过 `logger.bind(name=Config.PITY_INFO)` / `Config.PITY_ERROR` 分流：
-- `logs/pity_info.log` — DEBUG 及以上
-- `logs/pity_error.log` — WARNING 及以上
+Loguru，按 `name` 分流到两个文件（配置集中在 `app/__init__.py` 的 `init_logging()`）：
+
+| 文件 | 级别 | 内容 |
+|------|------|------|
+| `logs/pity_info.log` | DEBUG 及以上 | 访问日志、业务 info/debug/success |
+| `logs/pity_error.log` | WARNING 及以上 | warning/error/exception、鉴权失败、未捕获异常 |
+
+轮转 `20 MB` / `10 MB`，保留 30 天（`retention`）。
+
+**日志一律走 `Log` 类**（`app/utils/logger.py`），不要裸调 `logger.xxx()`：
+
+```python
+from app.utils.logger import Log
+
+log = Log("模块名")          # 模块级, 与 executor / dao 同款
+log.info("..."); log.warning("..."); log.exception("...")
+```
+
+三条硬规矩（改日志前必读，每条都有实测依据）：
+
+1. **不能裸 `logger.bind(name=...)`，更不能 `bind(name=None)`** —— 文件 sink 的 filter 要求 `extra.name` 等于 `pity_info` / `pity_error`，绑 `None` 或不绑就只进 stdout，容器一重建全丢（2026-11-23 一次性清掉了 26 处）。而且 `INFO_FORMAT` / `ERROR_FORMAT` 要读 `extra[filename]/[func]/[line]`，`Log` 之外绑不全会直接 KeyError。
+2. **`init_logging()` 只能用 `logger.configure()`，不能先 `logger.add()` 再 `configure()`** —— configure 是替换式的，会把前面 add 的 `rotation` / `enqueue` 整个丢掉，两个文件永不轮转、无限增长。
+3. **请求体 / URL 落盘前必须过 `app/utils/log_sanitize.py`** —— `request_info` 记的是 DEBUG 级别，而 AI 日志分析（`/ai/log/cluster`，ADMIN 权限）读的正是这两个文件；不脱敏等于把密码、JWT、API Key 明文存进日志。脱敏只认键名与 URL path/query，**绝不记 password / token / api_key 的值**，也不记 reset 链接里的 token。
+
+**部署**：`ops/supervisor.conf` 的 gunicorn **必须 `-w 1`**。loguru 的 rotation 按**各进程自己的文件句柄**判断大小，两个 worker 同时触发 rename 会互相覆盖 —— 2026-11-23 实测双进程各写 1500 条只剩 1313 / 1311（**丢 12.5%**）；改用纯 append（`rotation=None`）则不丢（1500/1500）但文件无限增长。所以要么 `-w 1`（当前选择），要么 `-w 2` + 关掉 loguru rotation 改外层 logrotate。日志目录已挂卷：`ops/docker-compose.deploy.yaml` → `/home/tester/pity-data/logs/backend`、`ops/docker-compose.yaml` → `backend/logs`。
+
+**自测**：`.venv/bin/python scripts/logging_selftest.py` —— 不依赖数据库，覆盖 sink 分流、rotation/retention 配置、脱敏正反例、401/403/101/500 四条异常路径留痕、部署配置防回归。
 
 ## 数据库迁移
 
