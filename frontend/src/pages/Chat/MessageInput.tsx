@@ -48,7 +48,9 @@ const MessageInput: React.FC<Props> = ({ disabled, streaming, onSend, onStop }) 
         placeholder="输入消息... (Enter 发送, Shift + Enter 换行)"
         disabled={disabled}
         onPressEnter={(e) => {
-          // antd 的 rc-textarea 已处理输入法组合期(isComposing 时不触发), 这里只判 shift
+          // IME 组合期(中文输入法选词)按 Enter 不算发送 —— rc-textarea 不判 isComposing,
+          // 会把"选词"误当成"发送"。实测组合期 Enter 的 keydown: {key:'Enter', keyCode:13, isComposing:true}
+          if (e.nativeEvent.isComposing) return;
           if (!e.shiftKey) {
             e.preventDefault();
             send();

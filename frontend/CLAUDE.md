@@ -218,6 +218,28 @@ export default function useNewFeature() {
 
 使用 `moment`（非 dayjs）。
 
+### 输入框与 IME（中文输入法）
+
+**规则：任何"按 Enter 就提交"的输入框，必须先排除 IME 组合期**：
+
+```tsx
+onPressEnter={(e) => {
+  if (e.nativeEvent.isComposing) return;   // ← 必须有这行
+  doSomething();
+}}
+```
+
+**为什么**（Chromium 实测，见 `backend/scripts/ime_composition_probe.py`）：中文输入法选词时按 Enter，页面收到的 keydown 是 `{key: 'Enter', keyCode: 13, isComposing: true}` —— **`key === 'Enter'` 成立**，所以裸判 `e.key === 'Enter'` 会把"选词"误当成"提交"。
+
+- **antd 不会替你挡**：`rc-textarea` / `rc-input` 的 `handleKeyDown` 就是 `if (e.key === 'Enter' && onPressEnter) onPressEnter(e)`，**没有任何 `isComposing` 判断**（`rc-field-form` / `rc-select` 同样零命中）。
+- **`keyCode === 229` 这个老 guard 在 Chromium 上无效** —— 实测 `keyCode` 是 **13**，只能用 `e.nativeEvent.isComposing`。
+- 组合期按 Enter **不会插入换行**（带不带 `preventDefault` 都一样），所以提前 `return` 是安全的，不需要额外 `preventDefault`。
+- **antd `Form` 的 Enter 提交不受影响** —— `rc-field-form` 里搜不到任何 `Enter`/`onKeyDown` 处理，走浏览器原生隐式提交，原生对 IME 是安全的。**不要给 `Form` 加这个 guard**。
+- ⚠️ **AI 编程工具容易漏判**：antd 的 `onPressEnter` 是 prop 封装，裸搜 `onKeyDown` / `e.key === 'Enter'` **搜不到**，必须显式搜 `onPressEnter`。
+
+**已修的位置**（2026-11-24）：`pages/Chat/MessageInput.tsx`、`components/Table/AutoEditTable.jsx`（3 处）、`pages/account/center/index.jsx`、`pages/Mock/index.tsx`、`pages/ApiTest/Project.jsx`、`pages/BuildHistory/ReportDetail.jsx`。
+**仍未加（纯 ASCII 输入框，暂判定为低风险）**：`pages/uiTest/CaseManage/DomainModal.tsx`（域名）、`pages/Tool/NetChecker.tsx`（IP/URL）、`components/TestCase/recorder/RequestInfoList.tsx`（列筛选，搜的字段可能是中文）。
+
 ### Ant Design 写法（v5 → v6 迁移期约定）
 
 当前锁 **antd 5.29.3**（v5 终版），**尚未升 v6**。上游闸门未开：`@ant-design/pro-components` stable 2.8.10 的 peer 只到 `^5.11.2`（仅 `beta` 3.x 支持 `antd ^6`），`@umijs/max` 最新版仍声明 `antd ^4.20.6`、其 layout 插件依赖 `pro-components ^2.0.1`。

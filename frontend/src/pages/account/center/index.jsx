@@ -110,7 +110,11 @@ const TagList = ({ tags }) => {
           value={inputValue}
           onChange={handleInputChange}
           onBlur={handleInputConfirm}
-          onPressEnter={handleInputConfirm}
+          onPressEnter={(e) => {
+            // IME 组合期(中文输入法选词)按 Enter 不触发 —— rc-input 不判 isComposing
+            if (e.nativeEvent.isComposing) return;
+            handleInputConfirm();
+          }}
         />
       )}
       {!inputVisible && (

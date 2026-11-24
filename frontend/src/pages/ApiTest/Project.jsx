@@ -199,7 +199,11 @@ const Project = ({dispatch, project, loading}) => {
               <Input
                 className="borderSearch"
                 prefix={<SearchOutlined/>}
-                onPressEnter={onSearchProject}
+                onPressEnter={(e) => {
+                  // IME 组合期(中文输入法选词)按 Enter 不触发搜索 —— rc-input 不判 isComposing
+                  if (e.nativeEvent.isComposing) return;
+                  onSearchProject(e);
+                }}
                 style={{float: 'right'}}
                 placeholder="请输入项目名称"
               />

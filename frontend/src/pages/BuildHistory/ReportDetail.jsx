@@ -328,7 +328,11 @@ const ReportDetail = ({dispatch, loading, user, gconfig}) => {
                 <Col span={18}/>
                 <Col span={6}>
                   <Input prefix={<SearchOutlined/>} placeholder="请输入场景名称" className="borderSearch"
-                         onPressEnter={onSearchCase}/>
+                         onPressEnter={(e) => {
+                           // IME 组合期(中文输入法选词)按 Enter 不触发搜索 —— rc-input 不判 isComposing
+                           if (e.nativeEvent.isComposing) return;
+                           onSearchCase(e);
+                         }}/>
                 </Col>
               </Row>
               <Row gutter={[8, 8]}>

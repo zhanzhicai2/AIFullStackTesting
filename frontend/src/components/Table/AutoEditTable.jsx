@@ -51,6 +51,11 @@ export default ({columns, dataSource, setDataSource}) => {
     }
 
     const getComponent = (name, dataIndex, record, inputRef, save) => {
+      // IME 组合期(中文输入法选词)按 Enter 不触发保存 —— rc-input 不判 isComposing
+      const onPressEnterSave = (e) => {
+        if (e.nativeEvent.isComposing) return;
+        save();
+      };
       if (dataIndex === 'source') {
         return <Form.Item
           style={{
@@ -91,7 +96,7 @@ export default ({columns, dataSource, setDataSource}) => {
             },
           ]}
         >
-          <Input ref={inputRef} onPressEnter={save} disabled={record.source === 4}
+          <Input ref={inputRef} onPressEnter={onPressEnterSave} disabled={record.source === 4}
                  onBlur={save} placeholder={record.source === 4 ? '无需填写' : '请输入表达式'}/>
         </Form.Item>
       }
@@ -108,7 +113,7 @@ export default ({columns, dataSource, setDataSource}) => {
             },
           ]}
         >
-          <Input ref={inputRef} onPressEnter={save}
+          <Input ref={inputRef} onPressEnter={onPressEnterSave}
                  disabled={[4, 1, 6, 2, 3, 7].indexOf(record.source) > -1}
                  onBlur={save} placeholder={record.source === 4 ? '无需填写' : '请输入匹配项'}/>
         </Form.Item>
@@ -125,7 +130,7 @@ export default ({columns, dataSource, setDataSource}) => {
           },
         ]}
       >
-        <Input ref={inputRef} onPressEnter={save}
+        <Input ref={inputRef} onPressEnter={onPressEnterSave}
                onBlur={save} placeholder={`请输入${name}`}/>
       </Form.Item>
     }
