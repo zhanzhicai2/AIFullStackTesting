@@ -6,3 +6,10 @@ public
 dist
 .umi
 /mock
+
+# ace-builds 主题的 UMD 构建产物(ace.define + dom.importCssString),
+# 是第三方生成代码不是本项目代码 —— 里面的 var / == 是 UMD 模板的固有写法,
+# 改了下次重新生成又会被覆盖。lint 它们没有意义。
+src/components/CodeEditor/themes
+src/components/CodeEditor/AceEditor/AtomOneDark.js
+src/components/CodeEditor/AceEditor/MaterialOneDark.js

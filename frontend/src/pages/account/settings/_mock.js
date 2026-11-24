@@ -1,4 +1,3 @@
-// eslint-disable-next-line import/no-extraneous-dependencies
 const city = require('./geographic/city.json');
 
 const province = require('./geographic/province.json');

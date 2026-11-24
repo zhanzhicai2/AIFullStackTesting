@@ -37,7 +37,7 @@ export default ({columns, dataSource, setDataSource}) => {
     const [requiredMap, setRequiredMap] = useState({})
 
     useEffect(() => {
-      if (editing != null) {
+      if (editing !== null && editing !== undefined) {
         form.setFieldsValue(dataSource[editing])
       }
     }, [editing])

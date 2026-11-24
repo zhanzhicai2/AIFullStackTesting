@@ -1,4 +1,3 @@
-import { outLogin } from '@/services/ant-design-pro/api';
 import { LogoutOutlined, SettingOutlined, UserOutlined } from '@ant-design/icons';
 import { useEmotionCss } from '@ant-design/use-emotion-css';
 import { history, useModel } from '@umijs/max';
@@ -59,7 +58,8 @@ const AvatarDropdown: React.FC<GlobalHeaderRightProps> = ({ menu }) => {
    * 退出登录，并且将当前的 url 保存
    */
   const loginOut = async () => {
-    // await outLogin();
+    // 后端没有 logout 接口 —— pro 模板的 outLogin()(POST /api/login/outLogin)
+    // 不存在, 登出只清本地 JWT
     localStorage.removeItem("pityToken")
     const { search, pathname } = window.location;
     const urlParams = new URL(window.location.href).searchParams;

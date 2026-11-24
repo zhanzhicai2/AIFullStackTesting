@@ -15,9 +15,8 @@ enum ImportType {
   har = 1
 }
 
-interface DirectoryProps {
-
-}
+/** 场景目录树节点(antd TreeSelect 的 treeData) */
+type DirectoryProps = Record<string, any>;
 
 interface RecorderProps {
   recordLists: RequestInfo[];
@@ -30,7 +29,7 @@ interface RecorderState extends RecorderProps {
 
 interface RecorderDrawerProps {
   visible: boolean;
-  setVisible: Function;
+  setVisible: (visible?: boolean) => void;
   directory: Array<DirectoryProps>;
   loading?: any;
   recorder: RecorderProps;

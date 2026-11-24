@@ -67,6 +67,9 @@ const SqlOnline = ({online, dispatch, loading, leftHeight, cardHeight, tableHeig
 
   const parseNewTree = databaseSource => {
     for (let i in databaseSource) {
+      if (!Object.prototype.hasOwnProperty.call(databaseSource, i)) {
+        continue;
+      }
       if (databaseSource[i].key.indexOf('column') > -1) {
         databaseSource[i].icon =
           databaseSource[i].primary_key ?
@@ -121,28 +124,34 @@ const SqlOnline = ({online, dispatch, loading, leftHeight, cardHeight, tableHeig
   }
 
   const onLoadData = ({key, children, data, title, sql_type}) => {
-    return new Promise(async (resolve) => {
+    return new Promise((resolve) => {
       if (!key.startsWith("database_") || !children) {
         resolve();
         return;
       }
-      const child = await fetchTables(data)
-      const ans = [...databaseSource]
-      ans.forEach(item => {
-        const idx = item.children?.findIndex(v => v.key === `database_${data.id}`)
-        if (idx > -1) {
-          item.children[idx].children = child
-        }
-      })
-      dispatch({
-        type: 'online/save',
-        payload: {
-          databaseSource: ans,
-          currentDatabaseTitle: title,
-          currentDatabaseSqlType: sql_type
-        }
-      })
-      resolve();
+      // 不要用 async executor —— Promise executor 里抛错不会 reject promise, 只是变成
+      // unhandled rejection, promise 永远不 settle(Tree 的 loading 会一直转圈)。
+      fetchTables(data).then(child => {
+        const ans = [...databaseSource]
+        ans.forEach(item => {
+          const idx = item.children?.findIndex(v => v.key === `database_${data.id}`)
+          if (idx > -1) {
+            item.children[idx].children = child
+          }
+        })
+        dispatch({
+          type: 'online/save',
+          payload: {
+            databaseSource: ans,
+            currentDatabaseTitle: title,
+            currentDatabaseSqlType: sql_type
+          }
+        })
+        resolve();
+      }).catch((e) => {
+        console.error('加载表结构失败:', e);
+        resolve();
+      });
     });
 
   }

@@ -1,5 +1,3 @@
-// @ts-ignore
-import {getPageQuery} from "@/utils/utils";
 import {PityResponse, register, loginGithub} from "@/services/auth";
 import {login} from "@/services/auth";
 import {useState} from "react";

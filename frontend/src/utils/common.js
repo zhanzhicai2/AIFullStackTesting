@@ -29,7 +29,9 @@ export default {
   translateHeaders: headers => {
     const hd = {};
     for (const h in headers) {
-      hd[headers[h].key] = headers[h].value;
+      if (Object.prototype.hasOwnProperty.call(headers, h)) {
+        hd[headers[h].key] = headers[h].value;
+      }
     }
     return JSON.stringify(hd, null, 2);
   },

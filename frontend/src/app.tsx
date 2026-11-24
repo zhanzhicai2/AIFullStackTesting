@@ -14,7 +14,6 @@ import {ConfigProvider, Empty, message, Spin} from "antd";
 import IndexPage from "@/pages/IndexPage";
 import { Loading } from '@icon-park/react';
 
-const isDev = process.env.NODE_ENV === 'development';
 const loginPath = '/user/login';
 Spin.setDefaultIndicator(<Loading spin={true} theme="outline" size="36" fill="#4a90e2" strokeLinecap="butt" />)
 

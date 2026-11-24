@@ -41,7 +41,7 @@ const Oss = ({loading, dispatch, gconfig, user}) => {
       key: 'file_path',
       dataIndex: 'file_path',
       render: (file_path, record) => <a href={record.view_url}
-                                        target="_blank">{file_path}</a>
+                                        target="_blank" rel="noreferrer">{file_path}</a>
     },
     {
       title: '大小',

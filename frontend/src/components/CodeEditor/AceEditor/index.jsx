@@ -13,8 +13,11 @@ import 'ace-builds/src-noconflict/mode-text';
 
 export default class PityAceEditor extends Component {
 
+  aceEditorRef = React.createRef();
+
   componentDidMount() {
-    this.props.setEditor(this.refs);
+    // 保持旧的 this.refs 形状 —— 消费方(如 SqlOnline)按 editor.aceEditor.editor 访问
+    this.props.setEditor({aceEditor: this.aceEditorRef.current});
     addCompleter({
       getCompletions: (editor, session, pos, prefix, callback) => {
         callback(null, (this.props.tables || []).map(v => (
@@ -28,7 +31,7 @@ export default class PityAceEditor extends Component {
     const {value, language, onChange, height, readOnly, theme, useWorker} = this.props;
     return (
       <AceEditor
-        ref="aceEditor"
+        ref={this.aceEditorRef}
         mode={language || 'json'}
         theme={theme || 'material-one-dark'}
         fontSize={14}

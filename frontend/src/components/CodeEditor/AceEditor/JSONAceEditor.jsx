@@ -14,8 +14,11 @@ import "ace-builds/src-noconflict/mode-json"
 
 export default class JSONAceEditor extends Component {
 
+  aceEditorRef = React.createRef();
+
   componentDidMount() {
-    this.props.setEditor(this.refs);
+    // 保持旧的 this.refs 形状 —— 消费方按 editor.aceEditor.editor 访问
+    this.props.setEditor({aceEditor: this.aceEditorRef.current});
     addCompleter({
       getCompletions: (editor, session, pos, prefix, callback) => {
         callback(null, (this.props.tables || []).map(v => (
@@ -29,7 +32,7 @@ export default class JSONAceEditor extends Component {
     const {value, onChange, height, readOnly, theme} = this.props;
     return (
       <AceEditor
-        ref="aceEditor"
+        ref={this.aceEditorRef}
         mode='json'
         theme={theme || 'material-one-dark'}
         fontSize={14}

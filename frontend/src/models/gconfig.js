@@ -170,7 +170,7 @@ export default {
         type: 'save',
         payload: {
           options: res.data.map(v => (
-            {label: v, value: `$\{${v.key}\}`, key: v.id}
+            {label: v, value: `$\{${v.key}}`, key: v.id}
           ))
         },
       });
