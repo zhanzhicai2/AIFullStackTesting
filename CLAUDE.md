@@ -119,11 +119,11 @@ npx tsc --noEmit                               # ✅ 类型检查, 当前 0 错�
 |----------|------|------|
 | `deploy-docker.yml` | `backend/**` / `frontend/**` / `nginx/**` / `scripts/**` / `backend/ops/**` 变更 | GH Actions build 3 镜像 → push SWR → ssh pull/up |
 | `monitor-deploy.yml` | cron 每 30 分钟(可手动触发) | curl `/auth/login`,5xx/000 → GH fail → 邮件告警 |
-| `frontend-ci.yml` | `frontend/**` 变更(push main / PR) | node 20 → `npm ci --ignore-scripts` → `max setup` → **tsc 硬门禁** → **jest 硬门禁**(6 套件 / 85 用例) → ESLint(暂非阻断) + 独立 job 跑 IME 组合期浏览器探针 |
+| `frontend-ci.yml` | `frontend/**` 变更(push main / PR) | node 20 → `npm ci --ignore-scripts` → `max setup` → **tsc 硬门禁** → **jest 硬门禁**(6 套件 / 85 用例) → **ESLint 硬门禁** + 独立 job 跑 IME 组合期浏览器探针 |
 
 `deploy-docker.yml` 需要的 GitHub Secrets:`HOST`、`USERNAME`、`PASSWORD`、`SWR_ACCESS_KEY`、`SWR_SECRET_KEY`;Variables:`SWR_REGISTRY`、`SWR_ORG`、`TAG`(默认 `dev`)。三个 workflow 都支持手动 `workflow_dispatch`。
 
-> **前端此前完全没有 CI 门禁**(2026-11-24 补上)。`frontend-ci.yml` 里 ESLint 是**非阻断**的 —— 仓库存量 34 个错误(22 个旧文件)不在本次改动范围,清完再把 `continue-on-error` 去掉升级成硬门禁。**注意别用 `npm run lint` 当门禁**:它的 `lint:prettier` 是 `prettier -c --write`,会直接改文件且不因格式问题失败。
+> **前端此前完全没有 CI 门禁**(2026-11-24 补上)。ESLint 曾一度是**非阻断**的(仓库存量 34 个错误),**已于 2026-11-24 清零并升级为硬门禁** —— 新增代码带 lint 错误会直接红。**注意别用 `npm run lint` 当门禁**:它的 `lint:prettier` 是 `prettier -c --write`,会直接改文件且不因格式问题失败。
 
 
 ## 工具配置

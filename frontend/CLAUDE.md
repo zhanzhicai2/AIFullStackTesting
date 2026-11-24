@@ -162,10 +162,17 @@ npm update caniuse-lite --ignore-scripts --no-audit
 
 ### CI 门禁
 
-`.github/workflows/frontend-ci.yml`（2026-11-24 新增）：`frontend/**` 变更时触发，node 20 → `npm ci --ignore-scripts` → `npx max setup` → **tsc 硬门禁** → **jest 硬门禁** → ESLint（暂非阻断）→ 独立 job 跑 IME 探针。
+`.github/workflows/frontend-ci.yml`（2026-11-24 新增）：`frontend/**` 变更时触发，node 20 → `npm ci --ignore-scripts` → `npx max setup` → **tsc 硬门禁** → **jest 硬门禁** → **ESLint 硬门禁** → 独立 job 跑 IME 探针。
 
 - **`--ignore-scripts` 后必须单独跑 `max setup`** —— 它原本是 `postinstall`，被跳过；但 `src/.umi` 是 tsc 认 `@@/*` 别名和 jest 跑测试的前提。
-- ⚠️ **不要用 `npm run lint` 当 CI 门禁** —— 它的 `lint:prettier` 是 `prettier -c --write`，会直接改文件且不因格式问题失败，起不到门禁作用。
+- ⚠️ **不要用 `npm run lint` 当 CI 门禁** —— 它的 `lint:prettier` 是 `prettier -c --write`，会直接改文件且不因格式问题失败，起不到门禁作用。CI 里直接跑 `npx eslint --ext .js,.jsx,.ts,.tsx ./src`。
+
+### ESLint
+
+- **存量 34 个错误已于 2026-11-24 清零**，CI 的 ESLint 是硬门禁（新增代码带 lint 错误直接红）。
+- **`eslint-plugin-import` 和 `eslint-plugin-eslint-comments` 没装** —— 别写 `// eslint-disable import/no-cycle` 这类注释，ESLint 会报 "Definition for rule ... was not found"（这正是之前 6 条错误的来源，是 ant-design-pro 模板的无用遗留，已删）。
+- **ace-builds 的主题产物已加进 `.eslintignore`**（`src/components/CodeEditor/themes` + `AceEditor/{AtomOneDark,MaterialOneDark}.js`）—— 它们是 `ace.define` + `dom.importCssString` 的 UMD 生成代码，里面的 `var` / `==` 是模板固有写法，lint 它们没意义，重新生成还会被覆盖。
+- `this.refs` / 字符串 ref 不要再用（`react/no-string-refs`）。AceEditor 里改用 `React.createRef()`，但**必须保持 `{aceEditor: instance}` 的形状** —— `SqlOnline.jsx` 按 `editor.aceEditor.editor` 访问。
 
 ## 项目结构
 

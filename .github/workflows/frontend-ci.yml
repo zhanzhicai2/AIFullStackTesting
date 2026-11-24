@@ -64,13 +64,11 @@ jobs:
       - name: Unit tests
         run: npm test
 
-      # 非阻断:仓库存量 34 个 ESLint 错误(22 个文件,多为 CodeEditor/Authorized 等
-      # 旧代码的 eqeqeq / guard-for-in / no-unused-vars),不在本次改动范围内,清完
-      # 再把 continue-on-error 去掉升级成硬门禁。
+      # 硬门禁 3:ESLint。2026-11-24 已把存量 34 个错误清零(见 commit a389453 之后的
+      # chore(frontend) 系列), 现在可以当硬门禁用。
       # 注意:不要用 `npm run lint` —— 它的 lint:prettier 是 `prettier -c --write`,
       # 会直接改文件且不因格式问题失败,起不到门禁作用。
-      - name: ESLint (报告用,暂不阻断)
-        continue-on-error: true
+      - name: ESLint
         run: npx eslint --ext .js,.jsx,.ts,.tsx --format=pretty ./src
 
   ime-probe:
