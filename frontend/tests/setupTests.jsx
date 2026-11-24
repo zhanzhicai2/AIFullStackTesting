@@ -7,6 +7,16 @@
 
 global.localStorage = localStorageMock;
 
+// jsdom 不提供 TextEncoder / TextDecoder, 但 src/utils/tool.ts 的 UTF-8 编解码依赖它们
+// (浏览器里由 window 提供, jest 的 jsdom 环境没有)。从 node:util 补上。
+// 缺了它会报 `ReferenceError: TextEncoder is not defined`。
+if (typeof global.TextEncoder === 'undefined') {
+  // eslint-disable-next-line global-require
+  const { TextEncoder, TextDecoder } = require('util');
+  global.TextEncoder = TextEncoder;
+  global.TextDecoder = TextDecoder;
+}
+
 Object.defineProperty(URL, 'createObjectURL', {
   writable: true,
   value: jest.fn(),
