@@ -144,7 +144,21 @@ npx -y @ant-design/cli@6.7.2 --format json lint src --only deprecated --version 
 - **为什么不用 `baseline widely available` 查询**：umi 4 的 `@umijs/bundler-utils` **内置了一份旧 browserslist**，不认识 `baseline` 查询 —— 用它会让 `max setup` 和 `npm run build` 直接 fatal(`Unknown browser query 'baseline widely available'`)。显式版本下限任何版本都认。
 - **为什么不用 `defaults` / `> 1%`**：`> 1%` 会把 IE 11 拉进来（caniuse 的中国份额数据里 IE 11 仍 > 1%），而 **antd v5 官方早就不支持 IE 11**（antd 自己的 browserslist 是 `defaults`）。声明支持一个实际跑不了的浏览器，会误导后续决策 —— 尤其 **antd v6 硬性要求现代浏览器**。
 - **实测影响：产物几乎不变**（CSS 字节数完全一致、JS +128 字节、dist 总量不变）。旧配置本来也没产出多余前缀，**这次改动的价值是"声明不再撒谎"，不是减体积**。
-- ⚠️ `not dead` 单独写会报错(需要配合基础查询)，且排除效果依赖 caniuse-lite 版本 —— 显式下限不依赖这些。
+- ⚠️ `not dead` 单独写会报错（需要配合基础查询），且排除效果依赖 caniuse-lite 版本 —— 显式下限不依赖这些。
+
+### caniuse-lite 与 browserslist 的过期警告
+
+`caniuse-lite` 是 browserslist 的传递依赖（browserslist 声明 `^1.0.30001813`），**不用写进 `package.json`**。要升级用：
+
+```bash
+npm update caniuse-lite --ignore-scripts --no-audit
+```
+
+2026-11-24 已升到 `1.0.30001827`（`package-lock.json` 只动 3 行，`package.json` 不变）。升级后 browserslist 多识别 12 个浏览器版本（chrome 155-158 / edge 155-157 / firefox 158-160 / safari 27.1-27.2），**纯增量、无移除**，产物逐字节不变。
+
+⚠️ **"caniuse-lite is outdated" 警告还有一处消不掉** —— 只在 `npx eslint` 时出现。原因：eslint 经 `@umijs/lint` → **umi 内置的 babel 副本**（`@umijs/bundler-utils/compiled/babel/index.js`）→ umi **打包时冻结的** caniuse 快照（bundle 里内联了 8 处 `releaseDate` 数据表），**升顶层 caniuse-lite 改不动它**。`npm run build` / `max setup` / `npm test` 都已是 0 警告。嫌吵可设 `BROWSERSLIST_IGNORE_OLD_DATA=1`（但那会连带掩盖顶层副本真实的过期，**不建议**）。
+
+⚠️ **升级后必须跑 `npx max setup` 验证** —— umi 内置的 browserslist **不认识 `baseline` 查询**，用 `baseline widely available` 会让 `max setup` 和 `npm run build` 直接 fatal。顶层 `npx browserslist` 能跑**不代表构建能跑**。
 
 ### CI 门禁
 
