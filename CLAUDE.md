@@ -60,12 +60,12 @@ alembic upgrade head                          # 执行迁移
 
 ```bash
 cd frontend
-npm install
+npm install --ignore-scripts                    # monorepo 子目录必须加 --ignore-scripts
 npm run start:dev                              # 开发 (localhost:8000)
 npm run build                                  # 生产构建
 npm run lint                                   # ESLint + Prettier + tsc
 npm run lint:fix                               # 自动修复 ESLint
-npm run test                                   # Jest
+npm run test                                   # Jest(6 套件 / 85 测试)
 npm run test:coverage                          # 覆盖率
 npx tsc --noEmit                               # ✅ 类型检查, 当前 0 错误(详见 frontend/CLAUDE.md)
 ```

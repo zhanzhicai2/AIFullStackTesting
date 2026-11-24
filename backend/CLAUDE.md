@@ -329,6 +329,27 @@ log.info("..."); log.warning("..."); log.exception("...")
 - 所有 HTTP 响应 code 都在 200，业务错误通过 body 的 `code` 字段区分
 - `app/crud/__init__.py` 启动时通过 `importlib` 动态导入所有 DAO 模块
 - **CI 业务码 `111`（测试未通过）/ `112`（等待超时）与 `RunStatus` 六态的权威定义在 `app/enums/CiEnum.py`**，前端镜像 `src/consts/ci.ts` —— **改一处必须同时改另一处**（契约：`specs/004-ci/contracts/api.md` §0、§4）
+- **跨端常量现在有前端契约测试兜底**（2026-11-24 起）：`frontend/tests/contracts/` 会**直接读本仓库的 Python 源码做解析比对** ——
+  - `ci.test.ts` 解析 `app/enums/CiEnum.py` 的 `CiErrorCode` / `RunStatus`
+  - `uiTest.test.ts` 解析 `app/core/ui_executor.py` 的 `ACTIONS` / `STRATEGIES`
+  - ⚠️ **改后端常量的「写法」也会让前端测试变红**，不只是改值。解析器要求：class 内的常量形如 `NAME = <整数>`（**必须缩进**、不能加类型标注），`ACTIONS` 的每个动作字典字段顺序为 `fields` → `required` → `target` → `value`。要改格式的话，先同步改 `frontend/tests/contracts/` 里的解析正则。
+  - 尚未覆盖契约测试的镜像常量：`app/enums/MockEnum.py`、`app/enums/AIWorkbenchEnum.py`、`app/core/data_factory/generator.py` —— 这些目前仍靠人肉同步。
+
+## OSS 存储（`app/middleware/oss/`）
+
+- **实现按厂商分文件**：`OssFile`（抽象基类，`files.py`）→ `aliyun.py` / `qiniu.py` / `tencent.py` / `local.py`，由 `OssClient.get_oss_client()` 按 `configuration_*.json` 的 `oss.oss_type` 分发（单例）。
+- **访问域名从配置读，不硬编码**：`oss.endpoint` 存桶的访问域名（`http://<bucket>.hdslb.com` 或自定义域名）。原先硬编码在 `config.py` 的 `QINIU_URL` / `OSS_URL` 已于 2026-11-24 移除 —— 那两个域名已失效，导致「上传到七牛成功、但返回的链接打不开、后端自己下载也失败（`private_download_url` 的签名基于错误域名）」。
+  - ⚠️ 生产 `configuration_pro.json` 的 `oss.endpoint` 目前填的是 `http://pity.hdslb.com`（七牛默认域名）—— **需与七牛控制台里 `pity` 桶的实际绑定域名核对**；若控制台用的是自定义域名，改配置即可，不用改代码。
+- **dev 环境用本地文件存储**：`oss_type = "local"`，文件落 `backend/data/oss/`（已 gitignore），对外 URL `/oss/files/{key}`（`main.py` 挂 `StaticFiles`；nginx 的 `location ^/(...|oss|...)/` 与前端 dev proxy 的 `'/oss/'` 都会代理到后端，浏览器可直接当 `<img src>` 用）。原先 dev 配的 `gitee` 是废弃的 —— Gitee 对象存储早已下线，且不在 `OssEnum` 里，调接口直接抛「不支持的oss类型」。
+- ⚠️ **改 `configuration_*.json` 后必须清 Redis 缓存才生效**：`SystemConfiguration.get_config()` 带 **24 小时** Redis 缓存（key `pity:SystemConfiguration:configuration`），改完 JSON 不清缓存会继续读旧值（本轮改 `oss_type` 时就踩到过）。
+  ```bash
+  redis-cli -a <密码> del pity:SystemConfiguration:configuration
+  ```
+- `OssFile.get_real_path()` 的语义：`base_path` 给了就用它**顶替** `pity` 前缀（所以头像的 key 是 `avatar/user_1.png` 而不是 `pity/avatar/user_1.png`）—— 各厂商实现都遵守这个约定，改动时别破坏。
+- ✅ **目录缺失 / 不可写都不会让后端起不来**（实测验证）：
+  - `data/oss` 或 `data/oss/pity` 不存在 → **自动创建**（`main.py` 建根目录，`LocalOss.create_file` 建子目录）。
+  - 目录**不可写** → `main.py` 里「建目录 + 挂 `/oss/files` 静态路由」整段包在 `try/except` 里，失败只告警（`本地 OSS 目录不可用(...)`）。**必须这样兜**：生产走云厂商时根本不需要这个目录，而容器里 `/pity` 可能只读、进程可能以非 root 运行（无写权限）—— 一旦抛异常就是**模块级 import 失败，整个后端起不来**。真需要本地存储时（`oss_type=local`）再由上传接口报错，错误信息清晰。
+- ⚠️ **Docker 部署注意**：生产 compose（`backend/ops/docker-compose.deploy.yaml`）的 backend **没有挂载 data 目录** —— local 存储若上生产，文件会落在容器可写层、**容器重建即丢**（与 logs 挂载同类问题）。要用 local 得上三步：① 宿主机 `mkdir -p /home/tester/pity-data/oss`（**别让 docker 自动建目录 —— 它建的是 root 属主，容器内非 root 进程写不进去**）② 挂载 `- /home/tester/pity-data/oss:/pity/data/oss` ③ 确认属主与容器内运行用户一致。
 
 ## 安全审查检查点
 
