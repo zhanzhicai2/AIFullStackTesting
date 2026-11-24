@@ -130,6 +130,29 @@ npx -y @ant-design/cli@6.7.2 --format json lint src --only deprecated --version 
 - `config/defaultSettings.ts` — 布局主题、主色、API/WS 地址、应用标题
 - `src/consts/config.ts` — 所有应用常量（角色、优先级、断言类型、用例状态、构造器类型、布局配置等）
 
+### 浏览器支持（browserslist）
+
+`package.json` 的 `browserslist` 用**显式版本下限**，锚定 Baseline "widely available" 的门槛（Chrome 125 / Edge 125 / Firefox 126 / Safari 17.5）：
+
+```json
+"browserslist": [
+  "chrome >= 125", "edge >= 125", "firefox >= 126",
+  "safari >= 17.5", "ios_saf >= 17.5", "and_chr >= 125"
+]
+```
+
+- **为什么不用 `baseline widely available` 查询**：umi 4 的 `@umijs/bundler-utils` **内置了一份旧 browserslist**，不认识 `baseline` 查询 —— 用它会让 `max setup` 和 `npm run build` 直接 fatal(`Unknown browser query 'baseline widely available'`)。显式版本下限任何版本都认。
+- **为什么不用 `defaults` / `> 1%`**：`> 1%` 会把 IE 11 拉进来（caniuse 的中国份额数据里 IE 11 仍 > 1%），而 **antd v5 官方早就不支持 IE 11**（antd 自己的 browserslist 是 `defaults`）。声明支持一个实际跑不了的浏览器，会误导后续决策 —— 尤其 **antd v6 硬性要求现代浏览器**。
+- **实测影响：产物几乎不变**（CSS 字节数完全一致、JS +128 字节、dist 总量不变）。旧配置本来也没产出多余前缀，**这次改动的价值是"声明不再撒谎"，不是减体积**。
+- ⚠️ `not dead` 单独写会报错(需要配合基础查询)，且排除效果依赖 caniuse-lite 版本 —— 显式下限不依赖这些。
+
+### CI 门禁
+
+`.github/workflows/frontend-ci.yml`（2026-11-24 新增）：`frontend/**` 变更时触发，node 20 → `npm ci --ignore-scripts` → `npx max setup` → **tsc 硬门禁** → **jest 硬门禁** → ESLint（暂非阻断）→ 独立 job 跑 IME 探针。
+
+- **`--ignore-scripts` 后必须单独跑 `max setup`** —— 它原本是 `postinstall`，被跳过；但 `src/.umi` 是 tsc 认 `@@/*` 别名和 jest 跑测试的前提。
+- ⚠️ **不要用 `npm run lint` 当 CI 门禁** —— 它的 `lint:prettier` 是 `prettier -c --write`，会直接改文件且不因格式问题失败，起不到门禁作用。
+
 ## 项目结构
 
 ```
@@ -237,8 +260,7 @@ onPressEnter={(e) => {
 - **antd `Form` 的 Enter 提交不受影响** —— `rc-field-form` 里搜不到任何 `Enter`/`onKeyDown` 处理，走浏览器原生隐式提交，原生对 IME 是安全的。**不要给 `Form` 加这个 guard**。
 - ⚠️ **AI 编程工具容易漏判**：antd 的 `onPressEnter` 是 prop 封装，裸搜 `onKeyDown` / `e.key === 'Enter'` **搜不到**，必须显式搜 `onPressEnter`。
 
-**已修的位置**（2026-11-24）：`pages/Chat/MessageInput.tsx`、`components/Table/AutoEditTable.jsx`（3 处）、`pages/account/center/index.jsx`、`pages/Mock/index.tsx`、`pages/ApiTest/Project.jsx`、`pages/BuildHistory/ReportDetail.jsx`。
-**仍未加（纯 ASCII 输入框，暂判定为低风险）**：`pages/uiTest/CaseManage/DomainModal.tsx`（域名）、`pages/Tool/NetChecker.tsx`（IP/URL）、`components/TestCase/recorder/RequestInfoList.tsx`（列筛选，搜的字段可能是中文）。
+**已修的位置**（2026-11-24，**全仓库 11 处 `onPressEnter` 全部覆盖**）：`pages/Chat/MessageInput.tsx`、`components/Table/AutoEditTable.jsx`（3 处）、`pages/account/center/index.jsx`、`pages/Mock/index.tsx`、`pages/ApiTest/Project.jsx`、`pages/BuildHistory/ReportDetail.jsx`、`pages/uiTest/CaseManage/DomainModal.tsx`、`pages/Tool/NetChecker.tsx`、`components/TestCase/recorder/RequestInfoList.tsx`。
 
 ### Ant Design 写法（v5 → v6 迁移期约定）
 

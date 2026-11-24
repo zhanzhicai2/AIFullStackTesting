@@ -318,6 +318,20 @@ log.info("..."); log.warning("..."); log.exception("...")
 
 **自测**：`.venv/bin/python scripts/logging_selftest.py` —— 不依赖数据库，覆盖 sink 分流、rotation/retention 配置、脱敏正反例、401/403/101/500 四条异常路径留痕、部署配置防回归。
 
+## 浏览器行为探针（前端相关）
+
+`scripts/ime_composition_probe.py` —— **纯浏览器行为探针，不依赖数据库也不依赖后端服务**（虽然放在 `backend/scripts/` 下，但检查的是前端输入框依赖的浏览器契约）：
+
+```bash
+.venv/bin/python scripts/ime_composition_probe.py   # 7 项断言, 退出码 0/1
+```
+
+用 Playwright + CDP 的 `Input.imeSetComposition` 模拟中文输入法组合，锁住一条契约：**组合期按 Enter，页面收到的 keydown 是 `{key:'Enter', keyCode:13, isComposing:true}`**（且 value 还是拼音串）。前端所有「按 Enter 就提交」的输入框（antd 的 `onPressEnter`）都靠 `e.nativeEvent.isComposing` 挡「选词」被误当「提交」—— antd 的 rc-textarea / rc-input **不替你判断**。
+
+**什么时候要跑**：改了任何 `onPressEnter` / `onKeyDown` 的提交逻辑，或升级了 antd / rc-* 之后。前端规范见 `frontend/CLAUDE.md` 的「输入框与 IME」小节。CI 里由 `.github/workflows/frontend-ci.yml` 的 `ime-probe` job 自动跑。
+
+⚠️ **必须 `channel="chromium"`** —— 本机只装了完整 chromium，没装 `chromium_headless_shell`，用默认 `launch()` 会报「Executable doesn't exist」。
+
 ## 数据库迁移
 
 项目配置了 Alembic（`alembic.ini` + `alembic/`），但启动时也会通过 `Base.metadata.create_all` 自动建表。Model 的 `__fields__`、`__tag__`、`__alias__`、`__show__` 类属性控制操作日志的展示字段和关联关系。
