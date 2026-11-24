@@ -61,7 +61,7 @@ const GConfig = ({gconfig, user, loading, dispatch}) => {
             Modal.info({
               title: `${record.key}`,
               width: 500,
-              bodyStyle: {padding: -12},
+              styles: {body:{padding: -12}},
               content: <SyntaxHighlighter language="json" style={vs2015}>{record.value}</SyntaxHighlighter>
             })
           }}>查看</a>
@@ -72,7 +72,7 @@ const GConfig = ({gconfig, user, loading, dispatch}) => {
             Modal.info({
               title: `${record.key}`,
               width: 500,
-              bodyStyle: {padding: -12},
+              styles: {body:{padding: -12}},
               content: <SyntaxHighlighter language="yaml" style={vs2015}>{record.value}</SyntaxHighlighter>
             })
           }}>查看</a>
@@ -114,7 +114,7 @@ const GConfig = ({gconfig, user, loading, dispatch}) => {
       required: true,
       component: <Select defaultValue={currentEnv} placeholder="选择对应环境">
         {
-          envList.map(v => <Option value={v.id}>{v.name}</Option>)
+          envList.map(v => <Option key={v.id} value={v.id}>{v.name}</Option>)
         }
       </Select>,
       type: 'select',
@@ -241,7 +241,7 @@ const GConfig = ({gconfig, user, loading, dispatch}) => {
                                           save({currentEnv: e});
                                         }}>
               {
-                envList.map(v => <Option value={v.id.toString()}>{v.name}</Option>)
+                envList.map(v => <Option key={v.id} value={v.id.toString()}>{v.name}</Option>)
               }
             </Select>} placeholder='请输入key' value={name} onChange={e => {
               save({name: e.target.value});

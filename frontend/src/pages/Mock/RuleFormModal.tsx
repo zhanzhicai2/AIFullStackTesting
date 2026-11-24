@@ -72,7 +72,7 @@ const RuleFormModal: React.FC<Props> = ({ open, record, projectId, saving, onCan
       onCancel={onCancel}
       onOk={handleOk}
       confirmLoading={saving}
-      destroyOnClose
+      destroyOnHidden
       width={720}
     >
       <Form form={form} layout="vertical" style={{ marginTop: 8 }}>

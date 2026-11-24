@@ -180,7 +180,7 @@ const UiCaseManage: React.FC = () => {
       <Row gutter={12}>
         <Col span={6}>
           <Card
-            bordered={false}
+            variant="borderless"
             title="目录"
             extra={
               <Space>
@@ -235,7 +235,7 @@ const UiCaseManage: React.FC = () => {
         </Col>
         <Col span={18}>
           <Card
-            bordered={false}
+            variant="borderless"
             title="UI 用例"
             extra={
               <Button
@@ -284,7 +284,7 @@ const UiCaseManage: React.FC = () => {
         title="新建目录"
         onCancel={() => setDirModalOpen(false)}
         onOk={() => dirForm.submit()}
-        destroyOnClose
+        destroyOnHidden
       >
         <Form form={dirForm} layout="vertical" onFinish={onCreateDirectory} preserve={false}>
           <Form.Item name="name" label="目录名" rules={[{ required: true, message: '请输入目录名' }]}>

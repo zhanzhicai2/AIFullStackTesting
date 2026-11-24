@@ -345,7 +345,7 @@ const PostmanBody = ({
     }
     return <Row style={{marginTop: 12}}>
       <Col span={24}>
-        <Card bodyStyle={{padding: 0}}>
+        <Card styles={{body:{padding: 0}}}>
           <JSONAceEditor value={body} onChange={e => setBody(e)} height="20vh" setEditor={setEditor}/>
         </Card>
       </Col>
@@ -382,7 +382,7 @@ const PostmanBody = ({
           Object.keys(currentAddress).map(key => <Option value={key} key={key} label={key}><Tooltip title={
             <div>
               {
-                Object.keys(currentAddress[key]).map(v => <p>
+                Object.keys(currentAddress[key]).map(v => <p key={v}>
                   {envMap[v]}: {currentAddress[key][v]}
                 </p>)
               }

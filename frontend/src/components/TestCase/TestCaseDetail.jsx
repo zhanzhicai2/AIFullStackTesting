@@ -177,7 +177,7 @@ export default ({caseId, userMap, setExecuteStatus, project, checkedKeys}) => {
                         <Descriptions.Item label='更新时间'>{data.updated_at}</Descriptions.Item>
                         <Descriptions.Item label='用例标签' span={2}>{
                           <div style={{textAlign: 'center'}}>
-                            {data.tag ? data.tag.split(',').map(v => <Tag style={{marginRight: 4}}
+                            {data.tag ? data.tag.split(',').map(v => <Tag key={v} style={{marginRight: 4}}
                                                                           color='blue'>{v}</Tag>) : '无'}
                           </div>
                         }</Descriptions.Item>

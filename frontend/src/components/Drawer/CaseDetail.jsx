@@ -18,7 +18,7 @@ export default ({ form, layout, formName, record, onFinish, fields, body, setBod
       >
         <Row gutter={[8, 8]}>
           {
-            fields.map(item => <Col span={item.span || 24}>
+            fields.map(item => <Col key={item.name} span={item.span || 24}>
               <FormItem label={item.label} colon={item.colon || true}
                         rules={
                           [{ required: item.required, message: item.message }]

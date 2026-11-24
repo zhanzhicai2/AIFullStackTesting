@@ -73,7 +73,7 @@ const HTTPConstructor = ({
           </Row>
           <Row gutter={8}>
             <Col span={24}>
-              <Card bordered>
+              <Card variant="outlined">
                 <PostmanBody bodyType={bodyType} setBodyType={setBodyType} form={form} caseInfo={{}} body={body}
                              setBody={setBody} headers={headers} setHeaders={setHeaders} save={false}/>
               </Card>

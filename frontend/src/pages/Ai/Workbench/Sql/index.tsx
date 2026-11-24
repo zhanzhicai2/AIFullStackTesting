@@ -122,7 +122,7 @@ const SqlPage: React.FC = () => {
     <div className="ai-workbench-page">
       <Row gutter={12}>
         <Col xs={24} xl={8}>
-          <Card bordered={false} title="分析输入">
+          <Card variant="borderless" title="分析输入">
             <Space.Compact style={{ width: '100%', marginBottom: 12 }}>
               <Select
                 style={{ flex: 1 }}
@@ -173,7 +173,7 @@ const SqlPage: React.FC = () => {
           </Card>
 
           <Card
-            bordered={false}
+            variant="borderless"
             title="慢查询排行"
             extra={
               <Button size="small" type="text" onClick={loadSlow}>
@@ -213,7 +213,7 @@ const SqlPage: React.FC = () => {
 
         <Col xs={24} xl={16}>
           <Spin spinning={generatingSql}>
-            <Card bordered={false} title="分析结果">
+            <Card variant="borderless" title="分析结果">
               {!result ? (
                 <Empty
                   image={Empty.PRESENTED_IMAGE_SIMPLE}

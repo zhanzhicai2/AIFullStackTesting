@@ -193,7 +193,7 @@ const TestcaseData = ({caseId, testcase, loading, dispatch, currentEnv, createMo
                message="数据管理接受一串key-value的数据，供大家在case里面使用这些变量，用${变量}的方式。" showIcon/>
       </FormForModal>
       <Col span={24}>
-        <Card bordered={false}>
+        <Card variant="borderless">
           <Row gutter={8}>
             <Col span={6}>
               <Button type="primary" onClick={() => {

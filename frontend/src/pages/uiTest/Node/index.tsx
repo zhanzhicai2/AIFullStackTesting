@@ -78,7 +78,7 @@ const UiNodeList: React.FC = () => {
   return (
     <div className="ui-page">
       <Card
-        bordered={false}
+        variant="borderless"
         title="执行节点"
         extra={
           <Space>

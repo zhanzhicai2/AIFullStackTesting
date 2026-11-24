@@ -5,7 +5,7 @@ import PostmanBody from "@/components/Postman/PostmanBody";
 
 const PostmanForm = (props) => {
   return (
-    <Card bordered={props.bordered}>
+    <Card variant={props.bordered ? 'borderless' : 'outlined'}>
       <PostmanBody {...props}/>
     </Card>
   );

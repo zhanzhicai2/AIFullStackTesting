@@ -247,35 +247,35 @@ const ReportDetail = ({dispatch, loading, user, gconfig}) => {
             <Col span={17}>
               <Row gutter={8}>
                 <Col span={4}>
-                  <Card hoverable bordered={false} className={styles.statisticCard}>
+                  <Card hoverable variant="borderless" className={styles.statisticCard}>
                     <Statistic title="用例总数" valueStyle={{marginLeft: 8}}
                                value={reportDetail.failed_count + reportDetail.success_count + reportDetail.error_count}
                                prefix={<IconFont type="icon-yongliliebiao"/>}/>
                   </Card>
                 </Col>
                 <Col span={4}>
-                  <Card hoverable bordered={false} className={styles.statisticCard}>
+                  <Card hoverable variant="borderless" className={styles.statisticCard}>
                     <Statistic title="成功数"
                                value={reportDetail.success_count}
                                prefix={<CheckCircleTwoTone twoToneColor='rgb(63, 205, 127)'/>}/>
                   </Card>
                 </Col>
                 <Col span={4}>
-                  <Card hoverable bordered={false} className={styles.statisticCard}>
+                  <Card hoverable variant="borderless" className={styles.statisticCard}>
                     <Statistic title="失败数" valueStyle={{marginLeft: 8}}
                                value={reportDetail.failed_count}
                                prefix={<CloseCircleTwoTone twoToneColor='rgb(230, 98, 97)'/>}/>
                   </Card>
                 </Col>
                 <Col span={4}>
-                  <Card hoverable bordered={false} className={styles.statisticCard}>
+                  <Card hoverable variant="borderless" className={styles.statisticCard}>
                     <Statistic title="错误数" valueStyle={{marginLeft: 8}}
                                value={reportDetail.error_count}
                                prefix={<AlertTwoTone twoToneColor="rgb(250, 207, 76)"/>}/>
                   </Card>
                 </Col>
                 <Col span={5}>
-                  <Card hoverable bordered={false} className={styles.statisticCard}>
+                  <Card hoverable variant="borderless" className={styles.statisticCard}>
                     <Statistic title="测试通过率" suffix="%"
                                value={common.calPercent(reportDetail.success_count, reportDetail.failed_count + reportDetail.success_count + reportDetail.error_count)}
                                prefix={common.calPercent(reportDetail.success_count, reportDetail.failed_count + reportDetail.success_count + reportDetail.error_count) > 90

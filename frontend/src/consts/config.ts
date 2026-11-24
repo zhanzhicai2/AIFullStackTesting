@@ -1,5 +1,6 @@
 import defaultSettings from '../../config/defaultSettings';
 import { AI_ASSERT_TYPES, AI_PRIORITIES } from '@/consts/aiWorkbench';
+import defaultAvatar from '@/assets/defaultAvatar.svg';
 
 // const isDev = () => {
 //   return window.location.href.indexOf("localhost") > -1 || window.location.href.indexOf("127.0.0.1") > -1;
@@ -35,10 +36,12 @@ const CONFIG = {
   URL,
   WS_URL: getWss(),
   ICONFONT: defaultSettings.iconfontUrl,
-  OSS_URL: 'http://oss.pity.fun/pity',
-  AVATAR_URL: 'https://static.pity.fun/picture/20220809231905.png',
+  // 默认头像用本地资源 —— 原来的 https://static.pity.fun/picture/*.png 是平台作者的
+  // 公网服务, 内网部署时不可达(ERR_CONNECTION_TIMED_OUT), 会让 13 处用户头像 + 6 处
+  // 项目头像全部破图。改成本地 SVG 后彻底不依赖外网。
+  AVATAR_URL: defaultAvatar,
   DOCUMENT_URL: '',
-  PROJECT_AVATAR_URL: 'https://static.pity.fun/picture/20220809232253.png',
+  PROJECT_AVATAR_URL: defaultAvatar,
   ROLE: {
     0: 'user',
     1: 'admin',
@@ -181,7 +184,6 @@ const CONFIG = {
     2: 'icon-qiyeweixin',
     3: 'icon-feishu',
   },
-  WECHAT_URL: 'https://static.pity.fun/picture/20220813204341.png',
 };
 
 export default CONFIG;

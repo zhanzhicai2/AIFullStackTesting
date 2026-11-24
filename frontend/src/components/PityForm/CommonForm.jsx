@@ -32,7 +32,7 @@ export default ({left, right, formName, record, onFinish, fields, pForm}) => {
             <Row gutter={8}>
                 {
                     fields.map(item =>
-                        <Col span={item.span || 24}>
+                        <Col key={item.name} span={item.span || 24}>
                             <FormItem label={item.label} colon={item.colon || true}
                                       rules={
                                           [{required: item.required, message: item.message}]

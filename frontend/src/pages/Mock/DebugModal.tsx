@@ -61,7 +61,7 @@ const DebugModal: React.FC<Props> = ({ open, projectId, preview, onCancel }) => 
         </Button>
       }
       width={720}
-      destroyOnClose
+      destroyOnHidden
     >
       <Form form={form} layout="vertical" style={{ marginTop: 8 }}>
         <Form.Item name="method" label="请求方法" rules={[{ required: true, message: '请选择方法' }]}>

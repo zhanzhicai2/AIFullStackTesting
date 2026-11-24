@@ -155,7 +155,7 @@ const UiExecutionCenter: React.FC = () => {
   return (
     <div className="ui-page">
       <Card
-        bordered={false}
+        variant="borderless"
         title="执行中心"
         extra={
           <Space>

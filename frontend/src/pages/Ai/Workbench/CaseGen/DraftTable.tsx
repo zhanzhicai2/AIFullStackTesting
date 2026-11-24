@@ -101,7 +101,7 @@ const DraftTable: React.FC<DraftTableProps> = ({
 
   return (
     <Card
-      bordered={false}
+      variant="borderless"
       title="用例草稿"
       extra={
         <Space>

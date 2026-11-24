@@ -203,7 +203,7 @@ const Center = () => {
       <Row gutter={24}>
         <Col lg={7} md={24}>
           <Card
-            bordered={false}
+            variant="borderless"
             style={{
               marginBottom: 24,
             }}
@@ -246,7 +246,7 @@ const Center = () => {
         <Col lg={17} md={24}>
           <Card
             className={styles.tabsCard}
-            bordered={false}
+            variant="borderless"
             tabList={operationTabList}
             activeTabKey={tabKey}
             onTabChange={(_tabKey) => {

@@ -289,7 +289,7 @@ const Postman = ({loading: gloading, gconfig, dispatch}) => {
     }
     return <Row style={{marginTop: 12}}>
       <Col span={24}>
-        <Card bodyStyle={{padding: 0}}>
+        <Card styles={{body:{padding: 0}}}>
           <JSONAceEditor value={body} onChange={e => setBody(e)} height="20vh" setEditor={setEditor}/>
         </Card>
       </Col>

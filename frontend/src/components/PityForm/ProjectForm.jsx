@@ -51,7 +51,7 @@ const ProjectForm = ({left, right, formName, record, reloadData, onFinish, field
                 <Col span={6}/>
             </Row>
             {
-                fields.map(item => <Row>
+                fields.map(item => <Row key={item.name}>
                     <Col span={6}/>
                     <Col span={12}>
                         <FormItem label={item.label} colon={item.colon || true}

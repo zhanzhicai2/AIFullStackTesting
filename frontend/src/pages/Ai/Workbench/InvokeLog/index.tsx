@@ -27,7 +27,7 @@ const InvokeLogPage: React.FC = () => {
   return (
     <div className="ai-workbench-page">
       <Card
-        bordered={false}
+        variant="borderless"
         title="模型调用流水"
         extra={
           <Select

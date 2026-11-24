@@ -624,7 +624,7 @@ const TestCaseBottom = ({
                   />
                 </Col>
                 <Col span={8}>
-                  <Card style={{height: 400, overflow: 'auto'}} hoverable bordered={false}>
+                  <Card style={{height: 400, overflow: 'auto'}} hoverable variant="borderless">
                     {preConstructor.filter((item) => item.enable).length === 0 ? (
                       <NoRecord2 desc="暂无开启的前置步骤"/>
                     ) : (
@@ -781,7 +781,7 @@ const TestCaseBottom = ({
                   />
                 </Col>
                 <Col span={8}>
-                  <Card style={{height: 400, overflow: 'auto'}} hoverable bordered={false}>
+                  <Card style={{height: 400, overflow: 'auto'}} hoverable variant="borderless">
                     {postConstructor.filter((item) => item.enable).length === 0 ? (
                       <NoRecord desc="暂无开启的后置步骤"/>
                     ) : (

@@ -627,8 +627,8 @@ const TestCaseDirectory = ({testcase, gconfig, project, user, loading, dispatch}
       ) : (
         <Card
           style={{height: '100%', minHeight: 600}}
-          bodyStyle={{padding: 0}}
-          bordered={false}
+          styles={{body:{padding: 0}}}
+          variant="borderless"
         >
           <Row>
             <FormForModal
@@ -644,7 +644,7 @@ const TestCaseDirectory = ({testcase, gconfig, project, user, loading, dispatch}
               formName="root"
             />
             <Drawer
-              bodyStyle={{padding: 0}}
+              styles={{body:{padding: 0}}}
               open={addCaseVisible}
               width={1300}
               title="添加场景用例"

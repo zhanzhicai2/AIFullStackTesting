@@ -74,7 +74,7 @@ const ModelFormModal: React.FC<Props> = ({ open, record, onCancel, onOk }) => {
       title={isEdit ? `模型参数设置 - ${record?.name}` : '自定义添加模型'}
       onCancel={onCancel}
       onOk={onSubmit}
-      destroyOnClose
+      destroyOnHidden
       width={520}
     >
       <Form form={form} layout="vertical" preserve={false}>

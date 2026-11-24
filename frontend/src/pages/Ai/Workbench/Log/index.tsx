@@ -149,7 +149,7 @@ const LogPage: React.FC = () => {
     <div className="ai-workbench-page">
       <Row gutter={12}>
         <Col xs={24} xl={8}>
-          <Card bordered={false} title="日志来源">
+          <Card variant="borderless" title="日志来源">
             <Radio.Group
               value={source}
               onChange={(e) => setSource(e.target.value)}
@@ -242,7 +242,7 @@ const LogPage: React.FC = () => {
           </Card>
 
           {spikes.length > 0 ? (
-            <Card bordered={false} title="异常突增时段">
+            <Card variant="borderless" title="异常突增时段">
               <Space direction="vertical" size={4}>
                 {spikes.map((spike, index) => (
                   <Tag key={index} color="red">
@@ -257,7 +257,7 @@ const LogPage: React.FC = () => {
         <Col xs={24} xl={16}>
           <Spin spinning={generatingLog}>
             <Card
-              bordered={false}
+              variant="borderless"
               title="错误簇"
               extra={
                 <Text type="secondary">

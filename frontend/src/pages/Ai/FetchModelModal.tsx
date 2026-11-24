@@ -62,7 +62,7 @@ const FetchModelModal: React.FC<Props> = ({ open, loading, models, existed, titl
       title={title || '选择要添加的模型'}
       width={720}
       onCancel={onCancel}
-      destroyOnClose
+      destroyOnHidden
       okText={`导入 (${selected.length})`}
       okButtonProps={{ disabled: selected.length === 0 }}
       onOk={() => onOk(selected, typeMap)}

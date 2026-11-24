@@ -554,7 +554,7 @@ const CaseEditor: React.FC<CaseEditorProps> = (props) => {
       open={open}
       width="86%"
       onClose={onCancel}
-      destroyOnClose
+      destroyOnHidden
       title={caseId ? '编辑 UI 用例' : '新建 UI 用例'}
       extra={
         <Space>
@@ -794,7 +794,7 @@ const CaseEditor: React.FC<CaseEditorProps> = (props) => {
         title="新建目录"
         onCancel={() => setDirModalOpen(false)}
         onOk={() => dirForm.submit()}
-        destroyOnClose
+        destroyOnHidden
       >
         <Form form={dirForm} layout="vertical" onFinish={onCreateDirectory} preserve={false}>
           <Form.Item name="name" label="目录名" rules={[{ required: true, message: '请输入目录名' }]}>

@@ -221,7 +221,7 @@ const TestCaseComponent = ({loading, dispatch, user, testcase, gconfig}) => {
                                             caseId={case_id} formData={formData} setFormData={setFormData}
                                             bodyType={bodyType} setBodyType={setBodyType} setSuffix={setSuffix}
                                             headers={headers} setHeaders={setHeaders} onSubmit={onSubmit}/> :
-                    <Card style={{margin: -8}} bodyStyle={{padding: 24}} title={
+                    <Card style={{margin: -8}} styles={{body:{padding: 24}}} title={
                       <span>{directoryName} {caseInfo.name ? ` > ${caseInfo.name}` : ''} {CASE_TYPE[caseInfo.case_type]}</span>}
                           extra={<div>
                             <Button onClick={() => {

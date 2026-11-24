@@ -65,7 +65,7 @@ const Detail = ({name, record}: DetailProps) => {
     Modal.info({
       title: name,
       width: 700,
-      bodyStyle: {padding: -12},
+      styles: {body:{padding: -12}},
       content: <SyntaxHighlighter language="json" style={vs2015}>{record[name]}</SyntaxHighlighter>
     })
   }}>详细</a>

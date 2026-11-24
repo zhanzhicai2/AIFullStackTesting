@@ -96,7 +96,7 @@ const DemandForm: React.FC<DemandFormProps> = ({
   const thirdParty = models.some((item) => item.vendor_code !== 'ollama');
 
   return (
-    <Card bordered={false} title="需求输入">
+    <Card variant="borderless" title="需求输入">
       {noModel ? (
         <Alert
           type="warning"

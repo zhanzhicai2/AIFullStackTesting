@@ -90,7 +90,7 @@ const BugPage: React.FC = () => {
     <div className="ai-workbench-page">
       <Row gutter={12}>
         <Col xs={24} xl={8}>
-          <Card bordered={false} title="分析输入">
+          <Card variant="borderless" title="分析输入">
             {noModel ? (
               <Alert
                 type="warning"
@@ -163,7 +163,7 @@ const BugPage: React.FC = () => {
           </Card>
 
           {historyBlock ? (
-            <Card bordered={false} title="历史规律">
+            <Card variant="borderless" title="历史规律">
               <Descriptions size="small" column={1} bordered>
                 <Descriptions.Item label="判定">
                   <Tag color={historyBlock.pattern === 'consistent_failure' ? 'red' : 'blue'}>
@@ -206,7 +206,7 @@ const BugPage: React.FC = () => {
 
         <Col xs={24} xl={16}>
           <Spin spinning={generatingBug}>
-            <Card bordered={false} title="分析结论">
+            <Card variant="borderless" title="分析结论">
               {!result ? (
                 <Empty
                   image={Empty.PRESENTED_IMAGE_SIMPLE}

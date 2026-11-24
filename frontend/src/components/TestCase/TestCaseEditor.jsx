@@ -58,7 +58,7 @@ const TestCaseEditor = ({
                 </>}>
         <Row gutter={[8, 8]}>
           {
-            fields.CaseDetail.map(item => <Col span={item.span || 24}>
+            fields.CaseDetail.map(item => <Col key={item.name} span={item.span || 24}>
               <FormItem label={item.label} colon={item.colon || true}
                         labelCol={{span: 8}} wrapperCol={{span: 16}}
                         rules={

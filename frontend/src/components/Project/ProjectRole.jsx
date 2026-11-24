@@ -89,10 +89,10 @@ const ProjectRole = ({project, roles, users, fetchData}) => {
 
   const permission = (item) => {
     if (item.project_role === 'OWNER') {
-      return [<Tag color='blue' size="large">负责人</Tag>];
+      return [<Tag key="owner" color='blue' size="large">负责人</Tag>];
     }
     return [
-      <Select style={{width: 80}} value={CONFIG.PROJECT_ROLE_MAP[item.project_role]} onChange={(data) => {
+      <Select key="role-select" style={{width: 80}} value={CONFIG.PROJECT_ROLE_MAP[item.project_role]} onChange={(data) => {
         onUpdateRole(item, data);
       }}>
         {
@@ -101,6 +101,7 @@ const ProjectRole = ({project, roles, users, fetchData}) => {
         }
       </Select>,
       <Popconfirm
+        key="role-delete"
         title="确定要删除该角色吗?"
         onConfirm={() => {
           confirm(item)

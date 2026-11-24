@@ -159,7 +159,7 @@ const Workspace = ({user, dispatch}) => {
   return <PageContainer content={getContent(currentUser)} breadcrumb={null} extraContent={<ExtraContent/>}>
     <Row gutter={16}>
       <Col span={16}>
-        <Card title={<div><strong>关注中的测试计划</strong> ({followPlan.length}个)</div>} bodyStyle={{minHeight: 400}}>
+        <Card title={<div><strong>关注中的测试计划</strong> ({followPlan.length}个)</div>} styles={{body:{minHeight: 400}}}>
           <Row gutter={8}>
             {
               followPlan.length === 0 ?
@@ -168,7 +168,7 @@ const Workspace = ({user, dispatch}) => {
                          description={<span>你还没有关注测试计划, 赶紧去 <a href="/#/apiTest/testplan">关注</a> 一个吧！</span>}/>
                 </Col> :
                 followPlan.map(item =>
-                  <Col span={24}>
+                  <Col key={item.plan.id} span={24}>
                     <Card size="small" hoverable style={{marginBottom: 16}}
                           title={<a href="/#/apiTest/testplan"
                                     style={{fontSize: 16}}>{item.plan.name}</a>}>

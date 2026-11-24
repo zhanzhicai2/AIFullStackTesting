@@ -222,7 +222,7 @@ export default ({loading, treeData, fetchData, projectData, userMap}) => {
                     onFinish={onSaveAssert} onCancel={() => setAssertModal(false)}/>
       <Row style={{marginTop: -8}}>
         <Col span={8}>
-          <Card bodyStyle={{padding: 12, minHeight: 800, maxHeight: 800, overflowY: 'auto'}} style={{border: "none"}}>
+          <Card styles={{body:{padding: 12, minHeight: 800, maxHeight: 800, overflowY: 'auto'}}} style={{border: "none"}}>
             <ProfessionalTree gData={treeData} checkable={true} AddButton={AddButton}
                               searchValue={searchValue} onSelect={onSelectKeys}
                               setSearchValue={setSearchValue} checkedKeys={checkedKeys}
@@ -232,7 +232,7 @@ export default ({loading, treeData, fetchData, projectData, userMap}) => {
         </Col>
         <Col span={16}>
           <Card style={{marginTop: -8, borderRight: 'none', borderBottom: 'none', borderTop: 'none'}}
-                bodyStyle={{padding: 12, minHeight: 800, maxHeight: 800, overflowY: 'auto'}}>
+                styles={{body:{padding: 12, minHeight: 800, maxHeight: 800, overflowY: 'auto'}}}>
             {
               RenderView(mode)
             }

@@ -275,7 +275,7 @@ const IntegrationPanel: React.FC<{ onIssued?: () => void }> = ({ onIssued }) => 
         onOk={submitCreate}
         confirmLoading={submitting}
         okText="签发"
-        destroyOnClose
+        destroyOnHidden
       >
         <Form form={form} layout="vertical">
           <Form.Item

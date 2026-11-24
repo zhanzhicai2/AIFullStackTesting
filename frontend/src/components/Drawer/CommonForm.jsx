@@ -28,7 +28,7 @@ export default ({ title, width, left, right, formName, record, onFinish, loading
   };
   return (
     <Drawer
-      destroyOnClose confirmLoading={loading}
+      destroyOnHidden confirmLoading={loading}
       footer={
         <div
           style={{

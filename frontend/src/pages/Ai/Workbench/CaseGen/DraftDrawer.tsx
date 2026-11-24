@@ -80,7 +80,7 @@ const DraftDrawer: React.FC<DraftDrawerProps> = ({
       width={720}
       open={open}
       onClose={onClose}
-      destroyOnClose
+      destroyOnHidden
       extra={
         <Space>
           <Button onClick={onClose}>关闭</Button>

@@ -247,7 +247,7 @@ const DataFactory: React.FC = () => {
     <div className="df-page">
       <Row gutter={12}>
         <Col span={6}>
-          <Card bordered={false} styles={{ body: { padding: 12 } }}>
+          <Card variant="borderless" styles={{ body: { padding: 12 } }}>
             <DatasetList
               datasets={datasets}
               current={current}
@@ -268,7 +268,7 @@ const DataFactory: React.FC = () => {
           </Card>
         </Col>
         <Col span={18}>
-          <Card bordered={false} styles={{ body: { padding: 12 } }}>
+          <Card variant="borderless" styles={{ body: { padding: 12 } }}>
             <DatasetForm
               dataset={creating ? null : current}
               saving={saving}

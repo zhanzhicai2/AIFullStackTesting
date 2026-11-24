@@ -88,7 +88,7 @@ const DatasetForm: React.FC<Props> = ({
   return (
     <Card
       title={dataset ? `编辑数据集 · ${dataset.name}` : '新建数据集'}
-      bordered={false}
+      variant="borderless"
       extra={
         <Space>
           <Button icon={<TableOutlined />} onClick={onImportFromTable}>
@@ -171,7 +171,7 @@ const DatasetForm: React.FC<Props> = ({
         <Card
           size="small"
           title="字段规则"
-          bordered
+          variant="outlined"
           style={{ background: '#fff' }}
           extra={
             <Space size={4} wrap>

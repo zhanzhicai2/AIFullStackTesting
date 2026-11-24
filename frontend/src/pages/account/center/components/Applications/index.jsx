@@ -96,9 +96,9 @@ const Applications = () => {
         <List.Item key={item.id}>
           <Card
             hoverable
-            bodyStyle={{
+            styles={{body:{
               paddingBottom: 20,
-            }}
+            }}}
             actions={[
               <Tooltip key="download" title="下载">
                 <DownloadOutlined />

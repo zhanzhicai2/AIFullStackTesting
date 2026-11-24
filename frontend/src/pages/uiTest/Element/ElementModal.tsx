@@ -54,7 +54,7 @@ const ElementModal: React.FC<ElementModalProps> = (props) => {
       onCancel={onCancel}
       onOk={() => form.submit()}
       confirmLoading={saving}
-      destroyOnClose
+      destroyOnHidden
       width={560}
     >
       <Form form={form} layout="vertical" onFinish={onSubmit} preserve={false}>

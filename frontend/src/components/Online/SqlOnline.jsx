@@ -159,7 +159,7 @@ const SqlOnline = ({online, dispatch, loading, leftHeight, cardHeight, tableHeig
         setTheme(e);
       }}>
         {
-          CONFIG.EDITOR_THEME.map(v => <Option value={v}>{v}</Option>)
+          CONFIG.EDITOR_THEME.map(v => <Option key={v} value={v}>{v}</Option>)
         }
       </Select>
       <TooltipIcon icon={<PlayCircleTwoTone twoToneColor="#67C23A"/>}
@@ -182,7 +182,7 @@ const SqlOnline = ({online, dispatch, loading, leftHeight, cardHeight, tableHeig
           tip="数据加载中, 请耐心等待..." size="large">
       <Row gutter={12}>
         <Col span={8} style={{display: 'table-cell'}}>
-          <Card title="数据库列表" bodyStyle={{height: leftHeight || 676, overflowY: 'auto'}} size="small">
+          <Card title="数据库列表" styles={{body:{height: leftHeight || 676, overflowY: 'auto'}}} size="small">
             <DirectoryTree treeData={databaseSource}
                            loadData={onLoadData}
                            onSelect={(e, data) => {
@@ -200,7 +200,7 @@ const SqlOnline = ({online, dispatch, loading, leftHeight, cardHeight, tableHeig
           </Card>
         </Col>
         <Col span={16} style={{display: 'table-cell'}}>
-          <Card bodyStyle={{height: cardHeight || 288, overflowY: 'auto', padding: 0}}
+          <Card styles={{body:{height: cardHeight || 288, overflowY: 'auto', padding: 0}}}
                 title={currentDatabase !== null ? <span>{<IconFont style={{fontSize: 14, marginRight: 4}}
                                                                    type={currentDatabaseSqlType === 0 ? 'icon-mysql6' : 'icon-PostgreSQL'}/>}
                     {currentDatabaseTitle}</span> :
@@ -219,7 +219,7 @@ const SqlOnline = ({online, dispatch, loading, leftHeight, cardHeight, tableHeig
 
           </Card>
           <Card style={{marginTop: 12}}
-                bodyStyle={{height: tableHeight || 370, overflowY: 'auto', padding: "8px 24px"}}>
+                styles={{body:{height: tableHeight || 370, overflowY: 'auto', padding: "8px 24px"}}}>
             <Tabs defaultActiveKey="1">
               <TabPane key="1" tab={<span><Data theme="outline" size="13" fill="#333"/> 执行结果</span>}>
                 {

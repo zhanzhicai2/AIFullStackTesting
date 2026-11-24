@@ -13,7 +13,7 @@ interface ScrollCardProps {
 }
 
 const ScrollCard: React.FC<PropsWithChildren<ScrollCardProps>> = (props: ScrollCardProps & Props) => {
-  return <Card {...props} bodyStyle={{height: '100%', overflowX: 'hidden'}}>
+  return <Card {...props} styles={{body:{height: '100%', overflowX: 'hidden'}}}>
     {
       props.hideOverflowX ?
         <Scrollbars autoHide

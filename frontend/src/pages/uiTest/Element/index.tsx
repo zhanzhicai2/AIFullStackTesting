@@ -204,7 +204,7 @@ const UiElementPage: React.FC = () => {
       <Row gutter={12}>
         <Col span={6}>
           <Card
-            bordered={false}
+            variant="borderless"
             title="页面"
             extra={
               <Space>
@@ -298,7 +298,7 @@ const UiElementPage: React.FC = () => {
         </Col>
         <Col span={18}>
           <Card
-            bordered={false}
+            variant="borderless"
             title={currentPage ? `元素 · ${currentPage.name}` : '元素'}
             extra={
               <Button
@@ -360,7 +360,7 @@ const UiElementPage: React.FC = () => {
         onCancel={() => setPageModalOpen(false)}
         onOk={() => pageForm.submit()}
         confirmLoading={saving}
-        destroyOnClose
+        destroyOnHidden
       >
         <Form form={pageForm} layout="vertical" onFinish={onSavePage} preserve={false}>
           <Form.Item name="name" label="页面名" rules={[{ required: true, message: '请输入页面名' }]}>

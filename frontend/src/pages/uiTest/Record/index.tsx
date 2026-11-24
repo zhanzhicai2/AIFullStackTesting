@@ -126,7 +126,7 @@ const UiRecordImport: React.FC = () => {
     <div className="ui-page">
       <Row gutter={12}>
         <Col span={14}>
-          <Card bordered={false} title="录制脚本">
+          <Card variant="borderless" title="录制脚本">
             <Space direction="vertical" size={12} style={{ width: '100%' }}>
               <Alert
                 type="info"
@@ -194,7 +194,7 @@ const UiRecordImport: React.FC = () => {
           </Card>
         </Col>
         <Col span={10}>
-          <Card bordered={false} title="导入结果">
+          <Card variant="borderless" title="导入结果">
             {!result ? (
               <div className="ui-empty-hint">
                 <Empty image={Empty.PRESENTED_IMAGE_SIMPLE} description="还没有导入过" />
