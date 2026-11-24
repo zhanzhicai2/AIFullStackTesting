@@ -6,15 +6,19 @@ from awaits.awaitable import awaitable
 from qiniu import Auth, put_stream, BucketManager
 
 from app.middleware.oss import OssFile
-from config import Config
 
 
 class QiniuOss(OssFile):
     _base_path = "pity"
 
-    def __init__(self, access_key_id: str, access_key_secret: str, bucket: str):
+    def __init__(self, access_key_id: str, access_key_secret: str, bucket: str, domain: str = None):
         self.auth = Auth(access_key_id, access_key_secret)
         self.bucket = bucket
+        # 桶的访问域名 —— 由 OssClient 从配置(oss.endpoint)传进来, 不再硬编码。
+        # 以前写死的是 static.pity.fun / oss.pity.fun, 两个域名都已失效:
+        # 上传能成功(走七牛 API), 但存库的链接打不开、后端自己下载也失败
+        # (private_download_url 的签名基于这个域名)。
+        self.domain = (domain or f"http://{bucket}.hdslb.com").rstrip("/")
         self.bucket_manager = BucketManager(self.auth)
 
     @staticmethod
@@ -31,11 +35,10 @@ class QiniuOss(OssFile):
         ret, info = put_stream(token, key, QiniuOss._convert_to_stream(content), file_name, len(content))
         if ret['key'] != key:
             raise Exception("上传失败")
-        return QiniuOss.get_url(key), len(content)
+        return self.get_url(key), len(content)
 
-    @staticmethod
-    def get_url(key):
-        return f"{Config.QINIU_URL}/{key}"
+    def get_url(self, key):
+        return f"{self.domain}/{key}"
 
     @awaitable
     def update_file(self, filepath: str, content: bytes, base_path: str = None):
@@ -56,7 +59,7 @@ class QiniuOss(OssFile):
         exists, _ = self.bucket_manager.stat(self.bucket, key)
         if exists is None:
             raise Exception("文件不存在")
-        base_url = '%s/%s/%s' % (Config.OSS_URL, self.bucket, filepath)
+        base_url = f"{self.domain}/{self.bucket}/{filepath}"
         url = self.auth.private_download_url(base_url, expires=3600 * 24 * 365)
         content, real_name = await self.download_object(key, url)
         return content, real_name
@@ -79,7 +82,7 @@ class QiniuOss(OssFile):
         if exists is None:
             raise Exception("文件不存在")
         async with aiohttp.ClientSession() as session:
-            basic_url = '%s/%s/%s' % (Config.OSS_URL, self.bucket, filepath)
+            basic_url = f"{self.domain}/{self.bucket}/{filepath}"
             async with session.request("GET", basic_url, timeout=15, ssl=False) as resp:
                 if resp.status != 200:
                     raise Exception("download file failed")

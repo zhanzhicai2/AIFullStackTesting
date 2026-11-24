@@ -1,4 +1,5 @@
 import asyncio
+import os
 from mimetypes import guess_type
 from os.path import isfile
 
@@ -100,6 +101,21 @@ pity.include_router(mock_service_router)
 # 聊天流式接口刻意不挂 request_info: 它会把 POST body 写进 DEBUG 日志,
 # prompt 明文落盘不合适
 pity.include_router(ai_chat_router)
+
+# 本地 OSS 静态目录 —— dev 环境 oss_type=local 时, 上传的文件落在这里,
+# 通过 /oss/files/{key} 直接对外提供(nginx 的 location ^/(...|oss|...)/ 与
+# 前端 dev proxy 的 '/oss/' 都会把它代理到后端, 所以浏览器可直接当 <img src> 用)。
+#
+# ⚠️ **创建失败绝不能让后端起不来**: 生产走云厂商(qiniu/aliyun/cos)时这个目录根本用不到,
+# 而容器里 /pity 可能是只读的、或进程以非 root 运行(无写权限) —— 此时 makedirs 会抛
+# PermissionError, 而这里是**模块级执行**, 抛出去 = 整个后端 import 失败、进程起不来。
+# 所以: 失败只告警, 真正需要本地存储时(oss_type=local)再由上传接口报错, 错误信息清晰。
+try:
+    os.makedirs(Config.OSS_LOCAL_DIR, exist_ok=True)
+    pity.mount("/oss/files", StaticFiles(directory=Config.OSS_LOCAL_DIR), name="oss-files")
+except (OSError, RuntimeError) as e:
+    startup.warning(f"本地 OSS 目录不可用({e}) —— 仅 oss_type=local 时需要它, "
+                    f"云厂商存储不受影响")
 
 # pity.mount("/statics", StaticFiles(directory="statics"), name="statics")
 

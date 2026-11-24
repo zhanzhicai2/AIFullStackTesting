@@ -2,6 +2,7 @@ from app.core.configuration import SystemConfiguration
 from app.enums.OssEnum import OssEnum
 from app.middleware.oss.aliyun import AliyunOss
 from app.middleware.oss.files import OssFile
+from app.middleware.oss.local import LocalOss
 from app.middleware.oss.qiniu import QiniuOss
 from app.middleware.oss.tencent import TencentCos
 
@@ -31,9 +32,15 @@ class OssClient(object):
             if oss_type == OssEnum.ALIYUN.value:
                 cls._client = AliyunOss(access_key_id, access_key_secret, endpoint, bucket)
             elif oss_type == OssEnum.QINIU.value:
-                cls._client = QiniuOss(access_key_id, access_key_secret, bucket)
+                # 桶的访问域名从配置读(oss.endpoint); 没配就回退到七云默认域名。
+                # ⚠️ 以前这里用的是硬编码的 QINIU_URL, 而那个域名(static.pity.fun)已失效 ——
+                # 上传能成功(走七牛 API), 但返回的链接打不开、后端自己下载也失败。
+                domain = endpoint or f"http://{bucket}.hdslb.com"
+                cls._client = QiniuOss(access_key_id, access_key_secret, bucket, domain)
             elif oss_type == OssEnum.TENCENT.value:
                 cls._client = TencentCos(access_key_id, access_key_secret, endpoint, bucket)
+            elif oss_type == OssEnum.LOCAL.value:
+                cls._client = LocalOss()
             else:
-                raise Exception("不支持的oss类型")
+                raise Exception(f"不支持的oss类型: {oss_type}")
         return cls._client

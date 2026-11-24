@@ -78,10 +78,18 @@ class BaseConfig(BaseSettings):
 
     SERVER_REPORT = "http://localhost:8000/#/record/report/"
 
-    OSS_URL = "http://oss.pity.fun"
+    # OSS 本地存储根目录 —— dev 环境 oss_type=local 时用(见 configuration_dev.json)。
+    OSS_LOCAL_DIR = os.path.join(ROOT, 'data', 'oss')
+    # 本地文件的对外 URL 前缀 —— 走 /oss/ 前缀, nginx 与前端 dev proxy 都已代理该前缀
+    OSS_LOCAL_URL_PREFIX = "/oss/files"
 
-    # 七牛云链接地址，如果采用七牛oss，需要自行替换
-    QINIU_URL = "https://static.pity.fun"
+    # ⚠️ 原先这里硬编码过两个常量(现已移除):
+    #   OSS_URL = "http://oss.pity.fun"          # 用于拼下载/读取 URL
+    #   QINIU_URL = "https://static.pity.fun"    # 用于拼对外访问 URL
+    # 两个域名均已失效, 且作者自己的注释就写着「如果采用七牛 oss, 需要自行替换」——
+    # 但生产配了 qiniu 却一直没换, 导致「上传到七牛成功、但返回的链接打不开、
+    # 后端自己下载也失败(private_download_url 的签名基于错误域名)」。
+    # 现在访问域名统一从 configuration_*.json 的 oss.endpoint 读, 换域名不用改代码。
 
     RELATION = "pity_relation"
     ALIAS = "__alias__"

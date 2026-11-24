@@ -142,3 +142,6 @@ dmypy.json
 .playwright-cli/
 
 conf/pro.env
+
+# 本地 OSS 存储目录(dev 环境 oss_type=local 时, 上传的文件落在这里)
+data/oss/
