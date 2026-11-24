@@ -92,7 +92,11 @@ const DomainModal: React.FC<DomainModalProps> = (props) => {
           placeholder="example.com"
           value={input}
           onChange={(e) => setInput(e.target.value)}
-          onPressEnter={onAdd}
+          onPressEnter={(e) => {
+            // IME 组合期(中文输入法选词)按 Enter 不触发 —— rc-input 不判 isComposing
+            if (e.nativeEvent.isComposing) return;
+            onAdd();
+          }}
         />
         <Button type="primary" icon={<PlusOutlined />} loading={saving} onClick={onAdd}>
           添加

@@ -100,7 +100,11 @@ const RequestInfoList: React.FC<RequestInfoProps> = ({dataSource, dispatch, load
           placeholder={`搜索 ${dataIndex}`}
           value={selectedKeys[0]}
           onChange={e => setSelectedKeys(e.target.value ? [e.target.value] : [])}
-          onPressEnter={() => handleSearch(selectedKeys as string[], confirm, dataIndex)}
+          onPressEnter={(e) => {
+            // IME 组合期(中文输入法选词)按 Enter 不触发 —— rc-input 不判 isComposing
+            if (e.nativeEvent.isComposing) return;
+            handleSearch(selectedKeys as string[], confirm, dataIndex);
+          }}
           style={{marginBottom: 8, display: 'block'}}
         />
         <Space>

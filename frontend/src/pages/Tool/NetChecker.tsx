@@ -90,7 +90,11 @@ const NetChecker: React.FC = () => {
           <Input
             value={target}
             onChange={(e) => setTarget(e.target.value)}
-            onPressEnter={submit}
+            onPressEnter={(e) => {
+              // IME 组合期(中文输入法选词)按 Enter 不触发 —— rc-input 不判 isComposing
+              if (e.nativeEvent.isComposing) return;
+              submit();
+            }}
             placeholder="IP / 域名 / 完整 URL, 例如 192.168.1.1 或 https://api.example.com/v1"
             style={{ fontFamily: 'monospace' }}
             allowClear
